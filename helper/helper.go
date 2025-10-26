@@ -74,6 +74,27 @@ func ScanEachRowUserAndRoleIntoRoleUser(rows *sql.Rows) (*types.User, *types.Rol
 	return u, nil, nil
 }
 
+func ScanEachRowIntoBook(rows *sql.Rows) (*types.Book, error) {
+	b := new(types.Book)
+
+	err := rows.Scan(
+		&b.ID,
+		&b.IdBuku,
+		&b.JudulBuku,
+		&b.CoverBuku,
+		&b.Penulis,
+		&b.Pengarang,
+		&b.Tahun,
+		&b.CreatedAt,
+		&b.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
 func GetUserByID(id string, db *sql.DB) (*types.User, error) {
 	rows, err := db.Query("SELECT * FROM users WHERE id = ?", id)
 	if err != nil {

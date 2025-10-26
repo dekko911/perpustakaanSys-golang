@@ -15,7 +15,7 @@ func RateLimitMiddleware(timer rate.Limit, attempts int) func(http.Handler) http
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if !limiter.Allow() {
-				utils.WriteJSONError(w, http.StatusTooManyRequests, errors.New("Too many requests!"))
+				utils.WriteJSONError(w, http.StatusTooManyRequests, errors.New("too many requests"))
 				return
 			}
 
