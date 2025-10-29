@@ -13,11 +13,17 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
+	"github.com/rs/xid"
 )
 
 type Handler struct {
 	store types.UserStore
 }
+
+const (
+	COK = http.StatusOK
+	OK  = "OK"
+)
 
 func NewHandler(store types.UserStore) *Handler {
 	return &Handler{
@@ -53,12 +59,12 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	u, err := h.store.GetUserWithRolesByEmail(payload.Email)
 	if err != nil {
-		utils.WriteJSONError(w, http.StatusBadRequest, errors.New("Wrong email!"))
+		utils.WriteJSONError(w, http.StatusBadRequest, errors.New("wrong email"))
 		return
 	}
 
 	if !middleware.CompareHashedPassword(u.Password, []byte(payload.Password)) {
-		utils.WriteJSONError(w, http.StatusBadRequest, errors.New("Wrong password!"))
+		utils.WriteJSONError(w, http.StatusBadRequest, errors.New("wrong password"))
 		return
 	}
 
@@ -68,10 +74,10 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, map[string]any{
-		"code":   http.StatusOK,
-		"token":  token,
-		"status": "OK",
+	utils.WriteJSON(w, COK, utils.JsonData{
+		Code:   COK,
+		Status: OK,
+		Token:  token,
 	})
 }
 
@@ -84,9 +90,9 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, map[string]any{
-		"code":    http.StatusOK,
-		"message": "Successful Logout!",
+	utils.WriteJSON(w, COK, utils.JsonData{
+		Code:    COK,
+		Message: "You've been Logout!",
 	})
 }
 
@@ -109,22 +115,10 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 		Password: r.FormValue("password"),
 	}
 
-	file, header, err := r.FormFile("avatar")
+	file, header, errFile := r.FormFile("avatar")
 
-	if err == http.ErrMissingFile {
+	if errFile == http.ErrMissingFile {
 		fileName = "-"
-	}
-
-	if err == nil {
-		defer file.Close()
-
-		ext := filepath.Ext(header.Filename)
-		fileName = utils.Filename + ext
-
-		dst, _ := os.Create("./assets/public/images/" + fileName)
-		defer dst.Close()
-
-		io.Copy(dst, file)
 	}
 
 	if err := utils.Validate.Struct(payload); err != nil {
@@ -133,8 +127,7 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = h.store.GetUserWithRolesByEmail(payload.Email)
-	if err == nil {
+	if _, err := h.store.GetUserWithRolesByEmail(payload.Email); err == nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, fmt.Errorf("user with email %s already exists", payload.Email))
 		return
 	}
@@ -145,19 +138,32 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.store.CreateUser(&types.User{
+	if errFile == nil {
+		defer file.Close()
+
+		randomString := xid.New().String()
+
+		ext := filepath.Ext(header.Filename)
+		fileName = randomString + ext
+
+		dst, _ := os.Create("./assets/public/images/" + fileName)
+		defer dst.Close()
+
+		io.Copy(dst, file)
+	}
+
+	if err := h.store.CreateUser(&types.User{
 		Name:     payload.Name,
 		Email:    payload.Email,
 		Password: hashPass,
 		Avatar:   fileName,
-	})
-	if err != nil {
+	}); err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusCreated, map[string]any{
-		"code":    http.StatusCreated,
-		"message": "User Created!",
+	utils.WriteJSON(w, http.StatusCreated, utils.JsonData{
+		Code:    http.StatusCreated,
+		Message: "User Registered!",
 	})
 }

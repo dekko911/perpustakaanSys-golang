@@ -56,6 +56,33 @@ func (s *Store) GetRoleByID(id string) (*types.Role, error) {
 		}
 	}
 
+	if r.ID != id {
+		return nil, fmt.Errorf("role not found")
+	}
+
+	return r, nil
+}
+
+func (s *Store) GetRoleByName(name string) (*types.Role, error) {
+	rows, err := s.db.Query("SELECT * FROM roles WHERE name = ?", name)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	r := new(types.Role)
+	for rows.Next() {
+		r, err = helper.ScanEachRowIntoRole(rows)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if r.ID == "" {
+		return nil, fmt.Errorf("role not found")
+	}
+
 	return r, nil
 }
 
@@ -64,27 +91,21 @@ func (s *Store) CreateRole(r *types.Role) error {
 		r.ID = uuid.NewString()
 	}
 
-	stmt, err := s.db.Prepare("INSERT INTO roles (id, name) VALUES (?,?)")
+	_, err := s.db.Exec("INSERT INTO roles (id, name) VALUES (?,?)", r.ID, r.Name)
 	if err != nil {
 		return err
 	}
 
-	defer stmt.Close()
-
-	_, err = stmt.Exec(r.ID, r.Name)
-	return err
+	return nil
 }
 
 func (s *Store) UpdateRole(id string, r *types.Role) error {
-	stmt, err := s.db.Prepare("UPDATE roles SET name = ? WHERE id = ?")
+	_, err := s.db.Exec("UPDATE roles SET name = ? WHERE id = ?", r.Name, id)
 	if err != nil {
 		return err
 	}
 
-	defer stmt.Close()
-
-	_, err = stmt.Exec(r.Name, id)
-	return err
+	return nil
 }
 
 func (s *Store) DeleteRole(id string) error {
@@ -99,7 +120,7 @@ func (s *Store) DeleteRole(id string) error {
 	}
 
 	if rows == 0 {
-		return fmt.Errorf("role with id:%s not found", id)
+		return fmt.Errorf("role not found")
 	}
 
 	return nil

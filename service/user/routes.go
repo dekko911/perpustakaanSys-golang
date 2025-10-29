@@ -13,11 +13,17 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
+	"github.com/rs/xid"
 )
 
 type Handler struct {
 	store types.UserStore
 }
+
+const (
+	COK = http.StatusOK
+	OK  = "OK"
+)
 
 func NewHandler(store types.UserStore) *Handler {
 	return &Handler{
@@ -46,10 +52,10 @@ func (h *Handler) handleGetUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, map[string]any{
-		"code":   http.StatusOK,
-		"users":  users,
-		"status": "OK",
+	utils.WriteJSON(w, COK, utils.JsonData{
+		Code:   COK,
+		Data:   users,
+		Status: OK,
 	})
 }
 
@@ -62,10 +68,10 @@ func (h *Handler) handleGetUserWithRolesByID(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, map[string]any{
-		"code":   http.StatusOK,
-		"user":   user,
-		"status": "OK",
+	utils.WriteJSON(w, COK, utils.JsonData{
+		Code:   COK,
+		Data:   user,
+		Status: OK,
 	})
 }
 
@@ -78,10 +84,10 @@ func (h *Handler) handleGetProfileUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, map[string]any{
-		"code":   http.StatusOK,
-		"user":   user,
-		"status": "OK",
+	utils.WriteJSON(w, COK, utils.JsonData{
+		Code:   COK,
+		Data:   user,
+		Status: OK,
 	})
 }
 
@@ -103,34 +109,35 @@ func (h *Handler) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		Password: r.FormValue("password"),
 	}
 
-	file, header, err := r.FormFile("avatar")
-
-	if err == http.ErrMissingFile {
-		fileName = "-"
-		return
-	}
-
-	if err == nil {
-		defer file.Close()
-
-		ext := filepath.Ext(header.Filename)
-		fileName = utils.Filename + ext
-
-		dst, _ := os.Create("./assets/public/images/" + fileName)
-		defer dst.Close()
-
-		io.Copy(dst, file)
-	}
-
 	if err := utils.Validate.Struct(payload); err != nil {
 		errors := err.(validator.ValidationErrors)
 		utils.WriteJSONError(w, http.StatusUnprocessableEntity, errors)
 		return
 	}
 
-	if _, err = h.store.GetUserWithRolesByEmail(payload.Email); err != nil {
+	if _, err := h.store.GetUserWithRolesByEmail(payload.Email); err == nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("user with email %s already exists", payload.Email))
 		return
+	}
+
+	file, header, err := r.FormFile("avatar")
+
+	if err == http.ErrMissingFile {
+		fileName = "-"
+	}
+
+	if err == nil {
+		defer file.Close()
+
+		randomString := xid.New().String()
+
+		ext := filepath.Ext(header.Filename)
+		fileName = randomString + ext
+
+		dst, _ := os.Create("./assets/public/images/" + fileName)
+		defer dst.Close()
+
+		io.Copy(dst, file)
 	}
 
 	hashPass, err := middleware.HashPassword(payload.Password)
@@ -145,19 +152,18 @@ func (h *Handler) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		Password: hashPass,
 		Avatar:   fileName,
 	}); err != nil {
-		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusCreated, map[string]any{
-		"code":    http.StatusCreated,
-		"message": "User Created!",
+	utils.WriteJSON(w, http.StatusCreated, utils.JsonData{
+		Code:    http.StatusCreated,
+		Message: "User Created!",
 	})
 }
 
 func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	userID := vars["userID"]
+	userID := mux.Vars(r)["userID"]
 
 	var (
 		payload types.PayloadForUpdateUser
@@ -166,7 +172,7 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	)
 
 	if r.Method != http.MethodPost {
-		utils.WriteJSONError(w, http.StatusMethodNotAllowed, errors.New("Method doesn't allowed."))
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, errors.New("method doesn't allowed"))
 		return
 	}
 
@@ -193,32 +199,6 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	file, header, err := r.FormFile("avatar")
-
-	if err == http.ErrMissingFile {
-		fileName = u.Avatar
-		return
-	}
-
-	if err == nil {
-		defer file.Close()
-
-		fileImg := "./assets/images/" + fileName
-
-		if err := os.Remove(fileImg); err != nil {
-			utils.WriteJSONError(w, http.StatusNotFound, err)
-			return
-		}
-
-		ext := filepath.Ext(header.Filename)
-		fileName = utils.Filename + ext
-
-		dst, _ := os.Create("./assets/public/images/" + fileName)
-		defer dst.Close()
-
-		io.Copy(dst, file)
-	}
-
 	hashPass, err := middleware.HashPassword(payload.Password)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
@@ -235,25 +215,51 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		u.Password = hashPass
 	}
 
+	file, header, err := r.FormFile("avatar")
+
+	if err == http.ErrMissingFile {
+		fileName = u.Avatar
+	}
+
+	if err == nil {
+		defer file.Close()
+
+		fileImg := "./assets/public/images/" + u.Avatar
+
+		if err := os.Remove(fileImg); err != nil {
+			utils.WriteJSONError(w, http.StatusNotFound, err)
+			return
+		}
+
+		randomString := xid.New().String()
+
+		ext := filepath.Ext(header.Filename)
+		fileName = randomString + ext
+
+		dst, _ := os.Create("./assets/public/images/" + fileName)
+		defer dst.Close()
+
+		io.Copy(dst, file)
+	}
+
 	if err := h.store.UpdateUser(userID, &types.User{
-		Name:     payload.Name,
-		Email:    payload.Email,
-		Password: hashPass,
+		Name:     u.Name,
+		Email:    u.Email,
+		Password: u.Password,
 		Avatar:   fileName,
 	}); err != nil {
-		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, map[string]any{
-		"code":    http.StatusOK,
-		"message": "User Updated!",
+	utils.WriteJSON(w, COK, utils.JsonData{
+		Code:    COK,
+		Message: "User Updated!",
 	})
 }
 
 func (h *Handler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	userID := vars["userID"]
+	userID := mux.Vars(r)["userID"]
 
 	u, err := h.store.GetUserWithRolesByID(userID)
 	if err != nil {
@@ -267,23 +273,20 @@ func (h *Handler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if role == "admin" {
-		utils.WriteJSONError(w, http.StatusForbidden, errors.New("You can't delete admin!"))
+		utils.WriteJSONError(w, http.StatusForbidden, errors.New("you can't delete admin"))
 		return
 	}
 
 	fileName := "./assets/public/images/" + u.Avatar
-	if err := os.Remove(fileName); err != nil {
-		utils.WriteJSONError(w, http.StatusNotFound, err)
-		return
-	}
+	os.Remove(fileName)
 
-	if err := h.store.DeleteUser(u.ID); err != nil {
+	if err := h.store.DeleteUser(userID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, map[string]any{
-		"code":    http.StatusOK,
-		"message": "User Deleted!",
+	utils.WriteJSON(w, COK, utils.JsonData{
+		Code:    COK,
+		Message: "User Deleted!",
 	})
 }

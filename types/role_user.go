@@ -2,7 +2,7 @@ package types
 
 type RoleUserStore interface {
 	// relation method many to many with roles.
-	GetRoleByUserID(userID string) (*Role, error)
+	GetUserWithRoleByUserID(userID string) (*User, error)
 	AssignRoleIntoUser(userID, roleID string) error
 	DeleteRoleFromUser(userID, roleID string) error
 }

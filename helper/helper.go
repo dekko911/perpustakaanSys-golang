@@ -44,7 +44,14 @@ func ScanEachRowIntoRole(rows *sql.Rows) (*types.Role, error) {
 }
 
 func ScanEachRowUserAndRoleIntoRoleUser(rows *sql.Rows) (*types.User, *types.Role, error) {
-	var roleID sql.NullString
+	var (
+		roleID   sql.NullString
+		roleName sql.NullString
+
+		roleCreatedAt sql.NullTime
+		roleUpdatedAt sql.NullTime
+	)
+
 	u := new(types.User)
 	r := new(types.Role)
 
@@ -58,16 +65,19 @@ func ScanEachRowUserAndRoleIntoRoleUser(rows *sql.Rows) (*types.User, *types.Rol
 		&u.CreatedAt,
 		&u.UpdatedAt,
 		&roleID,
-		&r.Name,
-		&r.CreatedAt,
-		&r.UpdatedAt,
+		&roleName,
+		&roleCreatedAt,
+		&roleUpdatedAt,
 	)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	if roleID.Valid {
+	if roleID.Valid || roleName.Valid || roleCreatedAt.Valid || roleUpdatedAt.Valid {
 		r.ID = roleID.String
+		r.Name = roleName.String
+		r.CreatedAt = roleCreatedAt.Time
+		r.UpdatedAt = roleUpdatedAt.Time
 		return u, r, nil
 	}
 
@@ -103,7 +113,7 @@ func GetUserByID(id string, db *sql.DB) (*types.User, error) {
 
 	defer rows.Close()
 
-	u := new(types.User)
+	u := new(types.User) // database
 	for rows.Next() {
 		u, err = ScanEachRowIntoUser(rows)
 		if err != nil {
@@ -111,7 +121,7 @@ func GetUserByID(id string, db *sql.DB) (*types.User, error) {
 		}
 	}
 
-	if u.ID == "" {
+	if u.ID != id {
 		return nil, fmt.Errorf("user not found")
 	}
 

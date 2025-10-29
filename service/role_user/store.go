@@ -9,7 +9,6 @@ import (
 
 type Store struct {
 	db *sql.DB
-	us types.UserStore
 }
 
 func NewStore(db *sql.DB) *Store {
@@ -17,13 +16,13 @@ func NewStore(db *sql.DB) *Store {
 }
 
 // for relations many to many.
-func (s *Store) GetRoleByUserID(userID string) (*types.Role, error) {
+func (s *Store) GetUserWithRoleByUserID(userID string) (*types.User, error) {
 	u, err := helper.GetUserByID(userID, s.db)
 	if err != nil {
 		return nil, err
 	}
 
-	rows, err := s.db.Query("SELECT r.id, r.name, r.created_at, r.updated_at FROM roles r INNER JOIN role_user ru ON r.id = ru.role_id WHERE ru.user_id = ?", u.ID)
+	rows, err := s.db.Query("SELECT r.id, r.name, r.created_at, r.updated_at FROM roles r INNER JOIN role_user ru ON r.id = ru.role_id WHERE ru.user_id = ?", userID)
 	if err != nil {
 		return nil, err
 	}
@@ -36,21 +35,26 @@ func (s *Store) GetRoleByUserID(userID string) (*types.Role, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		if r != nil {
+			u.Roles = append(u.Roles, *r)
+		}
 	}
 
-	return r, nil
+	if u.ID == "" {
+		return nil, fmt.Errorf("user not found")
+	}
+
+	return u, nil
 }
 
 func (s *Store) AssignRoleIntoUser(userID, roleID string) error {
-	stmt, err := s.db.Prepare("INSERT INTO role_user (user_id, role_id) VALUES (?,?)")
+	_, err := s.db.Exec("INSERT INTO role_user (user_id, role_id) VALUES (?,?)", userID, roleID)
 	if err != nil {
 		return err
 	}
 
-	defer stmt.Close()
-
-	_, err = stmt.Exec(userID, roleID)
-	return err
+	return nil
 }
 
 func (s *Store) DeleteRoleFromUser(userID, roleID string) error {

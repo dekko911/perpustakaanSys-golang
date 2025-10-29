@@ -45,7 +45,6 @@ func (s *Store) GetUsers() ([]*types.User, error) {
 	defer rows.Close()
 
 	usersMap := make(map[string]*types.User)
-
 	for rows.Next() {
 		user, role, err := helper.ScanEachRowUserAndRoleIntoRoleUser(rows)
 		if err != nil {
@@ -84,14 +83,16 @@ func (s *Store) GetUserWithRolesByID(id string) (*types.User, error) {
 
 	defer rows.Close()
 
-	r := new(types.Role)
 	for rows.Next() {
+		r := new(types.Role)
 		r, err = helper.ScanEachRowIntoRole(rows)
 		if err != nil {
 			return nil, err
 		}
 
-		u.Roles = append(u.Roles, *r)
+		if r != nil {
+			u.Roles = append(u.Roles, *r)
+		}
 	}
 
 	return u, nil
@@ -110,14 +111,16 @@ func (s *Store) GetUserWithRolesByEmail(email string) (*types.User, error) {
 
 	defer rows.Close()
 
-	r := new(types.Role)
 	for rows.Next() {
+		r := new(types.Role)
 		r, err = helper.ScanEachRowIntoRole(rows)
 		if err != nil {
 			return nil, err
 		}
 
-		u.Roles = append(u.Roles, *r)
+		if r != nil {
+			u.Roles = append(u.Roles, *r)
+		}
 	}
 
 	return u, nil
@@ -128,27 +131,21 @@ func (s *Store) CreateUser(u *types.User) error {
 		u.ID = uuid.NewString()
 	}
 
-	stmt, err := s.db.Prepare("INSERT INTO users (id, name, email, password, avatar) VALUES (?,?,?,?,?)")
+	_, err := s.db.Exec("INSERT INTO users (id, name, email, password, avatar) VALUES (?,?,?,?,?)", u.ID, u.Name, u.Email, u.Password, u.Avatar)
 	if err != nil {
 		return err
 	}
 
-	defer stmt.Close()
-
-	_, err = stmt.Exec(u.ID, u.Name, u.Email, u.Password, u.Avatar)
-	return err
+	return nil
 }
 
 func (s *Store) UpdateUser(id string, u *types.User) error {
-	stmt, err := s.db.Prepare("UPDATE users SET name = ?, email = ?, password = ?, avatar = ? WHERE id = ?")
+	_, err := s.db.Exec("UPDATE users SET name = ?, email = ?, password = ?, avatar = ? WHERE id = ?", u.Name, u.Email, u.Password, u.Avatar, id)
 	if err != nil {
 		return err
 	}
 
-	defer stmt.Close()
-
-	_, err = stmt.Exec(u.Name, u.Email, u.Password, u.Avatar, id)
-	return err
+	return nil
 }
 
 func (s *Store) DeleteUser(id string) error {
@@ -163,20 +160,29 @@ func (s *Store) DeleteUser(id string) error {
 	}
 
 	if rows == 0 {
-		return fmt.Errorf("user with id:%s not found", id)
+		return fmt.Errorf("user not found")
 	}
 
 	return nil
 }
 
 func (s *Store) IncrementTokenVersion(id string) error {
-	stmt, err := s.db.Prepare("UPDATE users SET token_version = token_version + 1 WHERE id = ?")
+	// use s.db.Prepare(query) and stmt(variable).Exec(...args) <- when used at got so many preparation query and
+	// execution all query at the same time.
+	// stmt, err := s.db.Prepare("UPDATE users SET token_version = token_version + 1 WHERE id = ?")
+	// if err != nil {
+	// 	return err
+	// }
+
+	// defer stmt.Close()
+
+	// _, err = stmt.Exec(id)
+
+	// use s.db.Exec(query, ...args) <- when used it once go execution.
+	_, err := s.db.Exec("UPDATE users SET token_version = token_version + 1 WHERE id = ?", id)
 	if err != nil {
 		return err
 	}
 
-	defer stmt.Close()
-
-	_, err = stmt.Exec(id)
-	return err
+	return nil
 }

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"perpus_backend/middleware"
 	"perpus_backend/service/auth"
+	"perpus_backend/service/book"
 	"perpus_backend/service/role"
 	roleuser "perpus_backend/service/role_user"
 	"perpus_backend/service/user"
@@ -61,6 +62,11 @@ func (s *APIServer) Run() error {
 	roleUserStore := roleuser.NewStore(s.db)
 	roleUserHandler := roleuser.NewHandler(roleUserStore, userStore)
 	roleUserHandler.RegisterRoutes(subrouter)
+
+	// book routes
+	bookStore := book.NewStore(s.db)
+	bookHandler := book.NewHandler(bookStore, userStore)
+	bookHandler.RegisterRoutes(subrouter)
 
 	// auth routes
 	authHandler := auth.NewHandler(userStore)

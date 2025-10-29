@@ -4,39 +4,43 @@ import (
 	"encoding/json"
 	"net/http"
 	"runtime"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/go-playground/validator/v10"
 )
 
-var (
-	// fileName Rand Using Time.
-	Filename = randFileNameUsingTime()
+type JsonData struct {
+	Code    int    `json:"code,omitempty"`
+	Data    any    `json:"data,omitempty"`
+	Error   string `json:"error,omitempty"`
+	File    string `json:"file,omitempty"`
+	Line    int    `json:"line,omitempty"`
+	Message string `json:"message,omitempty"`
+	Status  string `json:"status,omitempty"`
+	Token   string `json:"token,omitempty"`
+}
 
-	// validate the request input.
-	Validate = validator.New()
-)
+// validate the request input.
+var Validate = validator.New()
 
 // returning info into json type.
-func WriteJSON(w http.ResponseWriter, statusCode int, v any) error {
+func WriteJSON(w http.ResponseWriter, statusCode int, d JsonData) error {
 	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 
-	return json.NewEncoder(w).Encode(v)
+	return json.NewEncoder(w).Encode(d)
 }
 
 // returning info into json error type.
 func WriteJSONError(w http.ResponseWriter, statusCode int, err error) {
 	_, file, line, _ := runtime.Caller(1)
 
-	WriteJSON(w, statusCode, map[string]any{
-		"code":   statusCode,
-		"error":  err.Error(),
-		"file":   file,
-		"line":   line,
-		"status": "error",
+	WriteJSON(w, statusCode, JsonData{
+		Code:   statusCode,
+		Error:  err.Error(),
+		File:   file,
+		Line:   line,
+		Status: "error",
 	})
 }
 
@@ -51,17 +55,4 @@ func GetTokenFromRequest(r *http.Request) string {
 	}
 
 	return ""
-}
-
-// making rand fileName.
-func randFileNameUsingTime() string {
-	loc, err := time.LoadLocation("Asia/Kuala_Lumpur")
-	if err != nil {
-		return err.Error()
-	}
-
-	timeInt := time.Now().In(loc).Unix()
-	time := strconv.Itoa(int(timeInt))
-
-	return time
 }

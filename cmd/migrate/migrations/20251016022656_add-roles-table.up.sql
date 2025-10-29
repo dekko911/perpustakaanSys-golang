@@ -4,5 +4,6 @@ CREATE TABLE
         `name` VARCHAR(100) NOT NULL,
         `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
         `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        PRIMARY KEY (`id`)
+        PRIMARY KEY (`id`),
+        UNIQUE KEY (`name`)
     );

@@ -6,7 +6,7 @@ CREATE TABLE
         `cover_buku` VARCHAR(100) NULL,
         `penulis` VARCHAR(255) NOT NULL,
         `pengarang` VARCHAR(255) NOT NULL,
-        `tahun` DATE NOT NULL,
+        `tahun` INT NOT NULL,
         `created_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
         `updated_at` TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY (`id`),

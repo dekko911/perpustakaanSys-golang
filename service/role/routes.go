@@ -1,6 +1,7 @@
 package role
 
 import (
+	"fmt"
 	"net/http"
 	"perpus_backend/middleware"
 	"perpus_backend/types"
@@ -14,6 +15,11 @@ type Handler struct {
 	store     types.RoleStore
 	userStore types.UserStore
 }
+
+const (
+	COK = http.StatusOK
+	OK  = "OK"
+)
 
 func NewHandler(store types.RoleStore, userStore types.UserStore) *Handler {
 	return &Handler{
@@ -41,27 +47,26 @@ func (h *Handler) handleGetRoles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, map[string]any{
-		"code":   http.StatusOK,
-		"roles":  roles,
-		"status": "OK",
+	utils.WriteJSON(w, COK, utils.JsonData{
+		Code:   COK,
+		Data:   roles,
+		Status: OK,
 	})
 }
 
 func (h *Handler) handleGetRoleByID(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	roleID := vars["roleID"]
+	roleID := mux.Vars(r)["roleID"]
 
 	role, err := h.store.GetRoleByID(roleID)
 	if err != nil {
-		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		utils.WriteJSONError(w, http.StatusNotFound, err)
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, map[string]any{
-		"code":   http.StatusOK,
-		"role":   role,
-		"status": "OK",
+	utils.WriteJSON(w, COK, utils.JsonData{
+		Code:   COK,
+		Data:   role,
+		Status: OK,
 	})
 }
 
@@ -83,22 +88,26 @@ func (h *Handler) handleCreateRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.store.CreateRole(&types.Role{
-		Name: payload.Name,
-	}); err != nil {
-		utils.WriteJSONError(w, http.StatusBadRequest, err)
+	if _, err := h.store.GetRoleByName(payload.Name); err == nil {
+		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("role with name: %s is already exists", payload.Name))
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusCreated, map[string]any{
-		"code":    http.StatusCreated,
-		"message": "Role Created!",
+	if err := h.store.CreateRole(&types.Role{
+		Name: payload.Name,
+	}); err != nil {
+		utils.WriteJSONError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusCreated, utils.JsonData{
+		Code:    http.StatusCreated,
+		Message: "Role Created!",
 	})
 }
 
 func (h *Handler) handleUpdateRole(w http.ResponseWriter, req *http.Request) {
-	vars := mux.Vars(req)
-	roleID := vars["roleID"]
+	roleID := mux.Vars(req)["roleID"]
 
 	var payload types.PayloadUpdateRole
 
@@ -119,7 +128,7 @@ func (h *Handler) handleUpdateRole(w http.ResponseWriter, req *http.Request) {
 
 	r, err := h.store.GetRoleByID(roleID)
 	if err != nil {
-		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		utils.WriteJSONError(w, http.StatusNotFound, err)
 		return
 	}
 
@@ -128,35 +137,28 @@ func (h *Handler) handleUpdateRole(w http.ResponseWriter, req *http.Request) {
 	}
 
 	if err := h.store.UpdateRole(roleID, &types.Role{
-		Name: payload.Name,
+		Name: r.Name,
 	}); err != nil {
-		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, map[string]any{
-		"code":    http.StatusOK,
-		"message": "Role Updated!",
+	utils.WriteJSON(w, COK, utils.JsonData{
+		Code:    COK,
+		Message: "Role Updated!",
 	})
 }
 
 func (h *Handler) handleDeleteRole(w http.ResponseWriter, req *http.Request) {
-	vars := mux.Vars(req)
-	roleID := vars["roleID"]
+	roleID := mux.Vars(req)["roleID"]
 
-	r, err := h.store.GetRoleByID(roleID)
-	if err != nil {
+	if err := h.store.DeleteRole(roleID); err != nil {
 		utils.WriteJSONError(w, http.StatusNotFound, err)
 		return
 	}
 
-	if err := h.store.DeleteRole(r.ID); err != nil {
-		utils.WriteJSONError(w, http.StatusBadRequest, err)
-		return
-	}
-
-	utils.WriteJSON(w, http.StatusOK, map[string]any{
-		"code":    http.StatusOK,
-		"message": "Role Deleted!",
+	utils.WriteJSON(w, COK, utils.JsonData{
+		Code:    COK,
+		Message: "Role Deleted!",
 	})
 }

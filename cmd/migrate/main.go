@@ -1,8 +1,10 @@
 package main
 
 import (
+	"io/fs"
 	"log"
 	"os"
+	"path/filepath"
 	"perpus_backend/config"
 	"perpus_backend/db"
 
@@ -58,6 +60,23 @@ func main() {
 		}
 
 		defer m.Close()
+
+		dirPath := "./assets"
+		err := filepath.Walk(dirPath, func(path string, info fs.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+
+			if !info.IsDir() {
+				return os.Remove(path)
+			}
+
+			return nil
+		})
+
+		if err != nil {
+			log.Fatal(err)
+		}
 
 		log.Println("Migration success deleted!")
 	}

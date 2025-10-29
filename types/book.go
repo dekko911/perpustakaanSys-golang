@@ -11,7 +11,7 @@ type Book struct {
 	CoverBuku string    `json:"cover_buku"` // image
 	Penulis   string    `json:"penulis"`
 	Pengarang string    `json:"pengarang"`
-	Tahun     time.Time `json:"tahun"`
+	Tahun     int       `json:"tahun"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -19,15 +19,25 @@ type Book struct {
 type BookStore interface {
 	GetBooks() ([]*Book, error)
 	GetBookByID(id string) (*Book, error)
+	GetBookByIDBuku(idBuku string) (*Book, error)
+	GetBookByJudulBuku(judulBuku string) (*Book, error)
 	CreateBook(*Book) error
 	UpdateBook(id string, b *Book) error
 	DeleteBook(id string) error
 }
 
 type PayloadBook struct {
-	IdBuku    string    `form:"id_buku" validate:"required,min=4"`
-	JudulBuku string    `form:"judul_buku" validate:"required,min=3"`
-	Penulis   string    `form:"penulis" validate:"required"`
-	Pengarang string    `form:"pengarang" validate:"required"`
-	Tahun     time.Time `form:"tahun" validate:"required,min=2"`
+	IdBuku    string `form:"id_buku" validate:"required,min=4"`
+	JudulBuku string `form:"judul_buku" validate:"required,min=3"`
+	Penulis   string `form:"penulis" validate:"required"`
+	Pengarang string `form:"pengarang" validate:"required"`
+	Tahun     string `form:"tahun" validate:"required,min=2"`
+}
+
+type PayloadUpdateBook struct {
+	IdBuku    string `form:"id_buku" validate:"omitempty,required,min=4"`
+	JudulBuku string `form:"judul_buku" validate:"omitempty,required,min=3"`
+	Penulis   string `form:"penulis" validate:"omitempty,required"`
+	Pengarang string `form:"pengarang" validate:"omitempty,required"`
+	Tahun     string `form:"tahun" validate:"omitempty,required,min=2"`
 }

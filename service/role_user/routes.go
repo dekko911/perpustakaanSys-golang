@@ -15,6 +15,11 @@ type Handler struct {
 	userStore types.UserStore
 }
 
+const (
+	COK = http.StatusOK
+	OK  = "OK"
+)
+
 func NewHandler(store types.RoleUserStore, userStore types.UserStore) *Handler {
 	return &Handler{store: store, userStore: userStore}
 }
@@ -30,30 +35,30 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 func (h *Handler) handleGetRoleByUserID(w http.ResponseWriter, r *http.Request) {
 	userID := mux.Vars(r)["userID"]
 
-	role, err := h.store.GetRoleByUserID(userID)
+	roleUser, err := h.store.GetUserWithRoleByUserID(userID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, map[string]any{
-		"code":   http.StatusOK,
-		"role":   role,
-		"status": "OK",
+	utils.WriteJSON(w, COK, utils.JsonData{
+		Code:   COK,
+		Data:   roleUser,
+		Status: OK,
 	})
 }
 
-func (h *Handler) handleAssignRoleIntoUser(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) handleAssignRoleIntoUser(w http.ResponseWriter, req *http.Request) {
 	var payload types.PayloadRoleUserID
 
-	if err := r.ParseForm(); err != nil {
+	if err := req.ParseForm(); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
 	payload = types.PayloadRoleUserID{
-		UserID: r.FormValue("user_id"),
-		RoleID: r.FormValue("role_id"),
+		UserID: req.FormValue("user_id"),
+		RoleID: req.FormValue("role_id"),
 	}
 
 	if err := utils.Validate.Struct(payload); err != nil {
@@ -63,13 +68,13 @@ func (h *Handler) handleAssignRoleIntoUser(w http.ResponseWriter, r *http.Reques
 	}
 
 	if err := h.store.AssignRoleIntoUser(payload.UserID, payload.RoleID); err != nil {
-		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusCreated, map[string]any{
-		"code":    http.StatusCreated,
-		"message": "User And Role has Connected.",
+	utils.WriteJSON(w, http.StatusCreated, utils.JsonData{
+		Code:    http.StatusCreated,
+		Message: "User and Role has Connected.",
 	})
 }
 
@@ -82,8 +87,8 @@ func (h *Handler) handleDeleteRoleFromUser(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, map[string]any{
-		"code":    http.StatusOK,
-		"message": "User And Role Has Disconnected.",
+	utils.WriteJSON(w, http.StatusOK, utils.JsonData{
+		Code:    COK,
+		Message: "User and Role has Disconnected.",
 	})
 }

@@ -1,3 +1,7 @@
 /bin
 /vendor
 .env
+docker-compose.yml
+/assets/private/*
+/assets/public/*
+/mysql_data
