@@ -22,15 +22,22 @@ func (s *Store) GetUserWithRoleByUserID(userID string) (*types.User, error) {
 		return nil, err
 	}
 
-	rows, err := s.db.Query("SELECT r.id, r.name, r.created_at, r.updated_at FROM roles r INNER JOIN role_user ru ON r.id = ru.role_id WHERE ru.user_id = ?", userID)
+	stmt, err := s.db.Prepare("SELECT r.id, r.name, r.created_at, r.updated_at FROM roles r INNER JOIN role_user ru ON r.id = ru.role_id WHERE ru.user_id = ?")
+	if err != nil {
+		return nil, err
+	}
+
+	defer stmt.Close()
+
+	rows, err := stmt.Query(userID)
 	if err != nil {
 		return nil, err
 	}
 
 	defer rows.Close()
 
-	r := new(types.Role)
 	for rows.Next() {
+		r := new(types.Role)
 		r, err = helper.ScanEachRowIntoRole(rows)
 		if err != nil {
 			return nil, err
@@ -41,7 +48,7 @@ func (s *Store) GetUserWithRoleByUserID(userID string) (*types.User, error) {
 		}
 	}
 
-	if u.ID == "" {
+	if u.ID != userID {
 		return nil, fmt.Errorf("user not found")
 	}
 
@@ -49,12 +56,15 @@ func (s *Store) GetUserWithRoleByUserID(userID string) (*types.User, error) {
 }
 
 func (s *Store) AssignRoleIntoUser(userID, roleID string) error {
-	_, err := s.db.Exec("INSERT INTO role_user (user_id, role_id) VALUES (?,?)", userID, roleID)
+	stmt, err := s.db.Prepare("INSERT INTO role_user (user_id, role_id) VALUES (?,?)")
 	if err != nil {
 		return err
 	}
 
-	return nil
+	defer stmt.Close()
+
+	_, err = stmt.Exec(userID, roleID)
+	return err
 }
 
 func (s *Store) DeleteRoleFromUser(userID, roleID string) error {
@@ -69,7 +79,7 @@ func (s *Store) DeleteRoleFromUser(userID, roleID string) error {
 	}
 
 	if rows == 0 {
-		return fmt.Errorf("user with id:%s and role with id:%s not found", userID, roleID)
+		return fmt.Errorf("user or role not found")
 	}
 
 	return nil

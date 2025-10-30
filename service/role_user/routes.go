@@ -1,6 +1,7 @@
 package roleuser
 
 import (
+	"fmt"
 	"net/http"
 	"perpus_backend/middleware"
 	"perpus_backend/types"
@@ -13,6 +14,7 @@ import (
 type Handler struct {
 	store     types.RoleUserStore
 	userStore types.UserStore
+	roleStore types.RoleStore
 }
 
 const (
@@ -20,8 +22,8 @@ const (
 	OK  = "OK"
 )
 
-func NewHandler(store types.RoleUserStore, userStore types.UserStore) *Handler {
-	return &Handler{store: store, userStore: userStore}
+func NewHandler(store types.RoleUserStore, userStore types.UserStore, roleStore types.RoleStore) *Handler {
+	return &Handler{store: store, userStore: userStore, roleStore: roleStore}
 }
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
@@ -67,13 +69,30 @@ func (h *Handler) handleAssignRoleIntoUser(w http.ResponseWriter, req *http.Requ
 		return
 	}
 
+	_, err := h.userStore.GetUserWithRolesByID(payload.UserID)
+	if err != nil {
+		utils.WriteJSONError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	r, err := h.roleStore.GetRoleByID(payload.RoleID)
+	if err != nil {
+		utils.WriteJSONError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	if r.Name == "admin" {
+		utils.WriteJSONError(w, http.StatusForbidden, fmt.Errorf("you can't add admin"))
+		return
+	}
+
 	if err := h.store.AssignRoleIntoUser(payload.UserID, payload.RoleID); err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusCreated, utils.JsonData{
-		Code:    http.StatusCreated,
+	utils.WriteJSON(w, COK, utils.JsonData{
+		Code:    COK,
 		Message: "User and Role has Connected.",
 	})
 }

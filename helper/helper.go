@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 	"perpus_backend/types"
+	"strconv"
+	"strings"
 )
 
 func ScanEachRowIntoUser(rows *sql.Rows) (*types.User, error) {
@@ -106,7 +108,14 @@ func ScanEachRowIntoBook(rows *sql.Rows) (*types.Book, error) {
 }
 
 func GetUserByID(id string, db *sql.DB) (*types.User, error) {
-	rows, err := db.Query("SELECT * FROM users WHERE id = ?", id)
+	stmt, err := db.Prepare("SELECT * FROM users WHERE id = ?")
+	if err != nil {
+		return nil, err
+	}
+
+	defer stmt.Close()
+
+	rows, err := stmt.Query(id)
 	if err != nil {
 		return nil, err
 	}
@@ -121,15 +130,18 @@ func GetUserByID(id string, db *sql.DB) (*types.User, error) {
 		}
 	}
 
-	if u.ID != id {
-		return nil, fmt.Errorf("user not found")
-	}
-
 	return u, nil
 }
 
 func GetUserByEmail(email string, db *sql.DB) (*types.User, error) {
-	rows, err := db.Query("SELECT * FROM users WHERE email = ?", email)
+	stmt, err := db.Prepare("SELECT * FROM users WHERE email = ?")
+	if err != nil {
+		return nil, err
+	}
+
+	defer stmt.Close()
+
+	rows, err := stmt.Query(email)
 	if err != nil {
 		return nil, err
 	}
@@ -149,4 +161,31 @@ func GetUserByEmail(email string, db *sql.DB) (*types.User, error) {
 	}
 
 	return u, nil
+}
+
+func GenerateNextIDBuku(db *sql.DB) string {
+	var lastID string
+	stmt, err := db.Prepare("SELECT id_buku FROM books ORDER BY id_buku DESC LIMIT 1")
+	if err != nil {
+		return err.Error()
+	}
+
+	defer stmt.Close()
+
+	if err := stmt.QueryRow().Scan(&lastID); err != nil {
+		if err == sql.ErrNoRows {
+			return "BK001"
+		}
+
+		return err.Error()
+	}
+
+	idStr := strings.TrimPrefix(lastID, "BK")
+	num, err := strconv.Atoi(idStr)
+	if err != nil {
+		return err.Error()
+	}
+
+	nextID := fmt.Sprintf("BK%03d", num+1)
+	return nextID
 }

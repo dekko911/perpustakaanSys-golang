@@ -37,7 +37,14 @@ func (s *Store) GetUsers() ([]*types.User, error) {
 	LEFT JOIN role_user ru ON u.id = ru.user_id
 	LEFT JOIN roles r ON ru.role_id = r.id`
 
-	rows, err := s.db.Query(query)
+	stmt, err := s.db.Prepare(query)
+	if err != nil {
+		return nil, err
+	}
+
+	defer stmt.Close()
+
+	rows, err := stmt.Query()
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +83,14 @@ func (s *Store) GetUserWithRolesByID(id string) (*types.User, error) {
 		return nil, err
 	}
 
-	rows, err := s.db.Query("SELECT r.id, r.name, r.created_at, r.updated_at FROM roles r INNER JOIN role_user ru ON r.id = ru.role_id WHERE ru.user_id = ?", u.ID)
+	stmt, err := s.db.Prepare("SELECT r.id, r.name, r.created_at, r.updated_at FROM roles r INNER JOIN role_user ru ON r.id = ru.role_id WHERE ru.user_id = ?")
+	if err != nil {
+		return nil, err
+	}
+
+	defer stmt.Close()
+
+	rows, err := stmt.Query(u.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -95,6 +109,10 @@ func (s *Store) GetUserWithRolesByID(id string) (*types.User, error) {
 		}
 	}
 
+	if u.ID != id {
+		return nil, fmt.Errorf("user not found")
+	}
+
 	return u, nil
 }
 
@@ -104,7 +122,14 @@ func (s *Store) GetUserWithRolesByEmail(email string) (*types.User, error) {
 		return nil, err
 	}
 
-	rows, err := s.db.Query("SELECT r.id, r.name, r.created_at, r.updated_at FROM roles r INNER JOIN role_user ru ON r.id = ru.role_id WHERE ru.user_id = ?", u.ID)
+	stmt, err := s.db.Prepare("SELECT r.id, r.name, r.created_at, r.updated_at FROM roles r INNER JOIN role_user ru ON r.id = ru.role_id WHERE ru.user_id = ?")
+	if err != nil {
+		return nil, err
+	}
+
+	defer stmt.Close()
+
+	rows, err := stmt.Query(u.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -131,21 +156,27 @@ func (s *Store) CreateUser(u *types.User) error {
 		u.ID = uuid.NewString()
 	}
 
-	_, err := s.db.Exec("INSERT INTO users (id, name, email, password, avatar) VALUES (?,?,?,?,?)", u.ID, u.Name, u.Email, u.Password, u.Avatar)
+	stmt, err := s.db.Prepare("INSERT INTO users (id, name, email, password, avatar) VALUES (?,?,?,?,?)")
 	if err != nil {
 		return err
 	}
 
-	return nil
+	defer stmt.Close()
+
+	_, err = stmt.Exec(u.ID, u.Name, u.Email, u.Password, u.Avatar)
+	return err
 }
 
 func (s *Store) UpdateUser(id string, u *types.User) error {
-	_, err := s.db.Exec("UPDATE users SET name = ?, email = ?, password = ?, avatar = ? WHERE id = ?", u.Name, u.Email, u.Password, u.Avatar, id)
+	stmt, err := s.db.Prepare("UPDATE users SET name = ?, email = ?, password = ?, avatar = ? WHERE id = ?")
 	if err != nil {
 		return err
 	}
 
-	return nil
+	defer stmt.Close()
+
+	_, err = stmt.Exec(u.Name, u.Email, u.Password, u.Avatar, id)
+	return err
 }
 
 func (s *Store) DeleteUser(id string) error {

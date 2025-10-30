@@ -19,7 +19,6 @@ type Book struct {
 type BookStore interface {
 	GetBooks() ([]*Book, error)
 	GetBookByID(id string) (*Book, error)
-	GetBookByIDBuku(idBuku string) (*Book, error)
 	GetBookByJudulBuku(judulBuku string) (*Book, error)
 	CreateBook(*Book) error
 	UpdateBook(id string, b *Book) error
@@ -27,7 +26,6 @@ type BookStore interface {
 }
 
 type PayloadBook struct {
-	IdBuku    string `form:"id_buku" validate:"required,min=4"`
 	JudulBuku string `form:"judul_buku" validate:"required,min=3"`
 	Penulis   string `form:"penulis" validate:"required"`
 	Pengarang string `form:"pengarang" validate:"required"`
@@ -35,7 +33,6 @@ type PayloadBook struct {
 }
 
 type PayloadUpdateBook struct {
-	IdBuku    string `form:"id_buku" validate:"omitempty,required,min=4"`
 	JudulBuku string `form:"judul_buku" validate:"omitempty,required,min=3"`
 	Penulis   string `form:"penulis" validate:"omitempty,required"`
 	Pengarang string `form:"pengarang" validate:"omitempty,required"`

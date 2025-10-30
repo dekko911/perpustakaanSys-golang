@@ -19,7 +19,14 @@ func NewStore(db *sql.DB) *Store {
 	}
 }
 func (s *Store) GetBooks() ([]*types.Book, error) {
-	rows, err := s.db.Query("SELECT * FROM books")
+	stmt, err := s.db.Prepare("SELECT * FROM books")
+	if err != nil {
+		return nil, err
+	}
+
+	defer stmt.Close()
+
+	rows, err := stmt.Query()
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +48,14 @@ func (s *Store) GetBooks() ([]*types.Book, error) {
 }
 
 func (s *Store) GetBookByID(id string) (*types.Book, error) {
-	rows, err := s.db.Query("SELECT * FROM book WHERE id = ?", id)
+	stmt, err := s.db.Prepare("SELECT * FROM books WHERE id = ?")
+	if err != nil {
+		return nil, err
+	}
+
+	defer stmt.Close()
+
+	rows, err := stmt.Query(id)
 	if err != nil {
 		return nil, err
 	}
@@ -56,26 +70,7 @@ func (s *Store) GetBookByID(id string) (*types.Book, error) {
 		}
 	}
 
-	return b, nil
-}
-
-func (s *Store) GetBookByIDBuku(idBuku string) (*types.Book, error) {
-	rows, err := s.db.Query("SELECT * FROM book WHERE id_buku = ?", idBuku)
-	if err != nil {
-		return nil, err
-	}
-
-	defer rows.Close()
-
-	b := new(types.Book)
-	for rows.Next() {
-		b, err = helper.ScanEachRowIntoBook(rows)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if b.ID == "" {
+	if b.ID != id {
 		return nil, fmt.Errorf("book not found")
 	}
 
@@ -83,7 +78,14 @@ func (s *Store) GetBookByIDBuku(idBuku string) (*types.Book, error) {
 }
 
 func (s *Store) GetBookByJudulBuku(judulBuku string) (*types.Book, error) {
-	rows, err := s.db.Query("SELECT * FROM book WHERE judul_buku = ?", judulBuku)
+	stmt, err := s.db.Prepare("SELECT * FROM books WHERE judul_buku = ?")
+	if err != nil {
+		return nil, err
+	}
+
+	defer stmt.Close()
+
+	rows, err := stmt.Query(judulBuku)
 	if err != nil {
 		return nil, err
 	}
@@ -110,21 +112,31 @@ func (s *Store) CreateBook(b *types.Book) error {
 		b.ID = uuid.NewString()
 	}
 
-	_, err := s.db.Exec("INSERT INTO books (id, id_buku, judul_buku, cover_buku, penulis, pengarang, tahun) VALUES (?,?,?,?,?,?,?)", b.ID, b.IdBuku, b.JudulBuku, b.CoverBuku, b.Penulis, b.Pengarang, b.Tahun)
+	if b.IdBuku == "" {
+		b.IdBuku = helper.GenerateNextIDBuku(s.db)
+	}
+
+	stmt, err := s.db.Prepare("INSERT INTO books (id, id_buku, judul_buku, cover_buku, penulis, pengarang, tahun) VALUES (?,?,?,?,?,?,?)")
 	if err != nil {
 		return err
 	}
 
-	return nil
+	defer stmt.Close()
+
+	_, err = stmt.Exec(b.ID, b.IdBuku, b.JudulBuku, b.CoverBuku, b.Penulis, b.Pengarang, b.Tahun)
+	return err
 }
 
 func (s *Store) UpdateBook(id string, b *types.Book) error {
-	_, err := s.db.Exec("UPDATE books SET id_buku = ?, judul_buku = ?, cover_buku = ?, penulis = ?, pengarang = ?, tahun = ? WHERE id = ?", b.IdBuku, b.JudulBuku, b.CoverBuku, b.Penulis, b.Pengarang, b.Tahun, id)
+	stmt, err := s.db.Prepare("UPDATE books SET judul_buku = ?, cover_buku = ?, penulis = ?, pengarang = ?, tahun = ? WHERE id = ?")
 	if err != nil {
 		return err
 	}
 
-	return nil
+	defer stmt.Close()
+
+	_, err = stmt.Exec(b.JudulBuku, b.CoverBuku, b.Penulis, b.Pengarang, b.Tahun, id)
+	return err
 }
 
 func (s *Store) DeleteBook(id string) error {

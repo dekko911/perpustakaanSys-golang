@@ -89,7 +89,6 @@ func (h *Handler) handleCreateBook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	payload = types.PayloadBook{
-		IdBuku:    r.FormValue("id_buku"),
 		JudulBuku: r.FormValue("judul_buku"),
 		Penulis:   r.FormValue("penulis"),
 		Pengarang: r.FormValue("pengarang"),
@@ -99,11 +98,6 @@ func (h *Handler) handleCreateBook(w http.ResponseWriter, r *http.Request) {
 	if err := utils.Validate.Struct(payload); err != nil {
 		errors := err.(validator.ValidationErrors)
 		utils.WriteJSONError(w, http.StatusUnprocessableEntity, errors)
-		return
-	}
-
-	if _, err := h.store.GetBookByIDBuku(payload.IdBuku); err == nil {
-		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("id_buku: %s is already exists", payload.IdBuku))
 		return
 	}
 
@@ -139,7 +133,6 @@ func (h *Handler) handleCreateBook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.store.CreateBook(&types.Book{
-		IdBuku:    payload.IdBuku,
 		JudulBuku: payload.JudulBuku,
 		CoverBuku: fileName,
 		Penulis:   payload.Penulis,
@@ -176,7 +169,6 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	payload = types.PayloadUpdateBook{
-		IdBuku:    r.FormValue("id_buku"),
 		JudulBuku: r.FormValue("judul_buku"),
 		Penulis:   r.FormValue("penulis"),
 		Pengarang: r.FormValue("pengarang"),
@@ -189,9 +181,9 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	b, err := h.store.GetBookByID(payload.IdBuku)
+	b, err := h.store.GetBookByID(bookID)
 	if err != nil {
-		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("id_buku: %s is already exists", payload.IdBuku))
+		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("id_buku: %s is already exists", bookID))
 		return
 	}
 
@@ -221,11 +213,12 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 		io.Copy(dst, file)
 	}
 
-	tahun, _ := strconv.Atoi(payload.Tahun)
-
-	if payload.IdBuku != "" {
-		b.IdBuku = payload.IdBuku
+	tahun, err := strconv.Atoi(payload.Tahun)
+	if err != nil {
+		utils.WriteJSONError(w, http.StatusInternalServerError, err)
+		return
 	}
+
 	if payload.JudulBuku != "" {
 		b.JudulBuku = payload.JudulBuku
 	}
@@ -240,7 +233,6 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.store.UpdateBook(bookID, &types.Book{
-		IdBuku:    b.IdBuku,
 		JudulBuku: b.JudulBuku,
 		CoverBuku: fileName,
 		Penulis:   b.Penulis,

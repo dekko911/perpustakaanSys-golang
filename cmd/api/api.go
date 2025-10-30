@@ -60,7 +60,7 @@ func (s *APIServer) Run() error {
 
 	// role_user routes
 	roleUserStore := roleuser.NewStore(s.db)
-	roleUserHandler := roleuser.NewHandler(roleUserStore, userStore)
+	roleUserHandler := roleuser.NewHandler(roleUserStore, userStore, roleStore)
 	roleUserHandler.RegisterRoutes(subrouter)
 
 	// book routes

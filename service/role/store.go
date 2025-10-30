@@ -20,7 +20,14 @@ func NewStore(db *sql.DB) *Store {
 }
 
 func (s *Store) GetRoles() ([]*types.Role, error) {
-	rows, err := s.db.Query("SELECT * FROM roles")
+	stmt, err := s.db.Prepare("SELECT * FROM roles")
+	if err != nil {
+		return nil, err
+	}
+
+	defer stmt.Close()
+
+	rows, err := stmt.Query()
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +48,14 @@ func (s *Store) GetRoles() ([]*types.Role, error) {
 }
 
 func (s *Store) GetRoleByID(id string) (*types.Role, error) {
-	rows, err := s.db.Query("SELECT * FROM roles WHERE id = ?", id)
+	stmt, err := s.db.Prepare("SELECT * FROM roles WHERE id = ?")
+	if err != nil {
+		return nil, err
+	}
+
+	defer stmt.Close()
+
+	rows, err := stmt.Query(id)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +78,14 @@ func (s *Store) GetRoleByID(id string) (*types.Role, error) {
 }
 
 func (s *Store) GetRoleByName(name string) (*types.Role, error) {
-	rows, err := s.db.Query("SELECT * FROM roles WHERE name = ?", name)
+	stmt, err := s.db.Prepare("SELECT * FROM roles WHERE name = ?")
+	if err != nil {
+		return nil, err
+	}
+
+	defer stmt.Close()
+
+	rows, err := stmt.Query(name)
 	if err != nil {
 		return nil, err
 	}
@@ -91,21 +112,27 @@ func (s *Store) CreateRole(r *types.Role) error {
 		r.ID = uuid.NewString()
 	}
 
-	_, err := s.db.Exec("INSERT INTO roles (id, name) VALUES (?,?)", r.ID, r.Name)
+	stmt, err := s.db.Prepare("INSERT INTO roles (id, name) VALUES (?,?)")
 	if err != nil {
 		return err
 	}
 
-	return nil
+	defer stmt.Close()
+
+	_, err = stmt.Exec(r.ID, r.Name)
+	return err
 }
 
 func (s *Store) UpdateRole(id string, r *types.Role) error {
-	_, err := s.db.Exec("UPDATE roles SET name = ? WHERE id = ?", r.Name, id)
+	stmt, err := s.db.Prepare("UPDATE roles SET name = ? WHERE id = ?")
 	if err != nil {
 		return err
 	}
 
-	return nil
+	defer stmt.Close()
+
+	_, err = stmt.Exec(r.Name, id)
+	return err
 }
 
 func (s *Store) DeleteRole(id string) error {
