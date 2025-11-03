@@ -3,7 +3,7 @@ package role
 import (
 	"fmt"
 	"net/http"
-	"perpus_backend/middleware"
+	"perpus_backend/pkg/jwt"
 	"perpus_backend/types"
 	"perpus_backend/utils"
 
@@ -16,10 +16,7 @@ type Handler struct {
 	userStore types.UserStore
 }
 
-const (
-	COK = http.StatusOK
-	OK  = "OK"
-)
+const COK = http.StatusOK
 
 func NewHandler(store types.RoleStore, userStore types.UserStore) *Handler {
 	return &Handler{
@@ -29,15 +26,15 @@ func NewHandler(store types.RoleStore, userStore types.UserStore) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
-	r.HandleFunc("/roles", middleware.AuthWithJWTToken(middleware.NeededRole(h.userStore, "admin")(h.handleGetRoles), h.userStore)).Methods(http.MethodGet)
+	r.HandleFunc("/roles", jwt.AuthWithJWTToken(jwt.NeededRole(h.userStore, "admin")(h.handleGetRoles), h.userStore)).Methods(http.MethodGet)
 
-	r.HandleFunc("/roles/{roleID}", middleware.AuthWithJWTToken(middleware.NeededRole(h.userStore, "admin")(h.handleGetRoleByID), h.userStore)).Methods(http.MethodGet)
+	r.HandleFunc("/roles/{roleID}", jwt.AuthWithJWTToken(jwt.NeededRole(h.userStore, "admin")(h.handleGetRoleByID), h.userStore)).Methods(http.MethodGet)
 
-	r.HandleFunc("/roles", middleware.AuthWithJWTToken(middleware.NeededRole(h.userStore, "admin")(h.handleCreateRole), h.userStore)).Methods(http.MethodPost)
+	r.HandleFunc("/roles", jwt.AuthWithJWTToken(jwt.NeededRole(h.userStore, "admin")(h.handleCreateRole), h.userStore)).Methods(http.MethodPost)
 
-	r.HandleFunc("/roles/{roleID}", middleware.AuthWithJWTToken(middleware.NeededRole(h.userStore, "admin")(h.handleUpdateRole), h.userStore)).Methods(http.MethodPatch)
+	r.HandleFunc("/roles/{roleID}", jwt.AuthWithJWTToken(jwt.NeededRole(h.userStore, "admin")(h.handleUpdateRole), h.userStore)).Methods(http.MethodPatch)
 
-	r.HandleFunc("/roles/{roleID}", middleware.AuthWithJWTToken(middleware.NeededRole(h.userStore, "admin")(h.handleDeleteRole), h.userStore)).Methods(http.MethodDelete)
+	r.HandleFunc("/roles/{roleID}", jwt.AuthWithJWTToken(jwt.NeededRole(h.userStore, "admin")(h.handleDeleteRole), h.userStore)).Methods(http.MethodDelete)
 }
 
 func (h *Handler) handleGetRoles(w http.ResponseWriter, r *http.Request) {
@@ -50,7 +47,7 @@ func (h *Handler) handleGetRoles(w http.ResponseWriter, r *http.Request) {
 	utils.WriteJSON(w, COK, utils.JsonData{
 		Code:   COK,
 		Data:   roles,
-		Status: OK,
+		Status: http.StatusText(COK),
 	})
 }
 
@@ -66,7 +63,7 @@ func (h *Handler) handleGetRoleByID(w http.ResponseWriter, r *http.Request) {
 	utils.WriteJSON(w, COK, utils.JsonData{
 		Code:   COK,
 		Data:   role,
-		Status: OK,
+		Status: http.StatusText(COK),
 	})
 }
 
@@ -103,6 +100,7 @@ func (h *Handler) handleCreateRole(w http.ResponseWriter, r *http.Request) {
 	utils.WriteJSON(w, http.StatusCreated, utils.JsonData{
 		Code:    http.StatusCreated,
 		Message: "Role Created!",
+		Status:  http.StatusText(http.StatusCreated),
 	})
 }
 
@@ -146,6 +144,7 @@ func (h *Handler) handleUpdateRole(w http.ResponseWriter, req *http.Request) {
 	utils.WriteJSON(w, COK, utils.JsonData{
 		Code:    COK,
 		Message: "Role Updated!",
+		Status:  http.StatusText(COK),
 	})
 }
 
@@ -160,5 +159,6 @@ func (h *Handler) handleDeleteRole(w http.ResponseWriter, req *http.Request) {
 	utils.WriteJSON(w, COK, utils.JsonData{
 		Code:    COK,
 		Message: "Role Deleted!",
+		Status:  http.StatusText(COK),
 	})
 }

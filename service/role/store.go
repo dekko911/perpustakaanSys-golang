@@ -20,7 +20,7 @@ func NewStore(db *sql.DB) *Store {
 }
 
 func (s *Store) GetRoles() ([]*types.Role, error) {
-	stmt, err := s.db.Prepare("SELECT * FROM roles")
+	stmt, err := s.db.Prepare("SELECT r.id, r.name, r.created_at, r.updated_at FROM roles r ORDER BY created_at DESC")
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +48,7 @@ func (s *Store) GetRoles() ([]*types.Role, error) {
 }
 
 func (s *Store) GetRoleByID(id string) (*types.Role, error) {
-	stmt, err := s.db.Prepare("SELECT * FROM roles WHERE id = ?")
+	stmt, err := s.db.Prepare("SELECT r.id, r.name, r.created_at, r.updated_at FROM roles r WHERE r.id = ?")
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +78,7 @@ func (s *Store) GetRoleByID(id string) (*types.Role, error) {
 }
 
 func (s *Store) GetRoleByName(name string) (*types.Role, error) {
-	stmt, err := s.db.Prepare("SELECT * FROM roles WHERE name = ?")
+	stmt, err := s.db.Prepare("SELECT r.id, r.name, r.created_at, r.updated_at FROM roles r WHERE r.name = ?")
 	if err != nil {
 		return nil, err
 	}

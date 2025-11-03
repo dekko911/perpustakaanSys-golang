@@ -35,7 +35,8 @@ func (s *Store) GetUsers() ([]*types.User, error) {
 	r.updated_at
 	FROM users u
 	LEFT JOIN role_user ru ON u.id = ru.user_id
-	LEFT JOIN roles r ON ru.role_id = r.id`
+	LEFT JOIN roles r ON ru.role_id = r.id
+	ORDER BY u.created_at DESC`
 
 	stmt, err := s.db.Prepare(query)
 	if err != nil {

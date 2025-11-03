@@ -1,4 +1,4 @@
-package middleware
+package jwt
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"perpus_backend/config"
 	"perpus_backend/types"
 	"perpus_backend/utils"
+	"slices"
 	"time"
 
 	"github.com/golang-jwt/jwt"
@@ -112,6 +113,7 @@ func permissionDenied(w http.ResponseWriter) {
 	utils.WriteJSONError(w, http.StatusForbidden, errors.New("permission denied"))
 }
 
+// get everything what u want.
 func GetUserIDFromContext(ctx context.Context) string {
 	userID, ok := ctx.Value(UserKey).(string)
 	if ok {
@@ -119,4 +121,37 @@ func GetUserIDFromContext(ctx context.Context) string {
 	}
 
 	return ""
+}
+
+// using for blocking routes who doesn't have any roles.
+// make sure in params roles, input values role at there.
+func NeededRole(us types.UserStore, roles ...string) func(http.HandlerFunc) http.HandlerFunc {
+	return func(hf http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			userID := GetUserIDFromContext(r.Context())
+			if userID == "" {
+				log.Println("userID is empty.")
+				permissionDenied(w)
+				return
+			}
+
+			user, err := us.GetUserWithRolesByID(userID)
+			if err != nil {
+				log.Printf("user not found, error: %v", err)
+				permissionDenied(w)
+				return
+			}
+
+			for _, role := range user.Roles {
+				// check if role.Name has same value with roles param.
+				if slices.Contains(roles, role.Name) {
+					hf(w, r)
+					return
+				}
+			}
+
+			log.Printf("user %s doesn't have role.", user.Name)
+			permissionDenied(w)
+		}
+	}
 }

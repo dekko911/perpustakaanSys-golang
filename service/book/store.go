@@ -19,7 +19,7 @@ func NewStore(db *sql.DB) *Store {
 	}
 }
 func (s *Store) GetBooks() ([]*types.Book, error) {
-	stmt, err := s.db.Prepare("SELECT * FROM books")
+	stmt, err := s.db.Prepare("SELECT b.id, b.id_buku, b.judul_buku, b.cover_buku, b.buku_pdf, b.penulis, b.pengarang, b.tahun, b.created_at, b.updated_at FROM books b ORDER BY b.id_buku DESC")
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +48,7 @@ func (s *Store) GetBooks() ([]*types.Book, error) {
 }
 
 func (s *Store) GetBookByID(id string) (*types.Book, error) {
-	stmt, err := s.db.Prepare("SELECT * FROM books WHERE id = ?")
+	stmt, err := s.db.Prepare("SELECT b.id, b.id_buku, b.judul_buku, b.cover_buku, b.buku_pdf, b.penulis, b.pengarang, b.tahun, b.created_at, b.updated_at FROM books b WHERE b.id = ?")
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +78,7 @@ func (s *Store) GetBookByID(id string) (*types.Book, error) {
 }
 
 func (s *Store) GetBookByJudulBuku(judulBuku string) (*types.Book, error) {
-	stmt, err := s.db.Prepare("SELECT * FROM books WHERE judul_buku = ?")
+	stmt, err := s.db.Prepare("SELECT b.id, b.id_buku, b.judul_buku, b.cover_buku, b.buku_pdf, b.penulis, b.pengarang, b.tahun, b.created_at, b.updated_at FROM books b WHERE b.judul_buku = ?")
 	if err != nil {
 		return nil, err
 	}
@@ -116,26 +116,26 @@ func (s *Store) CreateBook(b *types.Book) error {
 		b.IdBuku = helper.GenerateNextIDBuku(s.db)
 	}
 
-	stmt, err := s.db.Prepare("INSERT INTO books (id, id_buku, judul_buku, cover_buku, penulis, pengarang, tahun) VALUES (?,?,?,?,?,?,?)")
+	stmt, err := s.db.Prepare("INSERT INTO books (id, id_buku, judul_buku, cover_buku, buku_pdf, penulis, pengarang, tahun) VALUES (?,?,?,?,?,?,?,?)")
 	if err != nil {
 		return err
 	}
 
 	defer stmt.Close()
 
-	_, err = stmt.Exec(b.ID, b.IdBuku, b.JudulBuku, b.CoverBuku, b.Penulis, b.Pengarang, b.Tahun)
+	_, err = stmt.Exec(b.ID, b.IdBuku, b.JudulBuku, b.CoverBuku, b.BukuPDF, b.Penulis, b.Pengarang, b.Tahun)
 	return err
 }
 
 func (s *Store) UpdateBook(id string, b *types.Book) error {
-	stmt, err := s.db.Prepare("UPDATE books SET judul_buku = ?, cover_buku = ?, penulis = ?, pengarang = ?, tahun = ? WHERE id = ?")
+	stmt, err := s.db.Prepare("UPDATE books SET judul_buku = ?, cover_buku = ?, buku_pdf = ?, penulis = ?, pengarang = ?, tahun = ? WHERE id = ?")
 	if err != nil {
 		return err
 	}
 
 	defer stmt.Close()
 
-	_, err = stmt.Exec(b.JudulBuku, b.CoverBuku, b.Penulis, b.Pengarang, b.Tahun, id)
+	_, err = stmt.Exec(b.JudulBuku, b.CoverBuku, b.BukuPDF, b.Penulis, b.Pengarang, b.Tahun, id)
 	return err
 }
 
@@ -151,7 +151,7 @@ func (s *Store) DeleteBook(id string) error {
 	}
 
 	if rows == 0 {
-		return fmt.Errorf("book with id:%s not found", id)
+		return fmt.Errorf("book not found")
 	}
 
 	return nil

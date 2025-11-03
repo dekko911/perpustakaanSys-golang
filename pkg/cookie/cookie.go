@@ -1,4 +1,4 @@
-package middleware
+package cookie
 
 import (
 	"net/http"

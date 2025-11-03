@@ -7,7 +7,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"perpus_backend/middleware"
+	"perpus_backend/pkg/hash"
+	"perpus_backend/pkg/jwt"
 	"perpus_backend/types"
 	"perpus_backend/utils"
 
@@ -22,7 +23,8 @@ type Handler struct {
 
 const (
 	COK = http.StatusOK
-	OK  = "OK"
+
+	filePublicPath = "./assets/public/images/profile/"
 )
 
 func NewHandler(store types.UserStore) *Handler {
@@ -32,17 +34,17 @@ func NewHandler(store types.UserStore) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
-	r.HandleFunc("/users", middleware.AuthWithJWTToken(middleware.NeededRole(h.store, "admin")(h.handleGetUsers), h.store)).Methods(http.MethodGet)
+	r.HandleFunc("/users", jwt.AuthWithJWTToken(jwt.NeededRole(h.store, "admin")(h.handleGetUsers), h.store)).Methods(http.MethodGet)
 
-	r.HandleFunc("/users/{userID}", middleware.AuthWithJWTToken(middleware.NeededRole(h.store, "admin")(h.handleGetUserWithRolesByID), h.store)).Methods(http.MethodGet)
+	r.HandleFunc("/users/{userID}", jwt.AuthWithJWTToken(jwt.NeededRole(h.store, "admin")(h.handleGetUserWithRolesByID), h.store)).Methods(http.MethodGet)
 
-	r.HandleFunc("/profile", middleware.AuthWithJWTToken(h.handleGetProfileUser, h.store)).Methods(http.MethodGet)
+	r.HandleFunc("/profile", jwt.AuthWithJWTToken(h.handleGetProfileUser, h.store)).Methods(http.MethodGet)
 
-	r.HandleFunc("/users", middleware.AuthWithJWTToken(middleware.NeededRole(h.store, "admin")(h.handleCreateUser), h.store)).Methods(http.MethodPost)
+	r.HandleFunc("/users", jwt.AuthWithJWTToken(jwt.NeededRole(h.store, "admin")(h.handleCreateUser), h.store)).Methods(http.MethodPost)
 
-	r.HandleFunc("/users/{userID}", middleware.AuthWithJWTToken(middleware.NeededRole(h.store, "admin")(h.handleUpdateUser), h.store)).Methods(http.MethodPost)
+	r.HandleFunc("/users/{userID}", jwt.AuthWithJWTToken(jwt.NeededRole(h.store, "admin")(h.handleUpdateUser), h.store)).Methods(http.MethodPost)
 
-	r.HandleFunc("/users/{userID}", middleware.AuthWithJWTToken(middleware.NeededRole(h.store, "admin")(h.handleDeleteUser), h.store)).Methods(http.MethodDelete)
+	r.HandleFunc("/users/{userID}", jwt.AuthWithJWTToken(jwt.NeededRole(h.store, "admin")(h.handleDeleteUser), h.store)).Methods(http.MethodDelete)
 }
 
 func (h *Handler) handleGetUsers(w http.ResponseWriter, r *http.Request) {
@@ -55,7 +57,7 @@ func (h *Handler) handleGetUsers(w http.ResponseWriter, r *http.Request) {
 	utils.WriteJSON(w, COK, utils.JsonData{
 		Code:   COK,
 		Data:   users,
-		Status: OK,
+		Status: http.StatusText(COK),
 	})
 }
 
@@ -71,12 +73,12 @@ func (h *Handler) handleGetUserWithRolesByID(w http.ResponseWriter, r *http.Requ
 	utils.WriteJSON(w, COK, utils.JsonData{
 		Code:   COK,
 		Data:   user,
-		Status: OK,
+		Status: http.StatusText(COK),
 	})
 }
 
 func (h *Handler) handleGetProfileUser(w http.ResponseWriter, r *http.Request) {
-	userID := middleware.GetUserIDFromContext(r.Context())
+	userID := jwt.GetUserIDFromContext(r.Context())
 
 	user, err := h.store.GetUserWithRolesByID(userID)
 	if err != nil {
@@ -87,7 +89,7 @@ func (h *Handler) handleGetProfileUser(w http.ResponseWriter, r *http.Request) {
 	utils.WriteJSON(w, COK, utils.JsonData{
 		Code:   COK,
 		Data:   user,
-		Status: OK,
+		Status: http.StatusText(COK),
 	})
 }
 
@@ -95,10 +97,10 @@ func (h *Handler) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	var (
 		payload types.PayloadUser
 
-		fileName string
+		fileName, filePath string
 	)
 
-	if err := r.ParseMultipartForm(8 << 20); err != nil {
+	if err := r.ParseMultipartForm(1 << 20); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
@@ -132,15 +134,22 @@ func (h *Handler) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		randomString := xid.New().String()
 
 		ext := filepath.Ext(header.Filename)
-		fileName = randomString + ext
 
-		dst, _ := os.Create("./assets/public/images/" + fileName)
-		defer dst.Close()
+		if ext == ".png" || ext == ".jpg" || ext == ".jpeg" {
+			fileName = randomString + ext
+			filePath = filePublicPath + fileName
 
-		io.Copy(dst, file)
+			dst, _ := os.Create(filePath)
+			defer dst.Close()
+
+			io.Copy(dst, file)
+		} else {
+			utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("only support jpg, jpeg, and png"))
+			return
+		}
 	}
 
-	hashPass, err := middleware.HashPassword(payload.Password)
+	hashPass, err := hash.HashPassword(payload.Password)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
@@ -159,6 +168,7 @@ func (h *Handler) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	utils.WriteJSON(w, http.StatusCreated, utils.JsonData{
 		Code:    http.StatusCreated,
 		Message: "User Created!",
+		Status:  http.StatusText(http.StatusCreated),
 	})
 }
 
@@ -168,7 +178,7 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	var (
 		payload types.PayloadForUpdateUser
 
-		fileName string
+		fileName, filePath string
 	)
 
 	if r.Method != http.MethodPost {
@@ -176,7 +186,7 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := r.ParseMultipartForm(8 << 20); err != nil {
+	if err := r.ParseMultipartForm(1 << 20); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
@@ -199,7 +209,7 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hashPass, err := middleware.HashPassword(payload.Password)
+	hashPass, err := hash.HashPassword(payload.Password)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
@@ -224,22 +234,29 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		defer file.Close()
 
-		fileImg := "./assets/public/images/" + u.Avatar
-
-		if err := os.Remove(fileImg); err != nil {
-			utils.WriteJSONError(w, http.StatusNotFound, err)
-			return
-		}
-
 		randomString := xid.New().String()
 
 		ext := filepath.Ext(header.Filename)
-		fileName = randomString + ext
 
-		dst, _ := os.Create("./assets/public/images/" + fileName)
-		defer dst.Close()
+		if ext == ".png" || ext == ".jpg" || ext == ".jpeg" {
+			fileImgOld := filePublicPath + u.Avatar
 
-		io.Copy(dst, file)
+			if err := os.Remove(fileImgOld); err != nil {
+				utils.WriteJSONError(w, http.StatusNotFound, err)
+				return
+			}
+
+			fileName = randomString + ext
+			filePath = filePublicPath + fileName
+
+			dst, _ := os.Create(filePath)
+			defer dst.Close()
+
+			io.Copy(dst, file)
+		} else {
+			utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("only support jpg, jpeg, and png"))
+			return
+		}
 	}
 
 	if err := h.store.UpdateUser(userID, &types.User{
@@ -255,6 +272,7 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	utils.WriteJSON(w, COK, utils.JsonData{
 		Code:    COK,
 		Message: "User Updated!",
+		Status:  http.StatusText(COK),
 	})
 }
 
@@ -277,8 +295,20 @@ func (h *Handler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fileName := "./assets/public/images/" + u.Avatar
-	os.Remove(fileName)
+	fileName := filePublicPath + u.Avatar
+	info, err := os.Stat(fileName)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			utils.WriteJSONError(w, http.StatusNotFound, fmt.Errorf("file not found"))
+			return
+		}
+
+		utils.WriteJSONError(w, http.StatusInternalServerError, err)
+		return
+	}
+	if !info.IsDir() {
+		os.Remove(fileName)
+	}
 
 	if err := h.store.DeleteUser(userID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
@@ -288,5 +318,6 @@ func (h *Handler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	utils.WriteJSON(w, COK, utils.JsonData{
 		Code:    COK,
 		Message: "User Deleted!",
+		Status:  http.StatusText(COK),
 	})
 }

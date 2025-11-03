@@ -7,7 +7,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"perpus_backend/middleware"
+	"perpus_backend/pkg/hash"
+	"perpus_backend/pkg/jwt"
 	"perpus_backend/types"
 	"perpus_backend/utils"
 
@@ -20,10 +21,7 @@ type Handler struct {
 	store types.UserStore
 }
 
-const (
-	COK = http.StatusOK
-	OK  = "OK"
-)
+const COK = http.StatusOK
 
 func NewHandler(store types.UserStore) *Handler {
 	return &Handler{
@@ -34,7 +32,7 @@ func NewHandler(store types.UserStore) *Handler {
 func (h *Handler) RegisterRoutes(r *mux.Router) {
 	r.HandleFunc("/login", h.handleLogin).Methods(http.MethodPost)
 	r.HandleFunc("/register", h.handleRegister).Methods(http.MethodPost)
-	r.HandleFunc("/logout", middleware.AuthWithJWTToken(h.handleLogout, h.store)).Methods(http.MethodPost)
+	r.HandleFunc("/logout", jwt.AuthWithJWTToken(h.handleLogout, h.store)).Methods(http.MethodPost)
 }
 
 // Handler auth login using JWT.
@@ -63,12 +61,12 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !middleware.CompareHashedPassword(u.Password, []byte(payload.Password)) {
+	if !hash.CompareHashedPassword(u.Password, []byte(payload.Password)) {
 		utils.WriteJSONError(w, http.StatusBadRequest, errors.New("wrong password"))
 		return
 	}
 
-	token, err := middleware.CreateTokenJWT(u.ID, h.store)
+	token, err := jwt.CreateTokenJWT(u.ID, h.store)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
@@ -76,14 +74,14 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	utils.WriteJSON(w, COK, utils.JsonData{
 		Code:   COK,
-		Status: OK,
+		Status: http.StatusText(COK),
 		Token:  token,
 	})
 }
 
 // Handle Logout and Revoke the Token using token versioning (user session ver).
 func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
-	userID := middleware.GetUserIDFromContext(r.Context())
+	userID := jwt.GetUserIDFromContext(r.Context())
 
 	if err := h.store.IncrementTokenVersion(userID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
@@ -93,6 +91,7 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 	utils.WriteJSON(w, COK, utils.JsonData{
 		Code:    COK,
 		Message: "You've been Logout!",
+		Status:  http.StatusText(COK),
 	})
 }
 
@@ -132,7 +131,7 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hashPass, err := middleware.HashPassword(payload.Password)
+	hashPass, err := hash.HashPassword(payload.Password)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
@@ -146,7 +145,7 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 		ext := filepath.Ext(header.Filename)
 		fileName = randomString + ext
 
-		dst, _ := os.Create("./assets/public/images/" + fileName)
+		dst, _ := os.Create("./assets/public/images/profile/" + fileName)
 		defer dst.Close()
 
 		io.Copy(dst, file)
@@ -165,5 +164,21 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 	utils.WriteJSON(w, http.StatusCreated, utils.JsonData{
 		Code:    http.StatusCreated,
 		Message: "User Registered!",
+		Status:  http.StatusText(http.StatusCreated),
 	})
+}
+
+func (h *Handler) PrivateURLHandler(w http.ResponseWriter, r *http.Request) {
+	filename := mux.Vars(r)["filename"]
+
+	privateDir := "./assets/private"
+	joined := filepath.Join(privateDir, filename)
+	cleaned := filepath.Clean(joined)
+
+	if !utils.ItIsInBaseDir(cleaned, privateDir) {
+		utils.WriteJSONError(w, http.StatusNotFound, fmt.Errorf("file not found"))
+		return
+	}
+
+	http.ServeFile(w, r, cleaned)
 }

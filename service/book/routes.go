@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"perpus_backend/middleware"
+	"perpus_backend/pkg/jwt"
 	"perpus_backend/types"
 	"perpus_backend/utils"
 	"strconv"
@@ -24,7 +24,9 @@ type Handler struct {
 
 const (
 	COK = http.StatusOK
-	OK  = "OK"
+
+	dirCoverBookPath = "./assets/public/images/cover/"
+	dirPDFBookPath   = "./assets/private/pdf/"
 )
 
 func NewHandler(s types.BookStore, us types.UserStore) *Handler {
@@ -35,15 +37,15 @@ func NewHandler(s types.BookStore, us types.UserStore) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
-	r.HandleFunc("/books", middleware.AuthWithJWTToken(middleware.NeededRole(h.userStore, "admin", "staff", "user")(h.handleGetBooks), h.userStore)).Methods(http.MethodGet)
+	r.HandleFunc("/books", jwt.AuthWithJWTToken(jwt.NeededRole(h.userStore, "admin", "staff", "user")(h.handleGetBooks), h.userStore)).Methods(http.MethodGet)
 
-	r.HandleFunc("/books/{bookID}", middleware.AuthWithJWTToken(middleware.NeededRole(h.userStore, "admin", "staff", "user")(h.handleGetBookByID), h.userStore)).Methods(http.MethodGet)
+	r.HandleFunc("/books/{bookID}", jwt.AuthWithJWTToken(jwt.NeededRole(h.userStore, "admin", "staff", "user")(h.handleGetBookByID), h.userStore)).Methods(http.MethodGet)
 
-	r.HandleFunc("/books", middleware.AuthWithJWTToken(middleware.NeededRole(h.userStore, "admin", "staff")(h.handleCreateBook), h.userStore)).Methods(http.MethodPost)
+	r.HandleFunc("/books", jwt.AuthWithJWTToken(jwt.NeededRole(h.userStore, "admin", "staff")(h.handleCreateBook), h.userStore)).Methods(http.MethodPost)
 
-	r.HandleFunc("/books/{bookID}", middleware.AuthWithJWTToken(middleware.NeededRole(h.userStore, "admin", "staff")(h.handleUpdateBook), h.userStore)).Methods(http.MethodPost)
+	r.HandleFunc("/books/{bookID}", jwt.AuthWithJWTToken(jwt.NeededRole(h.userStore, "admin", "staff")(h.handleUpdateBook), h.userStore)).Methods(http.MethodPost)
 
-	r.HandleFunc("/books/{bookID}", middleware.AuthWithJWTToken(middleware.NeededRole(h.userStore, "admin", "staff")(h.handleDeleteBook), h.userStore)).Methods(http.MethodDelete)
+	r.HandleFunc("/books/{bookID}", jwt.AuthWithJWTToken(jwt.NeededRole(h.userStore, "admin", "staff")(h.handleDeleteBook), h.userStore)).Methods(http.MethodDelete)
 }
 
 func (h *Handler) handleGetBooks(w http.ResponseWriter, r *http.Request) {
@@ -56,7 +58,7 @@ func (h *Handler) handleGetBooks(w http.ResponseWriter, r *http.Request) {
 	utils.WriteJSON(w, COK, utils.JsonData{
 		Code:   COK,
 		Data:   books,
-		Status: OK,
+		Status: http.StatusText(COK),
 	})
 }
 
@@ -72,7 +74,7 @@ func (h *Handler) handleGetBookByID(w http.ResponseWriter, r *http.Request) {
 	utils.WriteJSON(w, COK, utils.JsonData{
 		Code:   COK,
 		Data:   book,
-		Status: OK,
+		Status: http.StatusText(COK),
 	})
 }
 
@@ -80,11 +82,13 @@ func (h *Handler) handleCreateBook(w http.ResponseWriter, r *http.Request) {
 	var (
 		payload types.PayloadBook
 
-		fileName string
+		fileName, filePDF  string
+		coverPath, pdfPath string
+		extCover, extPDF   string
 	)
 
-	if err := r.ParseMultipartForm(8 << 20); err != nil { // 20 = 2 dikalikan sebanyak 20 kali.
-		utils.WriteJSONError(w, http.StatusBadRequest, err)
+	if err := r.ParseMultipartForm(15 << 20); err != nil { // 20 = 2 dikalikan sebanyak 20 kali.
+		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
@@ -106,24 +110,67 @@ func (h *Handler) handleCreateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	file, header, err := r.FormFile("cover_buku")
+	// cover books
+	fileCoverBook, headerCoverBook, errCover := r.FormFile("cover_buku")
 
-	if err == http.ErrMissingFile {
+	// pdf books
+	filePDFbook, headerPDF, errPDF := r.FormFile("buku_pdf")
+
+	// fill the cover book
+	if errCover == http.ErrMissingFile {
 		fileName = "-"
 	}
 
-	if err == nil {
-		defer file.Close()
+	// fill the pdf file
+	if errPDF == http.ErrMissingFile {
+		utils.WriteJSONError(w, http.StatusUnprocessableEntity, fmt.Errorf("required pdf"))
+		filePDF = "-"
+		return
+	}
+
+	extCover = filepath.Ext(headerCoverBook.Filename) // get extension in file cover book
+
+	extPDF = filepath.Ext(headerPDF.Filename) // get extension in file book pdf
+
+	// doing validation
+	// check if ext no same like at my below
+	if extCover != ".png" && extCover != ".jpg" && extCover != ".jpeg" {
+		utils.WriteJSONError(w, http.StatusUnprocessableEntity, fmt.Errorf("only support png, jpg, and jpeg"))
+		return
+	}
+
+	// check this if file doesn't pdf ext
+	if extPDF != ".pdf" {
+		utils.WriteJSONError(w, http.StatusUnprocessableEntity, fmt.Errorf("convert to pdf first"))
+		return
+	}
+
+	// if it is clean, do this
+	if errCover == nil {
+		defer fileCoverBook.Close()
 
 		randomString := xid.New().String()
 
-		ext := filepath.Ext(header.Filename)
-		fileName = randomString + ext
+		fileName = randomString + extCover
+		coverPath = dirCoverBookPath + fileName
 
-		dst, _ := os.Create("./assets/public/images/" + fileName)
+		dst, _ := os.Create(coverPath)
 		defer dst.Close()
 
-		io.Copy(dst, file)
+		io.Copy(dst, fileCoverBook)
+	}
+
+	// if it is clean, do this
+	if errPDF == nil {
+		defer filePDFbook.Close()
+
+		filePDF = headerPDF.Filename
+		pdfPath = dirPDFBookPath + filePDF
+
+		dest, _ := os.Create(pdfPath)
+		defer dest.Close()
+
+		io.Copy(dest, filePDFbook)
 	}
 
 	tahun, err := strconv.Atoi(payload.Tahun)
@@ -135,6 +182,7 @@ func (h *Handler) handleCreateBook(w http.ResponseWriter, r *http.Request) {
 	if err := h.store.CreateBook(&types.Book{
 		JudulBuku: payload.JudulBuku,
 		CoverBuku: fileName,
+		BukuPDF:   filePDF,
 		Penulis:   payload.Penulis,
 		Pengarang: payload.Pengarang,
 		Tahun:     tahun,
@@ -146,6 +194,7 @@ func (h *Handler) handleCreateBook(w http.ResponseWriter, r *http.Request) {
 	utils.WriteJSON(w, http.StatusCreated, utils.JsonData{
 		Code:    http.StatusCreated,
 		Message: "Book Created!",
+		Status:  http.StatusText(http.StatusCreated),
 	})
 }
 
@@ -155,7 +204,9 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 	var (
 		payload types.PayloadUpdateBook
 
-		fileName string
+		fileName, filePDF  string
+		coverPath, pdfPath string
+		extCov, extPdf     string
 	)
 
 	if r.Method != http.MethodPost {
@@ -163,8 +214,8 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := r.ParseMultipartForm(8 << 20); err != nil { // 20 = 2 dikalikan sebanyak 20 kali.
-		utils.WriteJSONError(w, http.StatusBadRequest, err)
+	if err := r.ParseMultipartForm(15 << 20); err != nil { // 20 = 2 dikalikan sebanyak 20 kali.
+		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
@@ -183,34 +234,8 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 
 	b, err := h.store.GetBookByID(bookID)
 	if err != nil {
-		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("id_buku: %s is already exists", bookID))
+		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
-	}
-
-	file, header, err := r.FormFile("cover_buku")
-
-	if err == http.ErrMissingFile {
-		fileName = b.CoverBuku
-	}
-
-	if err == nil {
-		defer file.Close()
-
-		fileImg := "./assets/public/images" + fileName
-		if err := os.Remove(fileImg); err != nil {
-			utils.WriteJSONError(w, http.StatusNotFound, err)
-			return
-		}
-
-		randomString := xid.New().String()
-
-		ext := filepath.Ext(header.Filename)
-		fileName = randomString + ext
-
-		dst, _ := os.Create("./assets/public/images/" + fileName)
-		defer dst.Close()
-
-		io.Copy(dst, file)
 	}
 
 	tahun, err := strconv.Atoi(payload.Tahun)
@@ -232,9 +257,78 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 		b.Tahun = tahun
 	}
 
+	// for cover books
+	fileCoverBook, headerCoverB, errCoverB := r.FormFile("cover_buku")
+
+	// for pdf books
+	filePDFBook, headerPDFf, errPDFf := r.FormFile("buku_pdf")
+
+	if errCoverB == http.ErrMissingFile {
+		fileName = b.CoverBuku
+	}
+
+	if errPDFf == http.ErrMissingFile {
+		filePDF = b.BukuPDF
+	}
+
+	extCov = filepath.Ext(headerCoverB.Filename)
+
+	extPdf = filepath.Ext(headerPDFf.Filename)
+
+	if extCov != ".png" && extCov != ".jpg" && extCov != ".jpeg" {
+		utils.WriteJSONError(w, http.StatusUnprocessableEntity, fmt.Errorf("only support png, jpg, and jpeg"))
+		return
+	}
+
+	if extPdf != ".pdf" {
+		utils.WriteJSONError(w, http.StatusUnprocessableEntity, fmt.Errorf("convert to pdf first"))
+		return
+	}
+
+	if errCoverB == nil {
+		defer fileCoverBook.Close()
+
+		fileImg := dirCoverBookPath + b.CoverBuku
+		if err := os.Remove(fileImg); err != nil {
+			utils.WriteJSONError(w, http.StatusNotFound, err)
+			return
+		}
+
+		randomString := xid.New().String()
+
+		fileName = randomString + extCov
+
+		coverPath = dirCoverBookPath + fileName
+
+		dst, _ := os.Create(coverPath)
+		defer dst.Close()
+
+		io.Copy(dst, fileCoverBook)
+	}
+
+	if errPDFf == nil {
+		defer filePDFBook.Close()
+
+		filePDFOld := dirPDFBookPath + b.BukuPDF
+		if err := os.Remove(filePDFOld); err != nil {
+			utils.WriteJSONError(w, http.StatusNotFound, err)
+			return
+		}
+
+		filePDF = headerPDFf.Filename
+
+		pdfPath = dirPDFBookPath + filePDF
+
+		dest, _ := os.Create(pdfPath)
+		defer dest.Close()
+
+		io.Copy(dest, fileCoverBook)
+	}
+
 	if err := h.store.UpdateBook(bookID, &types.Book{
 		JudulBuku: b.JudulBuku,
 		CoverBuku: fileName,
+		BukuPDF:   filePDF,
 		Penulis:   b.Penulis,
 		Pengarang: b.Pengarang,
 		Tahun:     tahun,
@@ -246,11 +340,49 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 	utils.WriteJSON(w, COK, utils.JsonData{
 		Code:    COK,
 		Message: "Book Updated!",
+		Status:  http.StatusText(COK),
 	})
 }
 
 func (h *Handler) handleDeleteBook(w http.ResponseWriter, r *http.Request) {
 	bookID := mux.Vars(r)["bookID"]
+
+	b, err := h.store.GetBookByID(bookID)
+	if err != nil {
+		utils.WriteJSONError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	// file cover book
+	fileImg := dirCoverBookPath + b.CoverBuku
+	infoImg, err := os.Stat(fileImg)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			utils.WriteJSONError(w, http.StatusNotFound, fmt.Errorf("img not found"))
+			return
+		}
+
+		utils.WriteJSONError(w, http.StatusInternalServerError, err)
+		return
+	}
+	if !infoImg.IsDir() {
+		os.Remove(fileImg)
+	}
+
+	// file pdf book
+	filePDF := dirPDFBookPath + b.BukuPDF
+	infoPDF, err := os.Stat(filePDF)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			utils.WriteJSONError(w, http.StatusNotFound, fmt.Errorf("pdf not found"))
+			return
+		}
+
+		utils.WriteJSONError(w, http.StatusInternalServerError, err)
+	}
+	if !infoPDF.IsDir() {
+		os.Remove(filePDF)
+	}
 
 	if err := h.store.DeleteBook(bookID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
@@ -260,5 +392,6 @@ func (h *Handler) handleDeleteBook(w http.ResponseWriter, r *http.Request) {
 	utils.WriteJSON(w, COK, utils.JsonData{
 		Code:    COK,
 		Message: "Book Deleted!",
+		Status:  http.StatusText(COK),
 	})
 }

@@ -94,6 +94,7 @@ func ScanEachRowIntoBook(rows *sql.Rows) (*types.Book, error) {
 		&b.IdBuku,
 		&b.JudulBuku,
 		&b.CoverBuku,
+		&b.BukuPDF,
 		&b.Penulis,
 		&b.Pengarang,
 		&b.Tahun,
@@ -108,7 +109,7 @@ func ScanEachRowIntoBook(rows *sql.Rows) (*types.Book, error) {
 }
 
 func GetUserByID(id string, db *sql.DB) (*types.User, error) {
-	stmt, err := db.Prepare("SELECT * FROM users WHERE id = ?")
+	stmt, err := db.Prepare("SELECT u.id, u.name, u.email, u.password, u.avatar, u.token_version, u.created_at, u.updated_at FROM users u WHERE u.id = ?")
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +135,7 @@ func GetUserByID(id string, db *sql.DB) (*types.User, error) {
 }
 
 func GetUserByEmail(email string, db *sql.DB) (*types.User, error) {
-	stmt, err := db.Prepare("SELECT * FROM users WHERE email = ?")
+	stmt, err := db.Prepare("SELECT u.id, u.name, u.email, u.password, u.avatar, u.token_version, u.created_at, u.updated_at FROM users u WHERE u.email = ?")
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +166,7 @@ func GetUserByEmail(email string, db *sql.DB) (*types.User, error) {
 
 func GenerateNextIDBuku(db *sql.DB) string {
 	var lastID string
-	stmt, err := db.Prepare("SELECT id_buku FROM books ORDER BY id_buku DESC LIMIT 1")
+	stmt, err := db.Prepare("SELECT b.id_buku FROM books b ORDER BY b.id_buku DESC LIMIT 1")
 	if err != nil {
 		return err.Error()
 	}

@@ -2,7 +2,10 @@ package utils
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
+	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 
@@ -23,7 +26,7 @@ type JsonData struct {
 // validate the request input.
 var Validate = validator.New()
 
-// returning info into json type.
+// returned information into json type.
 func WriteJSON(w http.ResponseWriter, statusCode int, d JsonData) error {
 	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
@@ -31,7 +34,7 @@ func WriteJSON(w http.ResponseWriter, statusCode int, d JsonData) error {
 	return json.NewEncoder(w).Encode(d)
 }
 
-// returning info into json error type.
+// returned information into json error type.
 func WriteJSONError(w http.ResponseWriter, statusCode int, err error) {
 	_, file, line, _ := runtime.Caller(1)
 
@@ -40,7 +43,7 @@ func WriteJSONError(w http.ResponseWriter, statusCode int, err error) {
 		Error:  err.Error(),
 		File:   file,
 		Line:   line,
-		Status: "error",
+		Status: http.StatusText(statusCode),
 	})
 }
 
@@ -55,4 +58,31 @@ func GetTokenFromRequest(r *http.Request) string {
 	}
 
 	return ""
+}
+
+func ItIsInBaseDir(path, baseDir string) bool {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return false
+	}
+
+	absBaseDir, err := filepath.Abs(baseDir)
+	if err != nil {
+		return false
+	}
+
+	info, err := os.Stat(absPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false
+		}
+
+		return false
+	}
+
+	if info.IsDir() {
+		return false
+	}
+
+	return len(absPath) >= len(absBaseDir) && absPath[:len(absBaseDir)] == absBaseDir
 }

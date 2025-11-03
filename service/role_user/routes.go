@@ -3,7 +3,7 @@ package roleuser
 import (
 	"fmt"
 	"net/http"
-	"perpus_backend/middleware"
+	"perpus_backend/pkg/jwt"
 	"perpus_backend/types"
 	"perpus_backend/utils"
 
@@ -17,21 +17,18 @@ type Handler struct {
 	roleStore types.RoleStore
 }
 
-const (
-	COK = http.StatusOK
-	OK  = "OK"
-)
+const COK = http.StatusOK
 
 func NewHandler(store types.RoleUserStore, userStore types.UserStore, roleStore types.RoleStore) *Handler {
 	return &Handler{store: store, userStore: userStore, roleStore: roleStore}
 }
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
-	r.HandleFunc("/role_user/{userID}", middleware.AuthWithJWTToken(middleware.NeededRole(h.userStore, "admin")(h.handleGetRoleByUserID), h.userStore)).Methods(http.MethodGet)
+	r.HandleFunc("/role_user/{userID}", jwt.AuthWithJWTToken(jwt.NeededRole(h.userStore, "admin")(h.handleGetRoleByUserID), h.userStore)).Methods(http.MethodGet)
 
-	r.HandleFunc("/role_user", middleware.AuthWithJWTToken(middleware.NeededRole(h.userStore, "admin")(h.handleAssignRoleIntoUser), h.userStore)).Methods(http.MethodPost)
+	r.HandleFunc("/role_user", jwt.AuthWithJWTToken(jwt.NeededRole(h.userStore, "admin")(h.handleAssignRoleIntoUser), h.userStore)).Methods(http.MethodPost)
 
-	r.HandleFunc("/user/{userID}/role/{roleID}", middleware.AuthWithJWTToken(middleware.NeededRole(h.userStore, "admin")(h.handleDeleteRoleFromUser), h.userStore)).Methods(http.MethodDelete)
+	r.HandleFunc("/user/{userID}/role/{roleID}", jwt.AuthWithJWTToken(jwt.NeededRole(h.userStore, "admin")(h.handleDeleteRoleFromUser), h.userStore)).Methods(http.MethodDelete)
 }
 
 func (h *Handler) handleGetRoleByUserID(w http.ResponseWriter, r *http.Request) {
@@ -46,7 +43,7 @@ func (h *Handler) handleGetRoleByUserID(w http.ResponseWriter, r *http.Request) 
 	utils.WriteJSON(w, COK, utils.JsonData{
 		Code:   COK,
 		Data:   roleUser,
-		Status: OK,
+		Status: http.StatusText(COK),
 	})
 }
 
@@ -82,8 +79,10 @@ func (h *Handler) handleAssignRoleIntoUser(w http.ResponseWriter, req *http.Requ
 	}
 
 	if r.Name == "admin" {
-		utils.WriteJSONError(w, http.StatusForbidden, fmt.Errorf("you can't add admin"))
-		return
+		if jwt.GetUserIDFromContext(req.Context()) != payload.UserID {
+			utils.WriteJSONError(w, http.StatusForbidden, fmt.Errorf("you can't add admin"))
+			return
+		}
 	}
 
 	if err := h.store.AssignRoleIntoUser(payload.UserID, payload.RoleID); err != nil {
@@ -94,6 +93,7 @@ func (h *Handler) handleAssignRoleIntoUser(w http.ResponseWriter, req *http.Requ
 	utils.WriteJSON(w, COK, utils.JsonData{
 		Code:    COK,
 		Message: "User and Role has Connected.",
+		Status:  http.StatusText(COK),
 	})
 }
 
@@ -109,5 +109,6 @@ func (h *Handler) handleDeleteRoleFromUser(w http.ResponseWriter, r *http.Reques
 	utils.WriteJSON(w, http.StatusOK, utils.JsonData{
 		Code:    COK,
 		Message: "User and Role has Disconnected.",
+		Status:  http.StatusText(COK),
 	})
 }
