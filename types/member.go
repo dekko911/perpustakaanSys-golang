@@ -11,7 +11,7 @@ type Member struct {
 	JenisKelamin  string    `json:"jenis_kelamin"` // enum type
 	Kelas         string    `json:"kelas"`
 	NoTelepon     string    `json:"no_telepon"`
-	AvatarAnggota string    `json:"avatar_anggota"` // image type
+	ProfilAnggota string    `json:"profil_anggota"` // image type
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 }
@@ -19,15 +19,23 @@ type Member struct {
 type MemberStore interface {
 	GetMembers() ([]*Member, error)
 	GetMemberByID(id string) (*Member, error)
+	GetMemberByNama(nama string) (*Member, error)
+	GetMemberByNoTelepon(no_phone string) (*Member, error)
 	CreateMember(*Member) error
-	UpdateMember(*Member) error
+	UpdateMember(id string, m *Member) error
 	DeleteMember(id string) error
 }
 
 type PayloadMember struct {
-	IdAnggota    string `form:"id_anggota" validate:"required,min=4"`
 	Nama         string `form:"nama" validate:"required"`
 	JenisKelamin string `form:"jenis_kelamin" validate:"required"`
 	Kelas        string `form:"kelas" validate:"required"`
 	NoTelepon    string `form:"no_telepon" validate:"required,min=6"`
+}
+
+type PayloadUpdateMember struct {
+	Nama         string `form:"nama" validate:"omitempty,required"`
+	JenisKelamin string `form:"jenis_kelamin" validate:"omitempty,required"`
+	Kelas        string `form:"kelas" validate:"omitempty,required"`
+	NoTelepon    string `form:"no_telepon" validate:"omitempty,required,min=6"`
 }

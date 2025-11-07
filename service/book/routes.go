@@ -27,6 +27,8 @@ const (
 
 	dirCoverBookPath = "./assets/public/images/cover/"
 	dirPDFBookPath   = "./assets/private/pdf/"
+
+	size15MB = 15 << 20
 )
 
 func NewHandler(s types.BookStore, us types.UserStore) *Handler {
@@ -43,7 +45,7 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 
 	r.HandleFunc("/books", jwt.AuthWithJWTToken(jwt.NeededRole(h.userStore, "admin", "staff")(h.handleCreateBook), h.userStore)).Methods(http.MethodPost)
 
-	r.HandleFunc("/books/{bookID}", jwt.AuthWithJWTToken(jwt.NeededRole(h.userStore, "admin", "staff")(h.handleUpdateBook), h.userStore)).Methods(http.MethodPost)
+	r.HandleFunc("/books/{bookID}", jwt.AuthWithJWTToken(jwt.NeededRole(h.userStore, "admin", "staff")(h.handleUpdateBook), h.userStore)).Methods(http.MethodPut)
 
 	r.HandleFunc("/books/{bookID}", jwt.AuthWithJWTToken(jwt.NeededRole(h.userStore, "admin", "staff")(h.handleDeleteBook), h.userStore)).Methods(http.MethodDelete)
 }
@@ -85,9 +87,10 @@ func (h *Handler) handleCreateBook(w http.ResponseWriter, r *http.Request) {
 		fileName, filePDF  string
 		coverPath, pdfPath string
 		extCover, extPDF   string
+		sizeCover, sizePDF int64
 	)
 
-	if err := r.ParseMultipartForm(15 << 20); err != nil { // 20 = 2 dikalikan sebanyak 20 kali.
+	if err := r.ParseMultipartForm(size15MB); err != nil { // 20 = 2 dikalikan sebanyak 20 kali.
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
@@ -129,8 +132,10 @@ func (h *Handler) handleCreateBook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	extCover = filepath.Ext(headerCoverBook.Filename) // get extension in file cover book
+	sizeCover = headerCoverBook.Size
 
 	extPDF = filepath.Ext(headerPDF.Filename) // get extension in file book pdf
+	sizePDF = headerPDF.Size
 
 	// doing validation
 	// check if ext no same like at my below
@@ -139,9 +144,21 @@ func (h *Handler) handleCreateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// check if size file cover over 15mb
+	if sizeCover > size15MB {
+		utils.WriteJSONError(w, http.StatusUnprocessableEntity, fmt.Errorf("only serve file cover under 15mb"))
+		return
+	}
+
 	// check this if file doesn't pdf ext
 	if extPDF != ".pdf" {
 		utils.WriteJSONError(w, http.StatusUnprocessableEntity, fmt.Errorf("convert to pdf first"))
+		return
+	}
+
+	// check if size file pdf over 15mb
+	if sizePDF > size15MB {
+		utils.WriteJSONError(w, http.StatusUnprocessableEntity, fmt.Errorf("only serve file pdf under 15mb"))
 		return
 	}
 
@@ -207,9 +224,10 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 		fileName, filePDF  string
 		coverPath, pdfPath string
 		extCov, extPdf     string
+		sizeCover, sizePDF int64
 	)
 
-	if r.Method != http.MethodPost {
+	if r.Method != http.MethodPut {
 		utils.WriteJSONError(w, http.StatusMethodNotAllowed, errors.New("method doesn't allowed"))
 		return
 	}
@@ -272,16 +290,28 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	extCov = filepath.Ext(headerCoverB.Filename)
+	sizeCover = headerCoverB.Size
 
 	extPdf = filepath.Ext(headerPDFf.Filename)
+	sizePDF = headerPDFf.Size
 
 	if extCov != ".png" && extCov != ".jpg" && extCov != ".jpeg" {
 		utils.WriteJSONError(w, http.StatusUnprocessableEntity, fmt.Errorf("only support png, jpg, and jpeg"))
 		return
 	}
 
+	if sizeCover > size15MB {
+		utils.WriteJSONError(w, http.StatusUnprocessableEntity, fmt.Errorf("only serve file cover under 15mb"))
+		return
+	}
+
 	if extPdf != ".pdf" {
 		utils.WriteJSONError(w, http.StatusUnprocessableEntity, fmt.Errorf("convert to pdf first"))
+		return
+	}
+
+	if sizePDF > size15MB {
+		utils.WriteJSONError(w, http.StatusUnprocessableEntity, fmt.Errorf("only serve file pdf under 15mb"))
 		return
 	}
 

@@ -25,6 +25,8 @@ const (
 	COK = http.StatusOK
 
 	filePublicPath = "./assets/public/images/profile/"
+
+	size1MB = 1 << 20
 )
 
 func NewHandler(store types.UserStore) *Handler {
@@ -42,7 +44,7 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 
 	r.HandleFunc("/users", jwt.AuthWithJWTToken(jwt.NeededRole(h.store, "admin")(h.handleCreateUser), h.store)).Methods(http.MethodPost)
 
-	r.HandleFunc("/users/{userID}", jwt.AuthWithJWTToken(jwt.NeededRole(h.store, "admin")(h.handleUpdateUser), h.store)).Methods(http.MethodPost)
+	r.HandleFunc("/users/{userID}", jwt.AuthWithJWTToken(jwt.NeededRole(h.store, "admin")(h.handleUpdateUser), h.store)).Methods(http.MethodPut)
 
 	r.HandleFunc("/users/{userID}", jwt.AuthWithJWTToken(jwt.NeededRole(h.store, "admin")(h.handleDeleteUser), h.store)).Methods(http.MethodDelete)
 }
@@ -98,9 +100,10 @@ func (h *Handler) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		payload types.PayloadUser
 
 		fileName, filePath string
+		sizeFile           int64
 	)
 
-	if err := r.ParseMultipartForm(1 << 20); err != nil {
+	if err := r.ParseMultipartForm(size1MB); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
@@ -134,17 +137,23 @@ func (h *Handler) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		randomString := xid.New().String()
 
 		ext := filepath.Ext(header.Filename)
+		sizeFile = header.Size
 
-		if ext == ".png" || ext == ".jpg" || ext == ".jpeg" {
-			fileName = randomString + ext
-			filePath = filePublicPath + fileName
+		if sizeFile <= size1MB {
+			if ext == ".png" || ext == ".jpg" || ext == ".jpeg" {
+				fileName = randomString + ext
+				filePath = filePublicPath + fileName
 
-			dst, _ := os.Create(filePath)
-			defer dst.Close()
+				dst, _ := os.Create(filePath)
+				defer dst.Close()
 
-			io.Copy(dst, file)
+				io.Copy(dst, file)
+			} else {
+				utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("only support jpg, jpeg, and png"))
+				return
+			}
 		} else {
-			utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("only support jpg, jpeg, and png"))
+			utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("only serve file under 1mb"))
 			return
 		}
 	}
@@ -156,10 +165,10 @@ func (h *Handler) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.store.CreateUser(&types.User{
-		Name:     payload.Name,
-		Email:    payload.Email,
-		Password: hashPass,
-		Avatar:   fileName,
+		Name:     payload.Name,  // miko
+		Email:    payload.Email, // miko@email.com
+		Password: hashPass,      // miko123
+		Avatar:   fileName,      // img.jpg
 	}); err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
@@ -176,12 +185,13 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	userID := mux.Vars(r)["userID"]
 
 	var (
-		payload types.PayloadForUpdateUser
+		payload types.PayloadUpdateUser
 
 		fileName, filePath string
+		sizeFile           int64
 	)
 
-	if r.Method != http.MethodPost {
+	if r.Method != http.MethodPut {
 		utils.WriteJSONError(w, http.StatusMethodNotAllowed, errors.New("method doesn't allowed"))
 		return
 	}
@@ -191,7 +201,7 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload = types.PayloadForUpdateUser{
+	payload = types.PayloadUpdateUser{
 		Name:     r.FormValue("name"),
 		Email:    r.FormValue("email"),
 		Password: r.FormValue("password"),
@@ -237,24 +247,30 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		randomString := xid.New().String()
 
 		ext := filepath.Ext(header.Filename)
+		sizeFile = header.Size
 
-		if ext == ".png" || ext == ".jpg" || ext == ".jpeg" {
-			fileImgOld := filePublicPath + u.Avatar
+		if sizeFile <= size1MB {
+			if ext == ".png" || ext == ".jpg" || ext == ".jpeg" {
+				fileImgOld := filePublicPath + u.Avatar
 
-			if err := os.Remove(fileImgOld); err != nil {
-				utils.WriteJSONError(w, http.StatusNotFound, err)
+				if err := os.Remove(fileImgOld); err != nil {
+					utils.WriteJSONError(w, http.StatusNotFound, err)
+					return
+				}
+
+				fileName = randomString + ext
+				filePath = filePublicPath + fileName
+
+				dst, _ := os.Create(filePath)
+				defer dst.Close()
+
+				io.Copy(dst, file)
+			} else {
+				utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("only support jpg, jpeg, and png"))
 				return
 			}
-
-			fileName = randomString + ext
-			filePath = filePublicPath + fileName
-
-			dst, _ := os.Create(filePath)
-			defer dst.Close()
-
-			io.Copy(dst, file)
 		} else {
-			utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("only support jpg, jpeg, and png"))
+			utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("only serve file under 1mb"))
 			return
 		}
 	}

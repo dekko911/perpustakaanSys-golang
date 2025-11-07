@@ -123,7 +123,7 @@ func (s *Store) CreateRole(r *types.Role) error {
 	return err
 }
 
-func (s *Store) UpdateRole(id string, r *types.Role) error {
+func (s *Store) UpdateRole(id string, r types.Role) error {
 	stmt, err := s.db.Prepare("UPDATE roles SET name = ? WHERE id = ?")
 	if err != nil {
 		return err

@@ -1,0 +1,186 @@
+package member
+
+import (
+	"database/sql"
+	"fmt"
+	"perpus_backend/helper"
+	"perpus_backend/types"
+
+	"github.com/google/uuid"
+)
+
+type Store struct {
+	db *sql.DB
+}
+
+func NewStore(db *sql.DB) *Store {
+	return &Store{db: db}
+}
+
+func (s *Store) GetMembers() ([]*types.Member, error) {
+	stmt, err := s.db.Prepare("SELECT m.id, m.id_anggota, m.nama, m.jenis_kelamin, m.kelas, m.no_telepon, m.profil_anggota, m.created_at, m.updated_at FROM members m ORDER BY m.id_anggota DESC")
+	if err != nil {
+		return nil, err
+	}
+
+	defer stmt.Close()
+
+	rows, err := stmt.Query()
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	members := make([]*types.Member, 0)
+	for rows.Next() {
+		m, err := helper.ScanEachRowIntoMember(rows)
+		if err != nil {
+			return nil, err
+		}
+
+		members = append(members, m)
+	}
+
+	return members, nil
+}
+
+func (s *Store) GetMemberByID(id string) (*types.Member, error) {
+	stmt, err := s.db.Prepare("SELECT m.id, m.id_anggota, m.nama, m.jenis_kelamin, m.kelas, m.no_telepon, m.profil_anggota, m.created_at, m.updated_at FROM members m WHERE m.id = ?")
+	if err != nil {
+		return nil, err
+	}
+
+	defer stmt.Close()
+
+	rows, err := stmt.Query(id)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	m := new(types.Member)
+	for rows.Next() {
+		m, err = helper.ScanEachRowIntoMember(rows)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if m.ID != id {
+		return nil, fmt.Errorf("member not found")
+	}
+
+	return m, nil
+}
+
+func (s *Store) GetMemberByNama(nama string) (*types.Member, error) {
+	stmt, err := s.db.Prepare("SELECT m.id, m.id_anggota, m.nama, m.jenis_kelamin, m.kelas, m.no_telepon, m.profil_anggota, m.created_at, m.updated_at FROM members m WHERE m.nama = ?")
+	if err != nil {
+		return nil, err
+	}
+
+	defer stmt.Close()
+
+	rows, err := stmt.Query(nama)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	m := new(types.Member)
+	for rows.Next() {
+		m, err = helper.ScanEachRowIntoMember(rows)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if m.ID == "" {
+		return nil, fmt.Errorf("member not found")
+	}
+
+	return m, nil
+}
+
+func (s *Store) GetMemberByNoTelepon(no_phone string) (*types.Member, error) {
+	stmt, err := s.db.Prepare("SELECT m.id, m.id_anggota, m.nama, m.jenis_kelamin, m.kelas, m.no_telepon, m.profil_anggota, m.created_at, m.updated_at FROM members m WHERE m.no_telepon = ?")
+	if err != nil {
+		return nil, err
+	}
+
+	defer stmt.Close()
+
+	rows, err := stmt.Query(no_phone)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	m := new(types.Member)
+	for rows.Next() {
+		m, err = helper.ScanEachRowIntoMember(rows)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if m.ID == "" {
+		return nil, fmt.Errorf("member not found")
+	}
+
+	return m, nil
+}
+
+func (s *Store) CreateMember(m *types.Member) error {
+	if m.ID == "" {
+		m.ID = uuid.NewString()
+	}
+
+	if m.IdAnggota == "" {
+		m.IdAnggota = helper.GenerateNextIDAnggota(s.db)
+	}
+
+	stmt, err := s.db.Prepare("INSERT INTO members (id, id_anggota, nama, jenis_kelamin, kelas, no_telepon, profil_anggota) VALUES (?,?,?,?,?,?,?)")
+	if err != nil {
+		return err
+	}
+
+	defer stmt.Close()
+
+	_, err = stmt.Exec(m.ID, m.IdAnggota, m.Nama, m.JenisKelamin, m.Kelas, m.NoTelepon, m.ProfilAnggota)
+	return err
+}
+
+func (s *Store) UpdateMember(id string, m *types.Member) error {
+	stmt, err := s.db.Prepare("UPDATE members SET nama = ?, jenis_kelamin = ?, kelas = ?, no_telepon = ?, profil_anggota = ? WHERE id = ?")
+	if err != nil {
+		return err
+	}
+
+	defer stmt.Close()
+
+	_, err = stmt.Exec(m.Nama, m.JenisKelamin, m.Kelas, m.NoTelepon, m.ProfilAnggota, id)
+	return err
+}
+
+func (s *Store) DeleteMember(id string) error {
+	res, err := s.db.Exec("DELETE FROM members WHERE id = ?", id)
+	if err != nil {
+		return err
+	}
+
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rows == 0 {
+		return fmt.Errorf("member not found")
+	}
+
+	return nil
+}

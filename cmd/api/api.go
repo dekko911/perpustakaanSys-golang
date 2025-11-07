@@ -9,6 +9,7 @@ import (
 	"perpus_backend/pkg/limiter"
 	"perpus_backend/service/auth"
 	"perpus_backend/service/book"
+	"perpus_backend/service/member"
 	"perpus_backend/service/role"
 	roleuser "perpus_backend/service/role_user"
 	"perpus_backend/service/user"
@@ -72,6 +73,11 @@ func (s *APIServer) Run() error {
 	bookStore := book.NewStore(s.db)
 	bookHandler := book.NewHandler(bookStore, userStore)
 	bookHandler.RegisterRoutes(subrouter)
+
+	// member routes
+	memberStore := member.NewStore(s.db)
+	memberHandler := member.NewHandler(memberStore, userStore)
+	memberHandler.RegisterRoutes(subrouter)
 
 	// auth routes
 	authHandler := auth.NewHandler(userStore)

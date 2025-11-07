@@ -37,7 +37,7 @@ type PayloadUser struct {
 	Password string `form:"password" validate:"required,min=6"`
 }
 
-type PayloadForUpdateUser struct {
+type PayloadUpdateUser struct {
 	Name     string `form:"name" validate:"omitempty,required,min=3"`
 	Email    string `form:"email" validate:"omitempty,required,email"`
 	Password string `form:"password" validate:"omitempty,required,min=6"`

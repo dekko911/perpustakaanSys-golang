@@ -134,7 +134,7 @@ func (h *Handler) handleUpdateRole(w http.ResponseWriter, req *http.Request) {
 		r.Name = payload.Name
 	}
 
-	if err := h.store.UpdateRole(roleID, &types.Role{
+	if err := h.store.UpdateRole(roleID, types.Role{
 		Name: r.Name,
 	}); err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)

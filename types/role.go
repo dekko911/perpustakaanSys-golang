@@ -14,7 +14,7 @@ type RoleStore interface {
 	GetRoleByID(id string) (*Role, error)
 	GetRoleByName(name string) (*Role, error)
 	CreateRole(*Role) error
-	UpdateRole(id string, r *Role) error
+	UpdateRole(id string, r Role) error
 	DeleteRole(id string) error
 }
 

@@ -20,7 +20,7 @@ type CirculationStore interface {
 	GetCirculations() ([]*Circulation, error)
 	GetCirculationByID(id string) (*Circulation, error)
 	CreateCirculation(*Circulation) error
-	UpdateCirculation(c *Circulation) error
+	UpdateCirculation(id string, c *Circulation) error
 	DeleteCirculation(id string) error
 }
 

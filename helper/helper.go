@@ -75,7 +75,7 @@ func ScanEachRowUserAndRoleIntoRoleUser(rows *sql.Rows) (*types.User, *types.Rol
 		return nil, nil, err
 	}
 
-	if roleID.Valid || roleName.Valid || roleCreatedAt.Valid || roleUpdatedAt.Valid {
+	if roleID.Valid && roleName.Valid && roleCreatedAt.Valid && roleUpdatedAt.Valid {
 		r.ID = roleID.String
 		r.Name = roleName.String
 		r.CreatedAt = roleCreatedAt.Time
@@ -108,6 +108,27 @@ func ScanEachRowIntoBook(rows *sql.Rows) (*types.Book, error) {
 	return b, nil
 }
 
+func ScanEachRowIntoMember(rows *sql.Rows) (*types.Member, error) {
+	m := new(types.Member)
+
+	err := rows.Scan(
+		&m.ID,
+		&m.IdAnggota,
+		&m.Nama,
+		&m.JenisKelamin,
+		&m.Kelas,
+		&m.NoTelepon,
+		&m.ProfilAnggota,
+		&m.CreatedAt,
+		&m.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return m, nil
+}
+
 func GetUserByID(id string, db *sql.DB) (*types.User, error) {
 	stmt, err := db.Prepare("SELECT u.id, u.name, u.email, u.password, u.avatar, u.token_version, u.created_at, u.updated_at FROM users u WHERE u.id = ?")
 	if err != nil {
@@ -123,7 +144,7 @@ func GetUserByID(id string, db *sql.DB) (*types.User, error) {
 
 	defer rows.Close()
 
-	u := new(types.User) // database
+	u := new(types.User)
 	for rows.Next() {
 		u, err = ScanEachRowIntoUser(rows)
 		if err != nil {
@@ -187,6 +208,43 @@ func GenerateNextIDBuku(db *sql.DB) string {
 		return err.Error()
 	}
 
+	if num > 999 {
+		next4DigitsID := fmt.Sprintf("BK%04d", num+1)
+		return next4DigitsID
+	}
+
 	nextID := fmt.Sprintf("BK%03d", num+1)
+	return nextID
+}
+
+func GenerateNextIDAnggota(db *sql.DB) string {
+	var lastID string
+	stmt, err := db.Prepare("SELECT m.id_anggota FROM members m ORDER BY m.id_anggota DESC LIMIT 1")
+	if err != nil {
+		return err.Error()
+	}
+
+	defer stmt.Close()
+
+	if err := stmt.QueryRow().Scan(&lastID); err != nil {
+		if err == sql.ErrNoRows {
+			return "ID001"
+		}
+
+		return err.Error()
+	}
+
+	idStr := strings.TrimPrefix(lastID, "ID")
+	num, err := strconv.Atoi(idStr)
+	if err != nil {
+		return err.Error()
+	}
+
+	if num > 999 {
+		next4DigitsID := fmt.Sprintf("BK%04d", num+1)
+		return next4DigitsID
+	}
+
+	nextID := fmt.Sprintf("ID%03d", num+1)
 	return nextID
 }
