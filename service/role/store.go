@@ -48,6 +48,8 @@ func (s *Store) GetRoles() ([]*types.Role, error) {
 }
 
 func (s *Store) GetRoleByID(id string) (*types.Role, error) {
+	var r types.Role
+
 	stmt, err := s.db.Prepare("SELECT r.id, r.name, r.created_at, r.updated_at FROM roles r WHERE r.id = ?")
 	if err != nil {
 		return nil, err
@@ -55,29 +57,21 @@ func (s *Store) GetRoleByID(id string) (*types.Role, error) {
 
 	defer stmt.Close()
 
-	rows, err := stmt.Query(id)
+	err = stmt.QueryRow(id).Scan(&r.ID, &r.Name, &r.CreatedAt, &r.UpdatedAt)
 	if err != nil {
 		return nil, err
-	}
-
-	defer rows.Close()
-
-	r := new(types.Role)
-	for rows.Next() {
-		r, err = helper.ScanEachRowIntoRole(rows)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	if r.ID != id {
 		return nil, fmt.Errorf("role not found")
 	}
 
-	return r, nil
+	return &r, nil
 }
 
 func (s *Store) GetRoleByName(name string) (*types.Role, error) {
+	var r types.Role
+
 	stmt, err := s.db.Prepare("SELECT r.id, r.name, r.created_at, r.updated_at FROM roles r WHERE r.name = ?")
 	if err != nil {
 		return nil, err
@@ -85,26 +79,16 @@ func (s *Store) GetRoleByName(name string) (*types.Role, error) {
 
 	defer stmt.Close()
 
-	rows, err := stmt.Query(name)
+	err = stmt.QueryRow(name).Scan(&r.ID, &r.Name, &r.CreatedAt, &r.UpdatedAt)
 	if err != nil {
 		return nil, err
-	}
-
-	defer rows.Close()
-
-	r := new(types.Role)
-	for rows.Next() {
-		r, err = helper.ScanEachRowIntoRole(rows)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	if r.ID == "" {
 		return nil, fmt.Errorf("role not found")
 	}
 
-	return r, nil
+	return &r, nil
 }
 
 func (s *Store) CreateRole(r *types.Role) error {

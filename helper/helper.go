@@ -49,9 +49,6 @@ func ScanEachRowUserAndRoleIntoRoleUser(rows *sql.Rows) (*types.User, *types.Rol
 	var (
 		roleID   sql.NullString
 		roleName sql.NullString
-
-		roleCreatedAt sql.NullTime
-		roleUpdatedAt sql.NullTime
 	)
 
 	u := new(types.User)
@@ -68,18 +65,14 @@ func ScanEachRowUserAndRoleIntoRoleUser(rows *sql.Rows) (*types.User, *types.Rol
 		&u.UpdatedAt,
 		&roleID,
 		&roleName,
-		&roleCreatedAt,
-		&roleUpdatedAt,
 	)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	if roleID.Valid && roleName.Valid && roleCreatedAt.Valid && roleUpdatedAt.Valid {
+	if roleID.Valid && roleName.Valid {
 		r.ID = roleID.String
 		r.Name = roleName.String
-		r.CreatedAt = roleCreatedAt.Time
-		r.UpdatedAt = roleUpdatedAt.Time
 		return u, r, nil
 	}
 
@@ -129,60 +122,39 @@ func ScanEachRowIntoMember(rows *sql.Rows) (*types.Member, error) {
 	return m, nil
 }
 
-func GetUserByID(id string, db *sql.DB) (*types.User, error) {
-	stmt, err := db.Prepare("SELECT u.id, u.name, u.email, u.password, u.avatar, u.token_version, u.created_at, u.updated_at FROM users u WHERE u.id = ?")
+func ScanEachRowIntoCirculation(rows *sql.Rows) (*types.Circulation, *types.Book, error) {
+	var (
+		bookID        sql.NullString
+		bookJudulBuku sql.NullString
+	)
+
+	c := new(types.Circulation)
+	b := new(types.Book)
+
+	err := rows.Scan(
+		&c.ID,
+		&c.BukuID,
+		&c.IdSKL,
+		&c.Peminjam,
+		&c.TanggalPinjam,
+		&c.JatuhTempo,
+		&c.Denda,
+		&c.CreatedAt,
+		&c.UpdatedAt,
+		&bookID,
+		&bookJudulBuku,
+	)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	defer stmt.Close()
-
-	rows, err := stmt.Query(id)
-	if err != nil {
-		return nil, err
+	if bookID.Valid && bookJudulBuku.Valid {
+		b.ID = bookID.String
+		b.JudulBuku = bookJudulBuku.String
+		return c, b, nil
 	}
 
-	defer rows.Close()
-
-	u := new(types.User)
-	for rows.Next() {
-		u, err = ScanEachRowIntoUser(rows)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return u, nil
-}
-
-func GetUserByEmail(email string, db *sql.DB) (*types.User, error) {
-	stmt, err := db.Prepare("SELECT u.id, u.name, u.email, u.password, u.avatar, u.token_version, u.created_at, u.updated_at FROM users u WHERE u.email = ?")
-	if err != nil {
-		return nil, err
-	}
-
-	defer stmt.Close()
-
-	rows, err := stmt.Query(email)
-	if err != nil {
-		return nil, err
-	}
-
-	defer rows.Close()
-
-	u := new(types.User)
-	for rows.Next() {
-		u, err = ScanEachRowIntoUser(rows)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if u.ID == "" {
-		return nil, fmt.Errorf("user not found")
-	}
-
-	return u, nil
+	return c, nil, nil
 }
 
 func GenerateNextIDBuku(db *sql.DB) string {

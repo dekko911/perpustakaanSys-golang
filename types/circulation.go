@@ -6,10 +6,11 @@ import (
 
 type Circulation struct {
 	ID            string    `json:"id"`
-	BookId        string    `json:"buku_id"` // relation
-	IdSKL         string    `json:"id_skl"`  // slug type
+	BukuID        string    `json:"buku_id"` // relation
+	Book          *Book     `json:"book"`
+	IdSKL         string    `json:"id_skl"` // slug type
 	Peminjam      string    `json:"peminjam"`
-	TanggalPinjam time.Time `json:"tanggal_pinjam"`
+	TanggalPinjam time.Time `json:"tanggal_pinjam"` // date type, not datetime
 	JatuhTempo    string    `json:"jatuh_tempo"`
 	Denda         string    `json:"denda"`
 	CreatedAt     time.Time `json:"created_at"`

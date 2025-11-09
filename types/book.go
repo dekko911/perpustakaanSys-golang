@@ -6,13 +6,13 @@ import (
 
 type Book struct {
 	ID        string    `json:"id"`
-	IdBuku    string    `json:"id_buku"` // slug type, not relation
-	JudulBuku string    `json:"judul_buku"`
-	CoverBuku string    `json:"cover_buku"` // image
-	BukuPDF   string    `json:"buku_pdf"`   // pdf
-	Penulis   string    `json:"penulis"`
-	Pengarang string    `json:"pengarang"`
-	Tahun     int       `json:"tahun"`
+	IdBuku    string    `json:"id_buku,omitempty"` // slug type, not relation
+	JudulBuku string    `json:"judul_buku,omitempty"`
+	CoverBuku string    `json:"cover_buku,omitempty"` // image
+	BukuPDF   string    `json:"buku_pdf,omitempty"`   // pdf
+	Penulis   string    `json:"penulis,omitempty"`
+	Pengarang string    `json:"pengarang,omitempty"`
+	Tahun     int       `json:"tahun,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

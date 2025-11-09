@@ -2,6 +2,7 @@ package book
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"perpus_backend/helper"
 	"perpus_backend/types"
@@ -48,6 +49,8 @@ func (s *Store) GetBooks() ([]*types.Book, error) {
 }
 
 func (s *Store) GetBookByID(id string) (*types.Book, error) {
+	var b types.Book
+
 	stmt, err := s.db.Prepare("SELECT b.id, b.id_buku, b.judul_buku, b.cover_buku, b.buku_pdf, b.penulis, b.pengarang, b.tahun, b.created_at, b.updated_at FROM books b WHERE b.id = ?")
 	if err != nil {
 		return nil, err
@@ -55,29 +58,21 @@ func (s *Store) GetBookByID(id string) (*types.Book, error) {
 
 	defer stmt.Close()
 
-	rows, err := stmt.Query(id)
+	err = stmt.QueryRow(id).Scan(&b.ID, &b.IdBuku, &b.JudulBuku, &b.CoverBuku, &b.BukuPDF, &b.Penulis, &b.Pengarang, &b.Tahun, &b.CreatedAt, &b.UpdatedAt)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("book not found")
+		}
+
 		return nil, err
 	}
 
-	defer rows.Close()
-
-	b := new(types.Book)
-	for rows.Next() {
-		b, err = helper.ScanEachRowIntoBook(rows)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if b.ID != id {
-		return nil, fmt.Errorf("book not found")
-	}
-
-	return b, nil
+	return &b, nil
 }
 
 func (s *Store) GetBookByJudulBuku(judulBuku string) (*types.Book, error) {
+	var b types.Book
+
 	stmt, err := s.db.Prepare("SELECT b.id, b.id_buku, b.judul_buku, b.cover_buku, b.buku_pdf, b.penulis, b.pengarang, b.tahun, b.created_at, b.updated_at FROM books b WHERE b.judul_buku = ?")
 	if err != nil {
 		return nil, err
@@ -85,26 +80,16 @@ func (s *Store) GetBookByJudulBuku(judulBuku string) (*types.Book, error) {
 
 	defer stmt.Close()
 
-	rows, err := stmt.Query(judulBuku)
+	err = stmt.QueryRow(judulBuku).Scan(&b.ID, &b.IdBuku, &b.JudulBuku, &b.CoverBuku, &b.BukuPDF, &b.Penulis, &b.Pengarang, &b.Tahun, &b.CreatedAt, &b.UpdatedAt)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("book not found")
+		}
+
 		return nil, err
 	}
 
-	defer rows.Close()
-
-	b := new(types.Book)
-	for rows.Next() {
-		b, err = helper.ScanEachRowIntoBook(rows)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if b.ID == "" {
-		return nil, fmt.Errorf("book not found")
-	}
-
-	return b, nil
+	return &b, nil
 }
 
 func (s *Store) CreateBook(b *types.Book) error {

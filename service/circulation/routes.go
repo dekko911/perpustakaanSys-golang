@@ -1,0 +1,57 @@
+package circulation
+
+import (
+	"net/http"
+	"perpus_backend/pkg/jwt"
+	"perpus_backend/types"
+	"perpus_backend/utils"
+
+	"github.com/gorilla/mux"
+)
+
+type Handler struct {
+	store     types.CirculationStore
+	userStore types.UserStore
+}
+
+const COK = http.StatusOK
+
+func NewHandler(s types.CirculationStore, us types.UserStore) *Handler {
+	return &Handler{store: s, userStore: us}
+}
+
+func (h *Handler) RegisterRoutes(r *mux.Router) {
+	r.HandleFunc("/circulations", jwt.AuthWithJWTToken(jwt.NeededRole(h.userStore, "admin", "staff")(h.handleGetCirculations), h.userStore)).Methods(http.MethodGet)
+
+	r.HandleFunc("/circulations/{cID}", jwt.AuthWithJWTToken(jwt.NeededRole(h.userStore, "admin", "staff")(h.handleGetCirculationByID), h.userStore)).Methods(http.MethodGet)
+}
+
+func (h *Handler) handleGetCirculations(w http.ResponseWriter, r *http.Request) {
+	c, err := h.store.GetCirculations()
+	if err != nil {
+		utils.WriteJSONError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.WriteJSON(w, COK, utils.JsonData{
+		Code:   COK,
+		Data:   c,
+		Status: http.StatusText(COK),
+	})
+}
+
+func (h *Handler) handleGetCirculationByID(w http.ResponseWriter, r *http.Request) {
+	circulationID := mux.Vars(r)["cID"]
+
+	c, err := h.store.GetCirculationByID(circulationID)
+	if err != nil {
+		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	utils.WriteJSON(w, COK, utils.JsonData{
+		Code:   COK,
+		Data:   c,
+		Status: http.StatusText(COK),
+	})
+}
