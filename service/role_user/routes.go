@@ -24,11 +24,11 @@ func NewHandler(store types.RoleUserStore, userStore types.UserStore, roleStore 
 }
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
-	r.HandleFunc("/role_user/{userID}", jwt.AuthWithJWTToken(jwt.NeededRole(h.userStore, "admin")(h.handleGetRoleByUserID), h.userStore)).Methods(http.MethodGet)
+	r.HandleFunc("/role_user/{userID}", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin")(h.handleGetRoleByUserID), h.userStore)).Methods(http.MethodGet)
 
-	r.HandleFunc("/role_user", jwt.AuthWithJWTToken(jwt.NeededRole(h.userStore, "admin")(h.handleAssignRoleIntoUser), h.userStore)).Methods(http.MethodPost)
+	r.HandleFunc("/role_user", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin")(h.handleAssignRoleIntoUser), h.userStore)).Methods(http.MethodPost)
 
-	r.HandleFunc("/user/{userID}/role/{roleID}", jwt.AuthWithJWTToken(jwt.NeededRole(h.userStore, "admin")(h.handleDeleteRoleFromUser), h.userStore)).Methods(http.MethodDelete)
+	r.HandleFunc("/user/{userID}/role/{roleID}", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin")(h.handleDeleteRoleFromUser), h.userStore)).Methods(http.MethodDelete)
 }
 
 func (h *Handler) handleGetRoleByUserID(w http.ResponseWriter, r *http.Request) {

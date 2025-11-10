@@ -21,9 +21,9 @@ func NewHandler(s types.CirculationStore, us types.UserStore) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
-	r.HandleFunc("/circulations", jwt.AuthWithJWTToken(jwt.NeededRole(h.userStore, "admin", "staff")(h.handleGetCirculations), h.userStore)).Methods(http.MethodGet)
+	r.HandleFunc("/circulations", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin", "staff")(h.handleGetCirculations), h.userStore)).Methods(http.MethodGet)
 
-	r.HandleFunc("/circulations/{cID}", jwt.AuthWithJWTToken(jwt.NeededRole(h.userStore, "admin", "staff")(h.handleGetCirculationByID), h.userStore)).Methods(http.MethodGet)
+	r.HandleFunc("/circulations/{cID}", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin", "staff")(h.handleGetCirculationByID), h.userStore)).Methods(http.MethodGet)
 }
 
 func (h *Handler) handleGetCirculations(w http.ResponseWriter, r *http.Request) {

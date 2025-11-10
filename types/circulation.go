@@ -12,7 +12,7 @@ type Circulation struct {
 	Peminjam      string    `json:"peminjam"`
 	TanggalPinjam time.Time `json:"tanggal_pinjam"` // date type, not datetime
 	JatuhTempo    string    `json:"jatuh_tempo"`
-	Denda         string    `json:"denda"`
+	Denda         float64   `json:"denda"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 }

@@ -26,15 +26,15 @@ func NewHandler(store types.RoleStore, userStore types.UserStore) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
-	r.HandleFunc("/roles", jwt.AuthWithJWTToken(jwt.NeededRole(h.userStore, "admin")(h.handleGetRoles), h.userStore)).Methods(http.MethodGet)
+	r.HandleFunc("/roles", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin")(h.handleGetRoles), h.userStore)).Methods(http.MethodGet)
 
-	r.HandleFunc("/roles/{roleID}", jwt.AuthWithJWTToken(jwt.NeededRole(h.userStore, "admin")(h.handleGetRoleByID), h.userStore)).Methods(http.MethodGet)
+	r.HandleFunc("/roles/{roleID}", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin")(h.handleGetRoleByID), h.userStore)).Methods(http.MethodGet)
 
-	r.HandleFunc("/roles", jwt.AuthWithJWTToken(jwt.NeededRole(h.userStore, "admin")(h.handleCreateRole), h.userStore)).Methods(http.MethodPost)
+	r.HandleFunc("/roles", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin")(h.handleCreateRole), h.userStore)).Methods(http.MethodPost)
 
-	r.HandleFunc("/roles/{roleID}", jwt.AuthWithJWTToken(jwt.NeededRole(h.userStore, "admin")(h.handleUpdateRole), h.userStore)).Methods(http.MethodPatch)
+	r.HandleFunc("/roles/{roleID}", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin")(h.handleUpdateRole), h.userStore)).Methods(http.MethodPatch)
 
-	r.HandleFunc("/roles/{roleID}", jwt.AuthWithJWTToken(jwt.NeededRole(h.userStore, "admin")(h.handleDeleteRole), h.userStore)).Methods(http.MethodDelete)
+	r.HandleFunc("/roles/{roleID}", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin")(h.handleDeleteRole), h.userStore)).Methods(http.MethodDelete)
 }
 
 func (h *Handler) handleGetRoles(w http.ResponseWriter, r *http.Request) {

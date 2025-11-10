@@ -8,10 +8,14 @@ import (
 )
 
 func NewMySQLStorage(cfg *mysql.Config) (*sql.DB, error) {
-	db, err := sql.Open("mysql", cfg.FormatDSN())
+	pool, err := sql.Open("mysql", cfg.FormatDSN())
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	return db, nil
+	// set limit request direct to db.
+	pool.SetMaxOpenConns(60)
+	pool.SetMaxIdleConns(10)
+
+	return pool, nil
 }

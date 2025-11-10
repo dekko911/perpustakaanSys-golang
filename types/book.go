@@ -7,7 +7,7 @@ import (
 type Book struct {
 	ID        string    `json:"id"`
 	IdBuku    string    `json:"id_buku,omitempty"` // slug type, not relation
-	JudulBuku string    `json:"judul_buku,omitempty"`
+	JudulBuku string    `json:"judul_buku"`
 	CoverBuku string    `json:"cover_buku,omitempty"` // image
 	BukuPDF   string    `json:"buku_pdf,omitempty"`   // pdf
 	Penulis   string    `json:"penulis,omitempty"`

@@ -125,7 +125,7 @@ func GetUserIDFromContext(ctx context.Context) string {
 
 // using for blocking routes who doesn't have any roles.
 // make sure in params roles, input values role at there.
-func NeededRole(us types.UserStore, roles ...string) func(http.HandlerFunc) http.HandlerFunc {
+func RoleGate(us types.UserStore, roles ...string) func(http.HandlerFunc) http.HandlerFunc {
 	return func(hf http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			userID := GetUserIDFromContext(r.Context())

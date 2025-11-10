@@ -90,7 +90,7 @@ func (s *APIServer) Run() error {
 	authHandler.RegisterRoutes(subrouter)
 
 	// private routes
-	r.HandleFunc("/private/{filename:.+}", jwt.AuthWithJWTToken(jwt.NeededRole(userStore, "admin", "staff", "user")(authHandler.PrivateURLHandler), userStore)).Methods(http.MethodGet)
+	r.HandleFunc("/private/{filename:.+}", jwt.AuthWithJWTToken(jwt.RoleGate(userStore, "admin", "staff", "user")(authHandler.PrivateURLHandler), userStore)).Methods(http.MethodGet)
 
 	return http.ListenAndServe(s.addr, r)
 }

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"perpus_backend/helper"
 	"perpus_backend/types"
+
+	"github.com/google/uuid"
 )
 
 type Store struct {
@@ -30,7 +32,7 @@ func (s *Store) GetCirculations() ([]*types.Circulation, error) {
 	b.id, 
 	b.judul_buku
 	FROM circulations c 
-	LEFT JOIN books b ON c.buku_id = b.id`
+	INNER JOIN books b ON c.buku_id = b.id`
 
 	stmt, err := s.db.Prepare(query)
 	if err != nil {
@@ -53,10 +55,7 @@ func (s *Store) GetCirculations() ([]*types.Circulation, error) {
 			return nil, err
 		}
 
-		if book != nil {
-			circulation.Book = book
-		}
-
+		circulation.Book = book
 		c = append(c, circulation)
 	}
 
@@ -106,12 +105,34 @@ func (s *Store) GetCirculationByID(id string) (*types.Circulation, error) {
 	return &c, nil
 }
 
-func (s *Store) CreateCirculation(*types.Circulation) error {
-	return nil
+func (s *Store) CreateCirculation(c *types.Circulation) error {
+	if c.ID == "" {
+		c.ID = uuid.NewString()
+	}
+
+	if c.IdSKL == "" {
+		c.IdSKL = helper.GenerateNextIDSKL(s.db)
+	}
+
+	stmt, err := s.db.Prepare("INSERT INTO circulations (id, buku_id, id_skl, peminjam, tanggal_peminjam, jatuh_tempo, denda) VALUES (?,?,?,?,?,?,?)")
+	if err != nil {
+		return err
+	}
+
+	defer stmt.Close()
+
+	_, err = stmt.Exec(c.ID, c.BukuID, c.IdSKL, c.Peminjam, c.TanggalPinjam, c.JatuhTempo, c.Denda)
+	return err
 }
 
 func (s *Store) UpdateCirculation(id string, c *types.Circulation) error {
-	return nil
+	stmt, err := s.db.Prepare("UPDATE circulations SET buku_id = ?, id_skl = ?, peminjam = ?, tanggal_peminjam = ?, jatuh_tempo = ?, denda = ? WHERE id = ?")
+	if err != nil {
+		return err
+	}
+
+	_, err = stmt.Exec(c.BukuID, c.IdSKL, c.Peminjam, c.TanggalPinjam, c.JatuhTempo, c.Denda, id)
+	return err
 }
 
 func (s *Store) DeleteCirculation(id string) error {

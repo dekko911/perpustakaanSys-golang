@@ -17,6 +17,8 @@ func initDBStorage(db *sql.DB) {
 		log.Fatal(err)
 	}
 
+	defer db.Close()
+
 	log.Println("Database Connected!")
 }
 

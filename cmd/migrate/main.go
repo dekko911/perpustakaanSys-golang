@@ -29,10 +29,14 @@ func main() {
 		log.Fatal(err)
 	}
 
+	defer db.Close()
+
 	driver, err := mysql.WithInstance(db, &mysql.Config{})
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	defer driver.Close()
 
 	m, err := migrate.NewWithDatabaseInstance(
 		"file://cmd/migrate/migrations",
@@ -43,13 +47,13 @@ func main() {
 		log.Fatal(err)
 	}
 
+	defer m.Close()
+
 	command := os.Args[(len(os.Args) - 1)]
 	if command == "up" {
 		if err := m.Up(); err != nil && err != migrate.ErrNoChange {
 			log.Fatal(err)
 		}
-
-		defer m.Close()
 
 		log.Println("Migration success created!")
 	}
@@ -58,8 +62,6 @@ func main() {
 		if err := m.Down(); err != nil && err != migrate.ErrNoChange {
 			log.Fatal(err)
 		}
-
-		defer m.Close()
 
 		dirPath := "./assets"
 		err := filepath.Walk(dirPath, func(path string, info fs.FileInfo, err error) error {

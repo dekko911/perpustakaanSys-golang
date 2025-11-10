@@ -39,15 +39,15 @@ func NewHandler(s types.BookStore, us types.UserStore) *Handler {
 }
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
-	r.HandleFunc("/books", jwt.AuthWithJWTToken(jwt.NeededRole(h.userStore, "admin", "staff", "user")(h.handleGetBooks), h.userStore)).Methods(http.MethodGet)
+	r.HandleFunc("/books", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin", "staff", "user")(h.handleGetBooks), h.userStore)).Methods(http.MethodGet)
 
-	r.HandleFunc("/books/{bookID}", jwt.AuthWithJWTToken(jwt.NeededRole(h.userStore, "admin", "staff", "user")(h.handleGetBookByID), h.userStore)).Methods(http.MethodGet)
+	r.HandleFunc("/books/{bookID}", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin", "staff", "user")(h.handleGetBookByID), h.userStore)).Methods(http.MethodGet)
 
-	r.HandleFunc("/books", jwt.AuthWithJWTToken(jwt.NeededRole(h.userStore, "admin", "staff")(h.handleCreateBook), h.userStore)).Methods(http.MethodPost)
+	r.HandleFunc("/books", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin", "staff")(h.handleCreateBook), h.userStore)).Methods(http.MethodPost)
 
-	r.HandleFunc("/books/{bookID}", jwt.AuthWithJWTToken(jwt.NeededRole(h.userStore, "admin", "staff")(h.handleUpdateBook), h.userStore)).Methods(http.MethodPut)
+	r.HandleFunc("/books/{bookID}", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin", "staff")(h.handleUpdateBook), h.userStore)).Methods(http.MethodPut)
 
-	r.HandleFunc("/books/{bookID}", jwt.AuthWithJWTToken(jwt.NeededRole(h.userStore, "admin", "staff")(h.handleDeleteBook), h.userStore)).Methods(http.MethodDelete)
+	r.HandleFunc("/books/{bookID}", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin", "staff")(h.handleDeleteBook), h.userStore)).Methods(http.MethodDelete)
 }
 
 func (h *Handler) handleGetBooks(w http.ResponseWriter, r *http.Request) {

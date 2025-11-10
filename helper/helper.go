@@ -123,11 +123,6 @@ func ScanEachRowIntoMember(rows *sql.Rows) (*types.Member, error) {
 }
 
 func ScanEachRowIntoCirculation(rows *sql.Rows) (*types.Circulation, *types.Book, error) {
-	var (
-		bookID        sql.NullString
-		bookJudulBuku sql.NullString
-	)
-
 	c := new(types.Circulation)
 	b := new(types.Book)
 
@@ -141,20 +136,14 @@ func ScanEachRowIntoCirculation(rows *sql.Rows) (*types.Circulation, *types.Book
 		&c.Denda,
 		&c.CreatedAt,
 		&c.UpdatedAt,
-		&bookID,
-		&bookJudulBuku,
+		&b.ID,
+		&b.JudulBuku,
 	)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	if bookID.Valid && bookJudulBuku.Valid {
-		b.ID = bookID.String
-		b.JudulBuku = bookJudulBuku.String
-		return c, b, nil
-	}
-
-	return c, nil, nil
+	return c, b, nil
 }
 
 func GenerateNextIDBuku(db *sql.DB) string {
@@ -218,5 +207,37 @@ func GenerateNextIDAnggota(db *sql.DB) string {
 	}
 
 	nextID := fmt.Sprintf("ID%03d", num+1)
+	return nextID
+}
+
+func GenerateNextIDSKL(db *sql.DB) string {
+	var lastID string
+	stmt, err := db.Prepare("SELECT c.id_skl FROM circulations c ORDER BY c.id_skl DESC LIMIT 1")
+	if err != nil {
+		return err.Error()
+	}
+
+	defer stmt.Close()
+
+	if err := stmt.QueryRow().Scan(&lastID); err != nil {
+		if err == sql.ErrNoRows {
+			return "SKL001"
+		}
+
+		return err.Error()
+	}
+
+	idStr := strings.TrimPrefix(lastID, "SKL")
+	num, err := strconv.Atoi(idStr)
+	if err != nil {
+		return err.Error()
+	}
+
+	if num > 999 {
+		next4DigitsID := fmt.Sprintf("BK%04d", num+1)
+		return next4DigitsID
+	}
+
+	nextID := fmt.Sprintf("SKL%03d", num+1)
 	return nextID
 }
