@@ -47,14 +47,14 @@ func (s *Store) GetMembers() ([]*types.Member, error) {
 }
 
 func (s *Store) GetMemberByID(id string) (*types.Member, error) {
-	var m types.Member
-
 	stmt, err := s.db.Prepare("SELECT m.id, m.id_anggota, m.nama, m.jenis_kelamin, m.kelas, m.no_telepon, m.profil_anggota, m.created_at, m.updated_at FROM members m WHERE m.id = ?")
 	if err != nil {
 		return nil, err
 	}
 
 	defer stmt.Close()
+
+	var m types.Member
 
 	err = stmt.QueryRow(id).Scan(&m.ID, &m.IdAnggota, &m.Nama, &m.JenisKelamin, &m.Kelas, &m.NoTelepon, &m.ProfilAnggota, &m.CreatedAt, &m.UpdatedAt)
 	if err != nil {
@@ -69,14 +69,14 @@ func (s *Store) GetMemberByID(id string) (*types.Member, error) {
 }
 
 func (s *Store) GetMemberByNama(nama string) (*types.Member, error) {
-	var m types.Member
-
 	stmt, err := s.db.Prepare("SELECT m.id, m.id_anggota, m.nama, m.jenis_kelamin, m.kelas, m.no_telepon, m.profil_anggota, m.created_at, m.updated_at FROM members m WHERE m.nama = ?")
 	if err != nil {
 		return nil, err
 	}
 
 	defer stmt.Close()
+
+	var m types.Member
 
 	err = stmt.QueryRow(nama).Scan(&m.ID, &m.IdAnggota, &m.Nama, &m.JenisKelamin, &m.Kelas, &m.NoTelepon, &m.ProfilAnggota, &m.CreatedAt, &m.UpdatedAt)
 	if err != nil {
@@ -98,26 +98,18 @@ func (s *Store) GetMemberByNoTelepon(no_phone string) (*types.Member, error) {
 
 	defer stmt.Close()
 
-	rows, err := stmt.Query(no_phone)
+	var m types.Member
+
+	err = stmt.QueryRow(no_phone).Scan(&m.ID, &m.IdAnggota, &m.Nama, &m.JenisKelamin, &m.Kelas, &m.NoTelepon, &m.ProfilAnggota, &m.CreatedAt, &m.UpdatedAt)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("member not found")
+		}
+
 		return nil, err
 	}
 
-	defer rows.Close()
-
-	m := new(types.Member)
-	for rows.Next() {
-		m, err = helper.ScanEachRowIntoMember(rows)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if m.ID == "" {
-		return nil, fmt.Errorf("member not found")
-	}
-
-	return m, nil
+	return &m, nil
 }
 
 func (s *Store) CreateMember(m *types.Member) error {

@@ -60,7 +60,7 @@ func GetTokenFromRequest(r *http.Request) string {
 	return ""
 }
 
-func ItIsInBaseDir(path, baseDir string) bool {
+func IsItInBaseDir(path, baseDir string) bool {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return false

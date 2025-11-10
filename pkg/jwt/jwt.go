@@ -120,7 +120,7 @@ func GetUserIDFromContext(ctx context.Context) string {
 		return userID
 	}
 
-	return ""
+	return "EXIT"
 }
 
 // using for blocking routes who doesn't have any roles.

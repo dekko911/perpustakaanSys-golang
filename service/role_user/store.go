@@ -17,14 +17,6 @@ func NewStore(db *sql.DB) *Store {
 
 // for relations many to many.
 func (s *Store) GetUserWithRoleByUserID(userID string) (*types.User, error) {
-	var (
-		u types.User
-
-		roleID, roleName sql.NullString
-	)
-
-	r := new(types.Role)
-
 	query := `SELECT
 	u.id AS user_id, 
 	u.name AS user_name, 
@@ -47,6 +39,14 @@ func (s *Store) GetUserWithRoleByUserID(userID string) (*types.User, error) {
 	}
 
 	defer stmt.Close()
+
+	var (
+		u types.User
+
+		roleID, roleName sql.NullString
+	)
+
+	r := new(types.Role)
 
 	err = stmt.QueryRow(userID).Scan(&u.ID, &u.Name, &u.Email, &u.Password, &u.Avatar, &u.TokenVersion, &u.CreatedAt, &u.UpdatedAt, &roleID, &roleName)
 	if err != nil {

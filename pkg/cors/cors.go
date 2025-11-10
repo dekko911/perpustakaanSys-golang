@@ -19,8 +19,8 @@ func CORSMiddleware(next http.Handler) http.Handler {
 		if r.Method != http.MethodOptions {
 			next.ServeHTTP(w, r)
 			return
+		} else {
+			w.WriteHeader(http.StatusNoContent)
 		}
-
-		w.WriteHeader(http.StatusNoContent)
 	})
 }

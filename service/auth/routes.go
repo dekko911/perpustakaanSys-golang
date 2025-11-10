@@ -175,7 +175,7 @@ func (h *Handler) PrivateURLHandler(w http.ResponseWriter, r *http.Request) {
 	joined := filepath.Join(privateDir, filename)
 	cleaned := filepath.Clean(joined)
 
-	if !utils.ItIsInBaseDir(cleaned, privateDir) {
+	if !utils.IsItInBaseDir(cleaned, privateDir) {
 		utils.WriteJSONError(w, http.StatusNotFound, fmt.Errorf("file not found"))
 		return
 	}

@@ -26,10 +26,10 @@ type CirculationStore interface {
 }
 
 type PayloadCirculation struct {
-	BookId        string    `form:"book_id" validate:"required"`
-	IdSKL         string    `form:"id_skl" validate:"required,min=4"`
-	Peminjam      string    `form:"peminjam" validate:"required"`
-	TanggalPinjam time.Time `form:"tanggal_pinjam" validate:"required"`
-	JatuhTempo    string    `form:"jatuh_tempo" validate:"required"`
-	Denda         string    `form:"denda" validate:"required"`
+	BukuID        string `form:"book_id" validate:"required"`
+	IdSKL         string `form:"id_skl" validate:"required,min=4"`
+	Peminjam      string `form:"peminjam" validate:"required"`
+	TanggalPinjam string `form:"tanggal_pinjam" validate:"required"`
+	JatuhTempo    string `form:"jatuh_tempo" validate:"required"`
+	Denda         string `form:"denda" validate:"required"`
 }

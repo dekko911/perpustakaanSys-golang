@@ -48,14 +48,14 @@ func (s *Store) GetRoles() ([]*types.Role, error) {
 }
 
 func (s *Store) GetRoleByID(id string) (*types.Role, error) {
-	var r types.Role
-
 	stmt, err := s.db.Prepare("SELECT r.id, r.name, r.created_at, r.updated_at FROM roles r WHERE r.id = ?")
 	if err != nil {
 		return nil, err
 	}
 
 	defer stmt.Close()
+
+	var r types.Role
 
 	err = stmt.QueryRow(id).Scan(&r.ID, &r.Name, &r.CreatedAt, &r.UpdatedAt)
 	if err != nil {
@@ -70,14 +70,14 @@ func (s *Store) GetRoleByID(id string) (*types.Role, error) {
 }
 
 func (s *Store) GetRoleByName(name string) (*types.Role, error) {
-	var r types.Role
-
 	stmt, err := s.db.Prepare("SELECT r.id, r.name, r.created_at, r.updated_at FROM roles r WHERE r.name = ?")
 	if err != nil {
 		return nil, err
 	}
 
 	defer stmt.Close()
+
+	var r types.Role
 
 	err = stmt.QueryRow(name).Scan(&r.ID, &r.Name, &r.CreatedAt, &r.UpdatedAt)
 	if err != nil {

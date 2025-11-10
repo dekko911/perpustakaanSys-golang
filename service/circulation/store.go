@@ -63,11 +63,6 @@ func (s *Store) GetCirculations() ([]*types.Circulation, error) {
 }
 
 func (s *Store) GetCirculationByID(id string) (*types.Circulation, error) {
-	var (
-		c types.Circulation
-		b types.Book
-	)
-
 	query := `SELECT
 	c.id,
 	c.buku_id,
@@ -90,6 +85,11 @@ func (s *Store) GetCirculationByID(id string) (*types.Circulation, error) {
 	}
 
 	defer stmt.Close()
+
+	var (
+		c types.Circulation
+		b types.Book
+	)
 
 	err = stmt.QueryRow(id).Scan(&c.ID, &c.BukuID, &c.IdSKL, &c.Peminjam, &c.TanggalPinjam, &c.JatuhTempo, &c.Denda, &c.CreatedAt, &c.UpdatedAt, &b.ID, &b.JudulBuku)
 	if err != nil {
@@ -136,5 +136,19 @@ func (s *Store) UpdateCirculation(id string, c *types.Circulation) error {
 }
 
 func (s *Store) DeleteCirculation(id string) error {
+	res, err := s.db.Exec("DELETE FROM circulations WHERE id = ?", id)
+	if err != nil {
+		return err
+	}
+
+	row, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if row == 0 {
+		return fmt.Errorf("circulation not found")
+	}
+
 	return nil
 }

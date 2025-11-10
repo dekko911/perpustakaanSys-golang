@@ -49,14 +49,14 @@ func (s *Store) GetBooks() ([]*types.Book, error) {
 }
 
 func (s *Store) GetBookByID(id string) (*types.Book, error) {
-	var b types.Book
-
 	stmt, err := s.db.Prepare("SELECT b.id, b.id_buku, b.judul_buku, b.cover_buku, b.buku_pdf, b.penulis, b.pengarang, b.tahun, b.created_at, b.updated_at FROM books b WHERE b.id = ?")
 	if err != nil {
 		return nil, err
 	}
 
 	defer stmt.Close()
+
+	var b types.Book
 
 	err = stmt.QueryRow(id).Scan(&b.ID, &b.IdBuku, &b.JudulBuku, &b.CoverBuku, &b.BukuPDF, &b.Penulis, &b.Pengarang, &b.Tahun, &b.CreatedAt, &b.UpdatedAt)
 	if err != nil {
@@ -71,14 +71,14 @@ func (s *Store) GetBookByID(id string) (*types.Book, error) {
 }
 
 func (s *Store) GetBookByJudulBuku(judulBuku string) (*types.Book, error) {
-	var b types.Book
-
 	stmt, err := s.db.Prepare("SELECT b.id, b.id_buku, b.judul_buku, b.cover_buku, b.buku_pdf, b.penulis, b.pengarang, b.tahun, b.created_at, b.updated_at FROM books b WHERE b.judul_buku = ?")
 	if err != nil {
 		return nil, err
 	}
 
 	defer stmt.Close()
+
+	var b types.Book
 
 	err = stmt.QueryRow(judulBuku).Scan(&b.ID, &b.IdBuku, &b.JudulBuku, &b.CoverBuku, &b.BukuPDF, &b.Penulis, &b.Pengarang, &b.Tahun, &b.CreatedAt, &b.UpdatedAt)
 	if err != nil {
@@ -130,12 +130,12 @@ func (s *Store) DeleteBook(id string) error {
 		return err
 	}
 
-	rows, err := res.RowsAffected()
+	row, err := res.RowsAffected()
 	if err != nil {
 		return err
 	}
 
-	if rows == 0 {
+	if row == 0 {
 		return fmt.Errorf("book not found")
 	}
 

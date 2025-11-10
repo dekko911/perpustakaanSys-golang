@@ -78,14 +78,6 @@ func (s *Store) GetUsers() ([]*types.User, error) {
 }
 
 func (s *Store) GetUserWithRolesByID(id string) (*types.User, error) {
-	var (
-		u types.User
-
-		roleID, roleName sql.NullString
-	)
-
-	r := new(types.Role)
-
 	query := `SELECT
 	u.id AS user_id, 
 	u.name AS user_name, 
@@ -109,6 +101,14 @@ func (s *Store) GetUserWithRolesByID(id string) (*types.User, error) {
 
 	defer stmt.Close()
 
+	var (
+		u types.User
+
+		roleID, roleName sql.NullString
+	)
+
+	r := new(types.Role)
+
 	err = stmt.QueryRow(id).Scan(&u.ID, &u.Name, &u.Email, &u.Password, &u.Avatar, &u.TokenVersion, &u.CreatedAt, &u.UpdatedAt, &roleID, &roleName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -128,14 +128,6 @@ func (s *Store) GetUserWithRolesByID(id string) (*types.User, error) {
 }
 
 func (s *Store) GetUserWithRolesByEmail(email string) (*types.User, error) {
-	var (
-		u types.User
-
-		roleID, roleName sql.NullString
-	)
-
-	r := new(types.Role)
-
 	query := `SELECT
 	u.id AS user_id, 
 	u.name AS user_name, 
@@ -158,6 +150,14 @@ func (s *Store) GetUserWithRolesByEmail(email string) (*types.User, error) {
 	}
 
 	defer stmt.Close()
+
+	var (
+		u types.User
+
+		roleID, roleName sql.NullString
+	)
+
+	r := new(types.Role)
 
 	err = stmt.QueryRow(email).Scan(&u.ID, &u.Name, &u.Email, &u.Password, &u.Avatar, &u.TokenVersion, &u.CreatedAt, &u.UpdatedAt, &roleID, &roleName)
 	if err != nil {
