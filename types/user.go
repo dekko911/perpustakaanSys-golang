@@ -12,8 +12,8 @@ type User struct {
 	Avatar       string    `json:"avatar"`
 	Roles        Roles     `json:"roles"`
 	TokenVersion int       `json:"token_version"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	CreatedAt    time.Time `json:"created_at,omitzero"`
+	UpdatedAt    time.Time `json:"updated_at,omitzero"`
 }
 
 type UserStore interface {

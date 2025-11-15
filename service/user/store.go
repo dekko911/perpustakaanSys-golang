@@ -10,9 +10,7 @@ import (
 	"github.com/google/uuid"
 )
 
-type Store struct {
-	db *sql.DB
-}
+type Store struct{ db *sql.DB }
 
 func NewStore(db *sql.DB) *Store {
 	return &Store{
@@ -228,6 +226,9 @@ func (s *Store) DeleteUser(id string) error {
 }
 
 func (s *Store) IncrementTokenVersion(id string) error {
+	if err := uuid.Validate(id); err != nil {
+		return fmt.Errorf("invalid uuid format")
+	}
 	// use s.db.Prepare(query) and stmt(variable).Exec(...args) <- when used at SPAM MOTHERFUCKER
 	// stmt, err := s.db.Prepare("UPDATE users SET token_version = token_version + 1 WHERE id = ?")
 	// if err != nil {

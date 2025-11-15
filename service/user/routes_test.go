@@ -1,7 +1,6 @@
 package user
 
 import (
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"perpus_backend/types"
@@ -10,15 +9,12 @@ import (
 	"github.com/gorilla/mux"
 )
 
-func TestGetUsers(t *testing.T) {
+func TestGetUsers(tst *testing.T) {
 	userStore := &mockUserStore{}
 	handler := NewHandler(userStore)
 
-	t.Run("should get users", func(t *testing.T) {
-		req, err := http.NewRequest(http.MethodGet, "/users", nil)
-		if err != nil {
-			t.Error(err)
-		}
+	tst.Run("should get users", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/users", nil)
 
 		w := httptest.NewRecorder()
 		r := mux.NewRouter()
@@ -32,11 +28,8 @@ func TestGetUsers(t *testing.T) {
 		}
 	})
 
-	t.Run("should get user, because there is invalid param ID", func(t *testing.T) {
-		req, err := http.NewRequest(http.MethodGet, "/users/d21e510f-7e9b-4120-b0f3-b8f4bbf15f2b", nil)
-		if err != nil {
-			t.Error(err)
-		}
+	tst.Run("it should get user with param ID", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/users/hah", nil)
 
 		w := httptest.NewRecorder()
 		r := mux.NewRouter()
@@ -49,6 +42,10 @@ func TestGetUsers(t *testing.T) {
 			t.Errorf("expected status code %d, got %d", http.StatusOK, w.Code)
 		}
 	})
+
+	// t.Run("should be created user", func(t *testing.T) {
+	// 	req := httptest.NewRequest(http.MethodPost, "/users", ?)
+	// })
 }
 
 type mockUserStore struct{}
@@ -58,15 +55,15 @@ func (m *mockUserStore) GetUsers() ([]*types.User, error) {
 }
 
 func (m *mockUserStore) GetUserWithRolesByID(id string) (*types.User, error) {
-	return &types.User{}, fmt.Errorf("user not found")
+	return nil, nil
 }
 
 func (m *mockUserStore) GetUserWithRolesByEmail(email string) (*types.User, error) {
-	return &types.User{}, fmt.Errorf("user not found")
+	return nil, nil
 }
 
 func (m *mockUserStore) CreateUser(*types.User) error {
-	return fmt.Errorf("can't create an user")
+	return nil
 }
 
 func (m *mockUserStore) UpdateUser(id string, u *types.User) error {

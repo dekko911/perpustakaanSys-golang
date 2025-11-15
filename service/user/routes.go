@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 	"perpus_backend/utils"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/rs/xid"
 )
@@ -65,6 +67,11 @@ func (h *Handler) handleGetUsers(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleGetUserWithRolesByID(w http.ResponseWriter, r *http.Request) {
 	userID := mux.Vars(r)["userID"]
+
+	if err := uuid.Validate(userID); err != nil {
+		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		return
+	}
 
 	user, err := h.store.GetUserWithRolesByID(userID)
 	if err != nil {
@@ -196,7 +203,12 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := r.ParseMultipartForm(1 << 20); err != nil {
+	if err := uuid.Validate(userID); err != nil {
+		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	if err := r.ParseMultipartForm(size1MB); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
@@ -251,11 +263,16 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 
 		if sizeFile <= size1MB {
 			if ext == ".png" || ext == ".jpg" || ext == ".jpeg" {
+
 				fileImgOld := filePublicPath + u.Avatar
 
 				if err := os.Remove(fileImgOld); err != nil {
-					utils.WriteJSONError(w, http.StatusNotFound, err)
-					return
+					if errors.Is(err, fs.ErrNotExist) && u.Avatar != "-" {
+						utils.WriteJSONError(w, http.StatusNotFound, err) // this line, useless
+						return
+					}
+
+					// biar isi aja error, padahal gak guna ini error
 				}
 
 				fileName = randomString + ext
@@ -295,26 +312,28 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	userID := mux.Vars(r)["userID"]
 
+	if err := uuid.Validate(userID); err != nil {
+		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		return
+	}
+
 	u, err := h.store.GetUserWithRolesByID(userID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusNotFound, err)
 		return
 	}
 
-	var role string
 	for _, r := range u.Roles {
-		role = r.Name
-	}
-
-	if role == "admin" {
-		utils.WriteJSONError(w, http.StatusForbidden, errors.New("you can't delete admin"))
-		return
+		if r.Name == "admin" {
+			utils.WriteJSONError(w, http.StatusForbidden, fmt.Errorf("you can't delete admin"))
+			return
+		}
 	}
 
 	fileName := filePublicPath + u.Avatar
 	info, err := os.Stat(fileName)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
+		if errors.Is(err, fs.ErrNotExist) {
 			utils.WriteJSONError(w, http.StatusNotFound, fmt.Errorf("file not found"))
 			return
 		}

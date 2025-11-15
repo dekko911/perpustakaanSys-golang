@@ -8,6 +8,7 @@ import (
 	"perpus_backend/utils"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 )
 
@@ -54,6 +55,11 @@ func (h *Handler) handleGetRoles(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleGetRoleByID(w http.ResponseWriter, r *http.Request) {
 	roleID := mux.Vars(r)["roleID"]
 
+	if err := uuid.Validate(roleID); err != nil {
+		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		return
+	}
+
 	role, err := h.store.GetRoleByID(roleID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusNotFound, err)
@@ -90,6 +96,12 @@ func (h *Handler) handleCreateRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// if the role name was out of the box, it should be triggered
+	if utils.IsInputRoleNameWasValid(payload.Name) {
+		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("invalid role name; only admin, staff, user, and guest can be valid"))
+		return
+	}
+
 	if err := h.store.CreateRole(&types.Role{
 		Name: payload.Name,
 	}); err != nil {
@@ -108,6 +120,11 @@ func (h *Handler) handleUpdateRole(w http.ResponseWriter, req *http.Request) {
 	roleID := mux.Vars(req)["roleID"]
 
 	var payload types.PayloadUpdateRole
+
+	if err := uuid.Validate(roleID); err != nil {
+		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		return
+	}
 
 	if err := req.ParseForm(); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
@@ -134,6 +151,11 @@ func (h *Handler) handleUpdateRole(w http.ResponseWriter, req *http.Request) {
 		r.Name = payload.Name
 	}
 
+	if utils.IsInputRoleNameWasValid(r.Name) {
+		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("invalid role name; only admin, staff, user, and guest can be valid"))
+		return
+	}
+
 	if err := h.store.UpdateRole(roleID, types.Role{
 		Name: r.Name,
 	}); err != nil {
@@ -150,6 +172,11 @@ func (h *Handler) handleUpdateRole(w http.ResponseWriter, req *http.Request) {
 
 func (h *Handler) handleDeleteRole(w http.ResponseWriter, req *http.Request) {
 	roleID := mux.Vars(req)["roleID"]
+
+	if err := uuid.Validate(roleID); err != nil {
+		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		return
+	}
 
 	if err := h.store.DeleteRole(roleID); err != nil {
 		utils.WriteJSONError(w, http.StatusNotFound, err)

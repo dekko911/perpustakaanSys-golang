@@ -21,7 +21,14 @@ type Handler struct {
 	store types.UserStore
 }
 
-const COK = http.StatusOK
+const (
+	COK = http.StatusOK
+
+	profilePath = "./assets/public/images/profile/"
+	privateDir  = "./assets/private"
+
+	size1MB = 1 << 20
+)
 
 func NewHandler(store types.UserStore) *Handler {
 	return &Handler{
@@ -38,6 +45,11 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 // Handler auth login using JWT.
 func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 	var payload types.PayloadLogin
+
+	if r.Method != http.MethodPost {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("method post only"))
+		return
+	}
 
 	if err := r.ParseForm(); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
@@ -103,7 +115,12 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 		fileName string
 	)
 
-	if err := r.ParseMultipartForm(8 << 20); err != nil {
+	if r.Method != http.MethodPost {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("method post only"))
+		return
+	}
+
+	if err := r.ParseMultipartForm(size1MB); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
@@ -141,14 +158,24 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 		defer file.Close()
 
 		randomString := xid.New().String()
-
 		ext := filepath.Ext(header.Filename)
+
 		fileName = randomString + ext
 
-		dst, _ := os.Create("./assets/public/images/profile/" + fileName)
-		defer dst.Close()
+		if size1MB <= header.Size {
+			if ext == ".png" || ext == ".jpg" || ext == ".jpeg" {
+				dst, _ := os.Create(profilePath + fileName)
+				defer dst.Close()
 
-		io.Copy(dst, file)
+				io.Copy(dst, file)
+			} else {
+				utils.WriteJSONError(w, http.StatusForbidden, fmt.Errorf("only serve png, jpg, and jpeg file"))
+				return
+			}
+		} else {
+			utils.WriteJSONError(w, http.StatusForbidden, fmt.Errorf("only serve file under 1 mb"))
+			return
+		}
 	}
 
 	if err := h.store.CreateUser(&types.User{
@@ -171,7 +198,6 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) PrivateURLHandler(w http.ResponseWriter, r *http.Request) {
 	filename := mux.Vars(r)["filename"]
 
-	privateDir := "./assets/private"
 	joined := filepath.Join(privateDir, filename)
 	cleaned := filepath.Clean(joined)
 

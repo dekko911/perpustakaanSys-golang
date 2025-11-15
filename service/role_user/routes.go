@@ -8,6 +8,7 @@ import (
 	"perpus_backend/utils"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 )
 
@@ -33,6 +34,11 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 
 func (h *Handler) handleGetRoleByUserID(w http.ResponseWriter, r *http.Request) {
 	userID := mux.Vars(r)["userID"]
+
+	if err := uuid.Validate(userID); err != nil {
+		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		return
+	}
 
 	roleUser, err := h.store.GetUserWithRoleByUserID(userID)
 	if err != nil {
@@ -100,6 +106,18 @@ func (h *Handler) handleAssignRoleIntoUser(w http.ResponseWriter, req *http.Requ
 func (h *Handler) handleDeleteRoleFromUser(w http.ResponseWriter, r *http.Request) {
 	userID := mux.Vars(r)["userID"]
 	roleID := mux.Vars(r)["roleID"]
+
+	// validate id user
+	if err := uuid.Validate(userID); err != nil {
+		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	// validate id role
+	if err := uuid.Validate(roleID); err != nil {
+		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		return
+	}
 
 	if err := h.store.DeleteRoleFromUser(userID, roleID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)

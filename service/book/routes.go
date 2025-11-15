@@ -10,9 +10,9 @@ import (
 	"perpus_backend/pkg/jwt"
 	"perpus_backend/types"
 	"perpus_backend/utils"
-	"strconv"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/rs/xid"
 )
@@ -66,6 +66,11 @@ func (h *Handler) handleGetBooks(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleGetBookByID(w http.ResponseWriter, r *http.Request) {
 	bookID := mux.Vars(r)["bookID"]
+
+	if err := uuid.Validate(bookID); err != nil {
+		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		return
+	}
 
 	book, err := h.store.GetBookByID(bookID)
 	if err != nil {
@@ -190,19 +195,13 @@ func (h *Handler) handleCreateBook(w http.ResponseWriter, r *http.Request) {
 		io.Copy(dest, filePDFbook)
 	}
 
-	tahun, err := strconv.Atoi(payload.Tahun)
-	if err != nil {
-		utils.WriteJSONError(w, http.StatusInternalServerError, err)
-		return
-	}
-
 	if err := h.store.CreateBook(&types.Book{
 		JudulBuku: payload.JudulBuku,
 		CoverBuku: fileName,
 		BukuPDF:   filePDF,
 		Penulis:   payload.Penulis,
 		Pengarang: payload.Pengarang,
-		Tahun:     tahun,
+		Tahun:     utils.ParseStringToInt(payload.Tahun),
 	}); err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
@@ -232,6 +231,11 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := uuid.Validate(bookID); err != nil {
+		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		return
+	}
+
 	if err := r.ParseMultipartForm(15 << 20); err != nil { // 20 = 2 dikalikan sebanyak 20 kali.
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
@@ -256,12 +260,6 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tahun, err := strconv.Atoi(payload.Tahun)
-	if err != nil {
-		utils.WriteJSONError(w, http.StatusInternalServerError, err)
-		return
-	}
-
 	if payload.JudulBuku != "" {
 		b.JudulBuku = payload.JudulBuku
 	}
@@ -272,7 +270,7 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 		b.Pengarang = payload.Pengarang
 	}
 	if payload.Tahun != "" {
-		b.Tahun = tahun
+		b.Tahun = utils.ParseStringToInt(payload.Tahun)
 	}
 
 	// for cover books
@@ -361,7 +359,7 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 		BukuPDF:   filePDF,
 		Penulis:   b.Penulis,
 		Pengarang: b.Pengarang,
-		Tahun:     tahun,
+		Tahun:     b.Tahun,
 	}); err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
@@ -376,6 +374,11 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleDeleteBook(w http.ResponseWriter, r *http.Request) {
 	bookID := mux.Vars(r)["bookID"]
+
+	if err := uuid.Validate(bookID); err != nil {
+		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		return
+	}
 
 	b, err := h.store.GetBookByID(bookID)
 	if err != nil {

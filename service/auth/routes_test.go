@@ -2,7 +2,6 @@ package auth
 
 import (
 	"bytes"
-	"fmt"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -30,15 +29,17 @@ func TestAuthHandler(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		file.Write([]byte("fake img content"))
 
 		writer.Close()
 
 		req, err := http.NewRequest(http.MethodPost, "/register", body)
-		req.Header.Set("Content-Type", writer.FormDataContentType())
 		if err != nil {
 			t.Fatal(err)
 		}
+
+		req.Header.Set("Content-Type", writer.FormDataContentType())
 
 		w := httptest.NewRecorder()
 		r := mux.NewRouter()
@@ -56,7 +57,10 @@ func TestAuthHandler(t *testing.T) {
 		payload.Add("email", "admin@admin.com")
 		payload.Add("password", "admin12345")
 
-		req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(payload.Encode()))
+		req, err := http.NewRequest(http.MethodPost, "/login", strings.NewReader(payload.Encode()))
+		if err != nil {
+			t.Fatal(err)
+		}
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		w := httptest.NewRecorder()
@@ -78,15 +82,15 @@ func (m *mockUserStore) GetUsers() ([]*types.User, error) {
 }
 
 func (m *mockUserStore) GetUserWithRolesByID(id string) (*types.User, error) {
-	return &types.User{}, fmt.Errorf("user not found")
+	return nil, nil
 }
 
 func (m *mockUserStore) GetUserWithRolesByEmail(email string) (*types.User, error) {
-	return &types.User{}, fmt.Errorf("user not found")
+	return nil, nil
 }
 
 func (m *mockUserStore) CreateUser(*types.User) error {
-	return fmt.Errorf("can't create an user")
+	return nil
 }
 
 func (m *mockUserStore) UpdateUser(id string, u *types.User) error {

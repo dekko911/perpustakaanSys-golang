@@ -2,6 +2,7 @@ package role
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"perpus_backend/helper"
 	"perpus_backend/types"
@@ -50,6 +51,10 @@ func (s *Store) GetRoles() ([]*types.Role, error) {
 func (s *Store) GetRoleByID(id string) (*types.Role, error) {
 	stmt, err := s.db.Prepare("SELECT r.id, r.name, r.created_at, r.updated_at FROM roles r WHERE r.id = ?")
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("role not found")
+		}
+
 		return nil, err
 	}
 
@@ -62,16 +67,16 @@ func (s *Store) GetRoleByID(id string) (*types.Role, error) {
 		return nil, err
 	}
 
-	if r.ID != id {
-		return nil, fmt.Errorf("role not found")
-	}
-
 	return &r, nil
 }
 
 func (s *Store) GetRoleByName(name string) (*types.Role, error) {
 	stmt, err := s.db.Prepare("SELECT r.id, r.name, r.created_at, r.updated_at FROM roles r WHERE r.name = ?")
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("role not found")
+		}
+
 		return nil, err
 	}
 

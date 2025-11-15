@@ -7,7 +7,9 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 )
@@ -85,4 +87,68 @@ func IsItInBaseDir(path, baseDir string) bool {
 	}
 
 	return len(absPath) >= len(absBaseDir) && absPath[:len(absBaseDir)] == absBaseDir
+}
+
+func ParseStringToInt(val string) int {
+	n, _ := strconv.Atoi(val)
+
+	return n
+}
+
+func ParseStringToFloat(val string) float64 {
+	f, _ := strconv.ParseFloat(val, 64)
+
+	return f
+}
+
+func ParseDateFromFormInput(inputDate string) time.Time {
+	d, _ := time.Parse(time.DateOnly, inputDate)
+
+	return d
+}
+
+// this was support names: admin, staff, user, guest, etc. out of that, is should be invalid.
+func IsInputRoleNameWasValid(name string) bool {
+	switch name {
+	// admin
+	case "admin":
+
+		// staff
+	case "staff":
+
+		// user
+	case "user":
+
+		// guest
+	case "guest":
+
+		// viewer
+	case "viewer":
+
+		// editor
+	case "editor":
+
+		// manager
+	case "manager":
+
+		// author
+	case "author":
+
+		// owner
+	case "owner":
+
+		// developer
+	case "developer":
+
+		// operator
+	case "operator":
+
+		// auditor
+	case "auditor":
+		return false
+	default:
+		return true
+	}
+
+	return true
 }

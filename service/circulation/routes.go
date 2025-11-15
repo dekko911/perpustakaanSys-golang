@@ -1,12 +1,14 @@
 package circulation
 
 import (
+	"fmt"
 	"net/http"
 	"perpus_backend/pkg/jwt"
 	"perpus_backend/types"
 	"perpus_backend/utils"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 )
 
@@ -27,6 +29,10 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 	r.HandleFunc("/circulations/{cID}", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin", "staff")(h.handleGetCirculationByID), h.userStore)).Methods(http.MethodGet)
 
 	r.HandleFunc("/circulations", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin", "staff")(h.handleCreateCirculation), h.userStore)).Methods(http.MethodPost)
+
+	r.HandleFunc("/circulations/{cID}", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin", "staff")(h.handleUpdateCirculation), h.userStore)).Methods(http.MethodPatch)
+
+	r.HandleFunc("/circulations/{cID}", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin", "staff")(h.handleDeleteCirculation), h.userStore)).Methods(http.MethodDelete)
 }
 
 func (h *Handler) handleGetCirculations(w http.ResponseWriter, r *http.Request) {
@@ -45,6 +51,11 @@ func (h *Handler) handleGetCirculations(w http.ResponseWriter, r *http.Request) 
 
 func (h *Handler) handleGetCirculationByID(w http.ResponseWriter, r *http.Request) {
 	circulationID := mux.Vars(r)["cID"]
+
+	if err := uuid.Validate(circulationID); err != nil {
+		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		return
+	}
 
 	c, err := h.store.GetCirculationByID(circulationID)
 	if err != nil {
@@ -81,5 +92,114 @@ func (h *Handler) handleCreateCirculation(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// mani lanjut ya man
+	if _, err := h.store.GetCirculationByPeminjam(payload.Peminjam); err == nil {
+		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("peminjam has name: %v been exist", payload.Peminjam))
+		return
+	}
+
+	if err := h.store.CreateCirculation(&types.Circulation{
+		BukuID:        payload.BukuID,
+		Peminjam:      payload.Peminjam,
+		TanggalPinjam: utils.ParseDateFromFormInput(payload.TanggalPinjam),
+		JatuhTempo:    utils.ParseDateFromFormInput(payload.JatuhTempo),
+		Denda:         utils.ParseStringToFloat(payload.Denda),
+	}); err != nil {
+		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusCreated, utils.JsonData{
+		Code:    http.StatusCreated,
+		Message: "Circulation added!",
+		Status:  http.StatusText(http.StatusCreated),
+	})
+}
+
+func (h *Handler) handleUpdateCirculation(w http.ResponseWriter, r *http.Request) {
+	circulationID := mux.Vars(r)["cID"]
+
+	var p types.PayloadUpdateCirculation
+
+	if err := uuid.Validate(circulationID); err != nil {
+		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	p = types.PayloadUpdateCirculation{
+		BukuID:        r.FormValue("buku_id"),
+		Peminjam:      r.FormValue("peminjam"),
+		TanggalPinjam: r.FormValue("tanggal_pinjam"),
+		JatuhTempo:    r.FormValue("jatuh_tempo"),
+		Denda:         r.FormValue("denda"),
+	}
+
+	if err := utils.Validate.Struct(p); err != nil {
+		errors := err.(validator.ValidationErrors)
+		utils.WriteJSONError(w, http.StatusUnprocessableEntity, errors)
+		return
+	}
+
+	c, err := h.store.GetCirculationByID(circulationID)
+	if err != nil {
+		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	if p.BukuID != "" {
+		c.BukuID = p.BukuID
+	}
+	if p.Peminjam != "" {
+		c.Peminjam = p.Peminjam
+	}
+	if p.TanggalPinjam != "" {
+		c.TanggalPinjam = utils.ParseDateFromFormInput(p.TanggalPinjam)
+	}
+	if p.JatuhTempo != "" {
+		c.JatuhTempo = utils.ParseDateFromFormInput(p.JatuhTempo)
+	}
+	if p.Denda != "" {
+		c.Denda = utils.ParseStringToFloat(p.Denda)
+	}
+
+	if err := h.store.UpdateCirculation(circulationID, &types.Circulation{
+		BukuID:        c.BukuID,
+		Peminjam:      c.Peminjam,
+		TanggalPinjam: c.TanggalPinjam,
+		JatuhTempo:    c.JatuhTempo,
+		Denda:         c.Denda,
+	}); err != nil {
+		utils.WriteJSONError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.WriteJSON(w, COK, utils.JsonData{
+		Code:    COK,
+		Message: "Circulation updated!",
+		Status:  http.StatusText(COK),
+	})
+}
+
+func (h *Handler) handleDeleteCirculation(w http.ResponseWriter, r *http.Request) {
+	circulationID := mux.Vars(r)["cID"]
+
+	if err := uuid.Validate(circulationID); err != nil {
+		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	if err := h.store.DeleteCirculation(circulationID); err != nil {
+		utils.WriteJSONError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.WriteJSON(w, COK, utils.JsonData{
+		Code:    COK,
+		Message: "Circulation deleted!",
+		Status:  http.StatusText(COK),
+	})
 }

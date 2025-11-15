@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"perpus_backend/utils"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 )
 
@@ -61,9 +63,14 @@ func (h *Handler) handleGetMembers(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleGetMemberByID(w http.ResponseWriter, r *http.Request) {
 	memberID := mux.Vars(r)["memberID"]
 
+	if err := uuid.Validate(memberID); err != nil {
+		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		return
+	}
+
 	member, err := h.store.GetMemberByID(memberID)
 	if err != nil {
-		utils.WriteJSONError(w, http.StatusInternalServerError, err)
+		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
@@ -173,6 +180,11 @@ func (h *Handler) handleUpdateMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := uuid.Validate(memberID); err != nil {
+		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		return
+	}
+
 	if err := r.ParseMultipartForm(size1MB); err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
@@ -218,12 +230,6 @@ func (h *Handler) handleUpdateMember(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		defer file.Close()
 
-		avatarPathOld := dirAvatarPath + m.ProfilAnggota
-		if err := os.Remove(avatarPathOld); err != nil {
-			utils.WriteJSONError(w, http.StatusNotFound, err)
-			return
-		}
-
 		sizeFile = header.Size
 		extFile = filepath.Ext(header.Filename)
 
@@ -235,6 +241,15 @@ func (h *Handler) handleUpdateMember(w http.ResponseWriter, r *http.Request) {
 		if sizeFile > size1MB {
 			utils.WriteJSONError(w, http.StatusUnprocessableEntity, fmt.Errorf("only serve file under 1mb"))
 			return
+		}
+
+		avatarPathOld := dirAvatarPath + m.ProfilAnggota
+
+		if err := os.Remove(avatarPathOld); err != nil {
+			if errors.Is(err, fs.ErrNotExist) && m.ProfilAnggota != "-" {
+				utils.WriteJSONError(w, http.StatusNotFound, err)
+				return
+			}
 		}
 
 		fileName = header.Filename
@@ -267,6 +282,11 @@ func (h *Handler) handleUpdateMember(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleDeleteMember(w http.ResponseWriter, r *http.Request) {
 	memberID := mux.Vars(r)["memberID"]
 
+	if err := uuid.Validate(memberID); err != nil {
+		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		return
+	}
+
 	m, err := h.store.GetMemberByID(memberID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusNotFound, err)
@@ -276,7 +296,7 @@ func (h *Handler) handleDeleteMember(w http.ResponseWriter, r *http.Request) {
 	filePath := dirAvatarPath + m.ProfilAnggota
 	info, err := os.Stat(filePath)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
+		if errors.Is(err, fs.ErrNotExist) {
 			utils.WriteJSONError(w, http.StatusNotFound, fmt.Errorf("file not found"))
 			return
 		}

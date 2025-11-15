@@ -12,8 +12,8 @@ type Member struct {
 	Kelas         string    `json:"kelas"`
 	NoTelepon     string    `json:"no_telepon"`
 	ProfilAnggota string    `json:"profil_anggota"` // image type
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	CreatedAt     time.Time `json:"created_at,omitzero"`
+	UpdatedAt     time.Time `json:"updated_at,omitzero"`
 }
 
 type MemberStore interface {

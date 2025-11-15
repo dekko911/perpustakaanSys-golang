@@ -105,6 +105,49 @@ func (s *Store) GetCirculationByID(id string) (*types.Circulation, error) {
 	return &c, nil
 }
 
+func (s *Store) GetCirculationByPeminjam(borrowerName string) (*types.Circulation, error) {
+	query := `SELECT
+	c.id,
+	c.buku_id,
+	c.id_skl,
+	c.peminjam,
+	c.tanggal_pinjam,
+	c.jatuh_tempo,
+	c.denda,
+	c.created_at,
+	c.updated_at,
+	b.id,
+	b.judul_buku
+	FROM circulations c
+	INNER JOIN books b ON c.buku_id = b.id
+	WHERE c.peminjam = ?`
+
+	stmt, err := s.db.Prepare(query)
+	if err != nil {
+		return nil, err
+	}
+
+	defer stmt.Close()
+
+	var (
+		c types.Circulation
+		b types.Book
+	)
+
+	err = stmt.QueryRow(borrowerName).Scan(&c.ID, &c.BukuID, &c.IdSKL, &c.Peminjam, &c.TanggalPinjam, &c.JatuhTempo, &c.Denda, &c.CreatedAt, &c.UpdatedAt, &b.ID, &b.JudulBuku)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("circulation not found")
+		}
+
+		return nil, err
+	}
+
+	c.Book = &b
+
+	return &c, nil
+}
+
 func (s *Store) CreateCirculation(c *types.Circulation) error {
 	if c.ID == "" {
 		c.ID = uuid.NewString()
@@ -114,7 +157,7 @@ func (s *Store) CreateCirculation(c *types.Circulation) error {
 		c.IdSKL = helper.GenerateNextIDSKL(s.db)
 	}
 
-	stmt, err := s.db.Prepare("INSERT INTO circulations (id, buku_id, id_skl, peminjam, tanggal_peminjam, jatuh_tempo, denda) VALUES (?,?,?,?,?,?,?)")
+	stmt, err := s.db.Prepare("INSERT INTO circulations (id, buku_id, id_skl, peminjam, tanggal_pinjam, jatuh_tempo, denda) VALUES (?,?,?,?,?,?,?)")
 	if err != nil {
 		return err
 	}
@@ -126,12 +169,12 @@ func (s *Store) CreateCirculation(c *types.Circulation) error {
 }
 
 func (s *Store) UpdateCirculation(id string, c *types.Circulation) error {
-	stmt, err := s.db.Prepare("UPDATE circulations SET buku_id = ?, id_skl = ?, peminjam = ?, tanggal_peminjam = ?, jatuh_tempo = ?, denda = ? WHERE id = ?")
+	stmt, err := s.db.Prepare("UPDATE circulations SET buku_id = ?, peminjam = ?, tanggal_pinjam = ?, jatuh_tempo = ?, denda = ? WHERE id = ?")
 	if err != nil {
 		return err
 	}
 
-	_, err = stmt.Exec(c.BukuID, c.IdSKL, c.Peminjam, c.TanggalPinjam, c.JatuhTempo, c.Denda, id)
+	_, err = stmt.Exec(c.BukuID, c.Peminjam, c.TanggalPinjam, c.JatuhTempo, c.Denda, id)
 	return err
 }
 
