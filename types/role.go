@@ -18,11 +18,11 @@ type RoleStore interface {
 	DeleteRole(id string) error
 }
 
-type PayloadRole struct {
+type SetPayloadRole struct {
 	Name string `form:"name" validate:"required,min=3"`
 }
 
-type PayloadUpdateRole struct {
+type SetPayloadUpdateRole struct {
 	Name string `form:"name" validate:"omitempty,required,min=3"`
 }
 

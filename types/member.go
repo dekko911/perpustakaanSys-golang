@@ -26,14 +26,14 @@ type MemberStore interface {
 	DeleteMember(id string) error
 }
 
-type PayloadMember struct {
+type SetPayloadMember struct {
 	Nama         string `form:"nama" validate:"required"`
 	JenisKelamin string `form:"jenis_kelamin" validate:"required"`
 	Kelas        string `form:"kelas" validate:"required"`
 	NoTelepon    string `form:"no_telepon" validate:"required,min=6"`
 }
 
-type PayloadUpdateMember struct {
+type SetPayloadUpdateMember struct {
 	Nama         string `form:"nama" validate:"omitempty,required"`
 	JenisKelamin string `form:"jenis_kelamin" validate:"omitempty,required"`
 	Kelas        string `form:"kelas" validate:"omitempty,required"`

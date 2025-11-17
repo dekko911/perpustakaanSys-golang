@@ -10,8 +10,8 @@ import (
 )
 
 type Config struct {
-	AppURL, Port, CookieName, CookieValue, DBUser, DBPassword, DBName, DBAddress, JWTSecret string
-	DBLoc                                                                                   *time.Location
+	AppENV, AppURL, Port, CookieName, CookieValue, DBUser, DBPassword, DBName, DBAddress, JWTSecret string
+	DBLoc                                                                                           *time.Location
 }
 
 var Env = initConfig()
@@ -25,6 +25,7 @@ func initConfig() Config {
 	}
 
 	return Config{
+		AppENV:      os.Getenv("APP_ENV"),
 		AppURL:      os.Getenv("APP_URL"),
 		Port:        os.Getenv("PORT"),
 		CookieName:  os.Getenv("COOKIE_NAME"),

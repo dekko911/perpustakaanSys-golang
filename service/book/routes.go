@@ -28,7 +28,9 @@ const (
 	dirCoverBookPath = "./assets/public/images/cover/"
 	dirPDFBookPath   = "./assets/private/pdf/"
 
-	size15MB = 15 << 20
+	size10MB = 10 << 20
+	size8MB  = 8 << 20
+	size1MB  = 1 << 20
 )
 
 func NewHandler(s types.BookStore, us types.UserStore) *Handler {
@@ -87,7 +89,7 @@ func (h *Handler) handleGetBookByID(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleCreateBook(w http.ResponseWriter, r *http.Request) {
 	var (
-		payload types.PayloadBook
+		payload types.SetPayloadBook
 
 		fileName, filePDF  string
 		coverPath, pdfPath string
@@ -95,12 +97,14 @@ func (h *Handler) handleCreateBook(w http.ResponseWriter, r *http.Request) {
 		sizeCover, sizePDF int64
 	)
 
-	if err := r.ParseMultipartForm(size15MB); err != nil { // 20 = 2 dikalikan sebanyak 20 kali.
+	r.Body = http.MaxBytesReader(w, r.Body, size10MB)
+
+	if err := r.ParseMultipartForm(size10MB); err != nil { // 20 = 2 dikalikan sebanyak 20 kali.
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	payload = types.PayloadBook{
+	payload = types.SetPayloadBook{
 		JudulBuku: r.FormValue("judul_buku"),
 		Penulis:   r.FormValue("penulis"),
 		Pengarang: r.FormValue("pengarang"),
@@ -118,63 +122,61 @@ func (h *Handler) handleCreateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// cover books
-	fileCoverBook, headerCoverBook, errCover := r.FormFile("cover_buku")
+	fileCoverBook, headerCB, errCB := r.FormFile("cover_buku") // get input form file name is "cover_buku"
 
-	// pdf books
-	filePDFbook, headerPDF, errPDF := r.FormFile("buku_pdf")
+	filePDFbook, headerPDF, errPDF := r.FormFile("buku_pdf") // get input form file name is "buku_pdf"
 
-	// fill the cover book
-	if errCover == http.ErrMissingFile {
+	// fill the cover book, if input form file of cover book is empty
+	if errCB == http.ErrMissingFile {
 		fileName = "-"
 	}
 
-	// fill the pdf file
+	// fill the pdf file, if input form file of PDF is empty
 	if errPDF == http.ErrMissingFile {
 		utils.WriteJSONError(w, http.StatusUnprocessableEntity, fmt.Errorf("required pdf"))
 		filePDF = "-"
 		return
 	}
 
-	extCover = filepath.Ext(headerCoverBook.Filename) // get extension in file cover book
-	sizeCover = headerCoverBook.Size
+	extCover = filepath.Ext(headerCB.Filename) // get the extension in input form file cover book
+	sizeCover = headerCB.Size                  // get the actual size from input form file "cover_buku"
 
-	extPDF = filepath.Ext(headerPDF.Filename) // get extension in file book pdf
-	sizePDF = headerPDF.Size
+	extPDF = filepath.Ext(headerPDF.Filename) // get the extension in input form file book pdf
+	sizePDF = headerPDF.Size                  // get the actual size from input form file "buku_pdf"
 
-	// doing validation
-	// check if ext no same like at my below
+	// doing some validation
+	// check if extension is not same with expected want
 	if extCover != ".png" && extCover != ".jpg" && extCover != ".jpeg" {
 		utils.WriteJSONError(w, http.StatusUnprocessableEntity, fmt.Errorf("only support png, jpg, and jpeg"))
 		return
 	}
 
-	// check if size file cover over 15mb
-	if sizeCover > size15MB {
-		utils.WriteJSONError(w, http.StatusUnprocessableEntity, fmt.Errorf("only serve file cover under 15mb"))
+	// check if the size file cover_buku over 1mb
+	if sizeCover > size1MB {
+		utils.WriteJSONError(w, http.StatusUnprocessableEntity, fmt.Errorf("only serve file cover under 1mb"))
 		return
 	}
 
-	// check this if file doesn't pdf ext
+	// check if input form file PDF doesn't exist
 	if extPDF != ".pdf" {
 		utils.WriteJSONError(w, http.StatusUnprocessableEntity, fmt.Errorf("convert to pdf first"))
 		return
 	}
 
-	// check if size file pdf over 15mb
-	if sizePDF > size15MB {
-		utils.WriteJSONError(w, http.StatusUnprocessableEntity, fmt.Errorf("only serve file pdf under 15mb"))
+	// check if size file pdf over 8mb
+	if sizePDF > size8MB {
+		utils.WriteJSONError(w, http.StatusUnprocessableEntity, fmt.Errorf("only serve file pdf under 8mb"))
 		return
 	}
 
-	// if it is clean, do this
-	if errCover == nil {
+	// if cover_buku pass all the validation, then create a file and put in at dir was it set before
+	if errCB == nil {
 		defer fileCoverBook.Close()
 
 		randomString := xid.New().String()
 
 		fileName = randomString + extCover
-		coverPath = dirCoverBookPath + fileName
+		coverPath = dirCoverBookPath + fileName // make it 2 in 1
 
 		dst, _ := os.Create(coverPath)
 		defer dst.Close()
@@ -182,12 +184,12 @@ func (h *Handler) handleCreateBook(w http.ResponseWriter, r *http.Request) {
 		io.Copy(dst, fileCoverBook)
 	}
 
-	// if it is clean, do this
+	// if buku_pdf pass all the validation, then create a file and put in at dir was it set before
 	if errPDF == nil {
 		defer filePDFbook.Close()
 
 		filePDF = headerPDF.Filename
-		pdfPath = dirPDFBookPath + filePDF
+		pdfPath = dirPDFBookPath + filePDF // make it 2 in 1
 
 		dest, _ := os.Create(pdfPath)
 		defer dest.Close()
@@ -204,6 +206,7 @@ func (h *Handler) handleCreateBook(w http.ResponseWriter, r *http.Request) {
 		Tahun:     utils.ParseStringToInt(payload.Tahun),
 	}); err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
+		// in this line, it should be exist remove file if the err was triggered
 		return
 	}
 
@@ -218,7 +221,7 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 	bookID := mux.Vars(r)["bookID"]
 
 	var (
-		payload types.PayloadUpdateBook
+		payload types.SetPayloadUpdateBook
 
 		fileName, filePDF  string
 		coverPath, pdfPath string
@@ -231,17 +234,19 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, size10MB)
+
 	if err := uuid.Validate(bookID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	if err := r.ParseMultipartForm(15 << 20); err != nil { // 20 = 2 dikalikan sebanyak 20 kali.
+	if err := r.ParseMultipartForm(size10MB); err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	payload = types.PayloadUpdateBook{
+	payload = types.SetPayloadUpdateBook{
 		JudulBuku: r.FormValue("judul_buku"),
 		Penulis:   r.FormValue("penulis"),
 		Pengarang: r.FormValue("pengarang"),
@@ -273,33 +278,32 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 		b.Tahun = utils.ParseStringToInt(payload.Tahun)
 	}
 
-	// for cover books
-	fileCoverBook, headerCoverB, errCoverB := r.FormFile("cover_buku")
+	// it same goes like the upper, at handleCreateBook()
+	fileCoverBook, headerCB, errCB := r.FormFile("cover_buku")
 
-	// for pdf books
-	filePDFBook, headerPDFf, errPDFf := r.FormFile("buku_pdf")
+	filePDFBook, headerPDF, errPDF := r.FormFile("buku_pdf")
 
-	if errCoverB == http.ErrMissingFile {
+	if errCB == http.ErrMissingFile {
 		fileName = b.CoverBuku
 	}
 
-	if errPDFf == http.ErrMissingFile {
+	if errPDF == http.ErrMissingFile {
 		filePDF = b.BukuPDF
 	}
 
-	extCov = filepath.Ext(headerCoverB.Filename)
-	sizeCover = headerCoverB.Size
+	extCov = filepath.Ext(headerCB.Filename)
+	sizeCover = headerCB.Size
 
-	extPdf = filepath.Ext(headerPDFf.Filename)
-	sizePDF = headerPDFf.Size
+	extPdf = filepath.Ext(headerPDF.Filename)
+	sizePDF = headerPDF.Size
 
 	if extCov != ".png" && extCov != ".jpg" && extCov != ".jpeg" {
 		utils.WriteJSONError(w, http.StatusUnprocessableEntity, fmt.Errorf("only support png, jpg, and jpeg"))
 		return
 	}
 
-	if sizeCover > size15MB {
-		utils.WriteJSONError(w, http.StatusUnprocessableEntity, fmt.Errorf("only serve file cover under 15mb"))
+	if sizeCover > size1MB {
+		utils.WriteJSONError(w, http.StatusUnprocessableEntity, fmt.Errorf("only serve file cover under 1mb"))
 		return
 	}
 
@@ -308,18 +312,19 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if sizePDF > size15MB {
-		utils.WriteJSONError(w, http.StatusUnprocessableEntity, fmt.Errorf("only serve file pdf under 15mb"))
+	if sizePDF > size8MB {
+		utils.WriteJSONError(w, http.StatusUnprocessableEntity, fmt.Errorf("only serve file pdf under 8mb"))
 		return
 	}
 
-	if errCoverB == nil {
+	if errCB == nil {
 		defer fileCoverBook.Close()
 
 		fileImg := dirCoverBookPath + b.CoverBuku
-		if err := os.Remove(fileImg); err != nil {
-			utils.WriteJSONError(w, http.StatusNotFound, err)
-			return
+		info, _ := os.Stat(fileImg)
+
+		if !info.IsDir() {
+			os.Remove(fileImg) // remove file old first, for avoid accident stack a goddamn storage memory
 		}
 
 		randomString := xid.New().String()
@@ -334,16 +339,17 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 		io.Copy(dst, fileCoverBook)
 	}
 
-	if errPDFf == nil {
+	if errPDF == nil {
 		defer filePDFBook.Close()
 
 		filePDFOld := dirPDFBookPath + b.BukuPDF
-		if err := os.Remove(filePDFOld); err != nil {
-			utils.WriteJSONError(w, http.StatusNotFound, err)
-			return
+		info, _ := os.Stat(filePDFOld)
+
+		if !info.IsDir() {
+			os.Remove(filePDFOld)
 		}
 
-		filePDF = headerPDFf.Filename
+		filePDF = headerPDF.Filename
 
 		pdfPath = dirPDFBookPath + filePDF
 
@@ -362,6 +368,7 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 		Tahun:     b.Tahun,
 	}); err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
+		// it should be exist a remove file, but i don't know yet how to remove it
 		return
 	}
 
@@ -388,31 +395,16 @@ func (h *Handler) handleDeleteBook(w http.ResponseWriter, r *http.Request) {
 
 	// file cover book
 	fileImg := dirCoverBookPath + b.CoverBuku
-	infoImg, err := os.Stat(fileImg)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			utils.WriteJSONError(w, http.StatusNotFound, fmt.Errorf("img not found"))
-			return
-		}
+	infoImg, _ := os.Stat(fileImg)
 
-		utils.WriteJSONError(w, http.StatusInternalServerError, err)
-		return
-	}
 	if !infoImg.IsDir() {
 		os.Remove(fileImg)
 	}
 
 	// file pdf book
 	filePDF := dirPDFBookPath + b.BukuPDF
-	infoPDF, err := os.Stat(filePDF)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			utils.WriteJSONError(w, http.StatusNotFound, fmt.Errorf("pdf not found"))
-			return
-		}
+	infoPDF, _ := os.Stat(filePDF)
 
-		utils.WriteJSONError(w, http.StatusInternalServerError, err)
-	}
 	if !infoPDF.IsDir() {
 		os.Remove(filePDF)
 	}

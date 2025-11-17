@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"log"
+	"perpus_backend/config"
 
 	"github.com/go-sql-driver/mysql"
 )
@@ -14,8 +15,15 @@ func NewMySQLStorage(cfg *mysql.Config) (*sql.DB, error) {
 	}
 
 	// set limit request direct to db.
-	pool.SetMaxOpenConns(60)
-	pool.SetMaxIdleConns(10)
+	switch config.Env.AppENV {
+	case "production":
+		pool.SetMaxOpenConns(60)
+		pool.SetMaxIdleConns(10)
+	case "debug":
+		pool.SetMaxOpenConns(5)
+		pool.SetMaxIdleConns(2)
+	default:
+	}
 
 	return pool, nil
 }

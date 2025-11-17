@@ -44,11 +44,10 @@ func (s *APIServer) Run() error {
 		w.WriteHeader(http.StatusNoContent)
 	})
 
-	// set access files to public url.
-	r.PathPrefix("/public/").Methods(http.MethodGet).Handler(publicURLHandler)
+	r.PathPrefix("/public/").Methods(http.MethodGet).Handler(publicURLHandler) // set accessing files across public url.
 
 	subrouter := r.PathPrefix("/api").Subrouter()
-	subrouter.Use(limiter.RateLimitMiddleware(rate.Every(2*time.Minute), 100))
+	subrouter.Use(limiter.SetRateLimitMiddleware(rate.Every(2*time.Minute), 100))
 
 	// for ensures that OPTIONS "/api" is not thrown to 404 (which does not have a CORS header).
 	subrouter.Methods(http.MethodOptions).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -89,7 +88,7 @@ func (s *APIServer) Run() error {
 	authHandler := auth.NewHandler(userStore)
 	authHandler.RegisterRoutes(subrouter)
 
-	// private routes
+	// set accessing files across private routes. Which means, it is need to login auth.
 	r.HandleFunc("/private/{filename:.+}", jwt.AuthWithJWTToken(jwt.RoleGate(userStore, "admin", "staff", "user")(authHandler.PrivateURLHandler), userStore)).Methods(http.MethodGet)
 
 	return http.ListenAndServe(s.addr, r)

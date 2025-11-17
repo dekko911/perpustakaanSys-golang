@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -104,18 +103,20 @@ func (h *Handler) handleGetProfileUser(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	var (
-		payload types.PayloadUser
+		payload types.SetPayloadUser
 
 		fileName, filePath string
 		sizeFile           int64
 	)
+
+	r.Body = http.MaxBytesReader(w, r.Body, size1MB)
 
 	if err := r.ParseMultipartForm(size1MB); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	payload = types.PayloadUser{
+	payload = types.SetPayloadUser{
 		Name:     r.FormValue("name"),
 		Email:    r.FormValue("email"),
 		Password: r.FormValue("password"),
@@ -192,7 +193,7 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	userID := mux.Vars(r)["userID"]
 
 	var (
-		payload types.PayloadUpdateUser
+		payload types.SetPayloadUpdateUser
 
 		fileName, filePath string
 		sizeFile           int64
@@ -202,6 +203,8 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		utils.WriteJSONError(w, http.StatusMethodNotAllowed, errors.New("method doesn't allowed"))
 		return
 	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, size1MB)
 
 	if err := uuid.Validate(userID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
@@ -213,7 +216,7 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload = types.PayloadUpdateUser{
+	payload = types.SetPayloadUpdateUser{
 		Name:     r.FormValue("name"),
 		Email:    r.FormValue("email"),
 		Password: r.FormValue("password"),
@@ -266,13 +269,9 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 
 				fileImgOld := filePublicPath + u.Avatar
 
-				if err := os.Remove(fileImgOld); err != nil {
-					if errors.Is(err, fs.ErrNotExist) && u.Avatar != "-" {
-						utils.WriteJSONError(w, http.StatusNotFound, err) // this line, useless
-						return
-					}
-
-					// biar isi aja error, padahal gak guna ini error
+				info, _ := os.Stat(fileImgOld)
+				if !info.IsDir() {
+					os.Remove(fileImgOld) // for reason, to not delete the folder when file doesn't exist in dir
 				}
 
 				fileName = randomString + ext
@@ -331,16 +330,8 @@ func (h *Handler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fileName := filePublicPath + u.Avatar
-	info, err := os.Stat(fileName)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			utils.WriteJSONError(w, http.StatusNotFound, fmt.Errorf("file not found"))
-			return
-		}
+	info, _ := os.Stat(fileName)
 
-		utils.WriteJSONError(w, http.StatusInternalServerError, err)
-		return
-	}
 	if !info.IsDir() {
 		os.Remove(fileName)
 	}

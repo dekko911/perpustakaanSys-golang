@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"perpus_backend/config"
 	"runtime"
 	"strconv"
 	"strings"
@@ -40,13 +41,22 @@ func WriteJSON(w http.ResponseWriter, statusCode int, d JsonData) error {
 func WriteJSONError(w http.ResponseWriter, statusCode int, err error) {
 	_, file, line, _ := runtime.Caller(1)
 
-	WriteJSON(w, statusCode, JsonData{
-		Code:   statusCode,
-		Error:  err.Error(),
-		File:   file,
-		Line:   line,
-		Status: http.StatusText(statusCode),
-	})
+	switch config.Env.AppENV {
+	case "production":
+		WriteJSON(w, statusCode, JsonData{
+			Code:   statusCode,
+			Status: http.StatusText(statusCode),
+		})
+	case "debug":
+		WriteJSON(w, statusCode, JsonData{
+			Code:   statusCode,
+			Error:  err.Error(),
+			File:   file,
+			Line:   line,
+			Status: http.StatusText(statusCode),
+		})
+	default:
+	}
 }
 
 // get the token from headers.

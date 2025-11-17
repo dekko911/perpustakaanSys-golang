@@ -1,6 +1,8 @@
 package user
 
 import (
+	"bytes"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"perpus_backend/types"
@@ -9,17 +11,17 @@ import (
 	"github.com/gorilla/mux"
 )
 
-func TestGetUsers(tst *testing.T) {
-	userStore := &mockUserStore{}
-	handler := NewHandler(userStore)
+func TestHandlerUser(t *testing.T) {
+	us := &types.MockUserStore{}
+	h := NewHandler(us)
 
-	tst.Run("should get users", func(t *testing.T) {
+	t.Run("should get users", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/users", nil)
 
 		w := httptest.NewRecorder()
 		r := mux.NewRouter()
 
-		r.HandleFunc("/users", handler.handleGetUsers).Methods(http.MethodGet)
+		r.HandleFunc("/users", h.handleGetUsers).Methods(http.MethodGet)
 
 		r.ServeHTTP(w, req)
 
@@ -28,52 +30,58 @@ func TestGetUsers(tst *testing.T) {
 		}
 	})
 
-	tst.Run("it should get user with param ID", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/users/hah", nil)
+	t.Run("it should get user with param ID", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/users/6918315b-dff4-8324-969f-e43cd434eb3e", nil)
 
 		w := httptest.NewRecorder()
 		r := mux.NewRouter()
 
-		r.HandleFunc("/users/{userID}", handler.handleGetUserWithRolesByID).Methods(http.MethodGet)
-
+		r.HandleFunc("/users/{userID}", h.handleGetUserWithRolesByID).Methods(http.MethodGet)
 		r.ServeHTTP(w, req)
 
-		if w.Code != http.StatusOK {
-			t.Errorf("expected status code %d, got %d", http.StatusOK, w.Code)
+		// t.Log(w.Body) // check the error
+
+		if w.Code != COK {
+			t.Errorf("expected status code %d, got %d", COK, w.Code)
 		}
 	})
 
-	// t.Run("should be created user", func(t *testing.T) {
-	// 	req := httptest.NewRequest(http.MethodPost, "/users", ?)
-	// })
-}
+	t.Run("should be created user", func(t *testing.T) {
+		body := &bytes.Buffer{}
+		writer := multipart.NewWriter(body)
 
-type mockUserStore struct{}
+		payload := types.SetPayloadUser{
+			Name:     "miko",
+			Email:    "miko@gmail.com",
+			Password: "miko12345",
+		}
 
-func (m *mockUserStore) GetUsers() ([]*types.User, error) {
-	return nil, nil
-}
+		writer.WriteField("name", payload.Name)
+		writer.WriteField("email", payload.Email)
+		writer.WriteField("password", payload.Password)
 
-func (m *mockUserStore) GetUserWithRolesByID(id string) (*types.User, error) {
-	return nil, nil
-}
+		file, err := writer.CreateFormFile("avatar", "test.jpeg")
+		if err != nil {
+			t.Fatal(err)
+		}
 
-func (m *mockUserStore) GetUserWithRolesByEmail(email string) (*types.User, error) {
-	return nil, nil
-}
+		file.Write([]byte("fake img content"))
 
-func (m *mockUserStore) CreateUser(*types.User) error {
-	return nil
-}
+		writer.Close()
 
-func (m *mockUserStore) UpdateUser(id string, u *types.User) error {
-	return nil
-}
+		req := httptest.NewRequest(http.MethodPost, "/users", body)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
 
-func (m *mockUserStore) DeleteUser(id string) error {
-	return nil
-}
+		w := httptest.NewRecorder()
+		r := mux.NewRouter()
 
-func (m *mockUserStore) IncrementTokenVersion(id string) error {
-	return nil
+		r.HandleFunc("/users", h.handleCreateUser).Methods(http.MethodPost)
+		r.ServeHTTP(w, req)
+
+		// t.Log(w.Body)
+
+		if w.Code != http.StatusCreated {
+			t.Errorf("expected status code %d, got %d", http.StatusCreated, w.Code)
+		}
+	})
 }

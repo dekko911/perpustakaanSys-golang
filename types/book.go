@@ -26,14 +26,14 @@ type BookStore interface {
 	DeleteBook(id string) error
 }
 
-type PayloadBook struct {
+type SetPayloadBook struct {
 	JudulBuku string `form:"judul_buku" validate:"required,min=3"`
 	Penulis   string `form:"penulis" validate:"required"`
 	Pengarang string `form:"pengarang" validate:"required"`
 	Tahun     string `form:"tahun" validate:"required,min=2"`
 }
 
-type PayloadUpdateBook struct {
+type SetPayloadUpdateBook struct {
 	JudulBuku string `form:"judul_buku" validate:"omitempty,required,min=3"`
 	Penulis   string `form:"penulis" validate:"omitempty,required"`
 	Pengarang string `form:"pengarang" validate:"omitempty,required"`

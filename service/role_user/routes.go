@@ -25,14 +25,14 @@ func NewHandler(store types.RoleUserStore, userStore types.UserStore, roleStore 
 }
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
-	r.HandleFunc("/role_user/{userID}", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin")(h.handleGetRoleByUserID), h.userStore)).Methods(http.MethodGet)
+	r.HandleFunc("/role_user/{userID}", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin")(h.handleGetUserWithRoleByUserID), h.userStore)).Methods(http.MethodGet)
 
 	r.HandleFunc("/role_user", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin")(h.handleAssignRoleIntoUser), h.userStore)).Methods(http.MethodPost)
 
 	r.HandleFunc("/user/{userID}/role/{roleID}", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin")(h.handleDeleteRoleFromUser), h.userStore)).Methods(http.MethodDelete)
 }
 
-func (h *Handler) handleGetRoleByUserID(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) handleGetUserWithRoleByUserID(w http.ResponseWriter, r *http.Request) {
 	userID := mux.Vars(r)["userID"]
 
 	if err := uuid.Validate(userID); err != nil {
@@ -54,14 +54,14 @@ func (h *Handler) handleGetRoleByUserID(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *Handler) handleAssignRoleIntoUser(w http.ResponseWriter, req *http.Request) {
-	var payload types.PayloadRoleUserID
+	var payload types.SetPayloadRoleAndUserID
 
 	if err := req.ParseForm(); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	payload = types.PayloadRoleUserID{
+	payload = types.SetPayloadRoleAndUserID{
 		UserID: req.FormValue("user_id"),
 		RoleID: req.FormValue("role_id"),
 	}

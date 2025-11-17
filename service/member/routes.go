@@ -1,10 +1,8 @@
 package member
 
 import (
-	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -83,18 +81,20 @@ func (h *Handler) handleGetMemberByID(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleCreateMember(w http.ResponseWriter, r *http.Request) {
 	var (
-		payload types.PayloadMember
+		payload types.SetPayloadMember
 
 		fileName, avatarPath, extFile string
 		sizeFile                      int64
 	)
+
+	r.Body = http.MaxBytesReader(w, r.Body, size1MB)
 
 	if err := r.ParseMultipartForm(size1MB); err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	payload = types.PayloadMember{
+	payload = types.SetPayloadMember{
 		Nama:         r.FormValue("nama"),
 		JenisKelamin: r.FormValue("jenis_kelamin"),
 		Kelas:        r.FormValue("kelas"),
@@ -169,7 +169,7 @@ func (h *Handler) handleUpdateMember(w http.ResponseWriter, r *http.Request) {
 	memberID := mux.Vars(r)["memberID"]
 
 	var (
-		payload types.PayloadUpdateMember
+		payload types.SetPayloadUpdateMember
 
 		fileName, avatarPath, extFile string
 		sizeFile                      int64
@@ -179,6 +179,8 @@ func (h *Handler) handleUpdateMember(w http.ResponseWriter, r *http.Request) {
 		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("method not allowed"))
 		return
 	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, size1MB)
 
 	if err := uuid.Validate(memberID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
@@ -190,7 +192,7 @@ func (h *Handler) handleUpdateMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload = types.PayloadUpdateMember{
+	payload = types.SetPayloadUpdateMember{
 		Nama:         r.FormValue("nama"),
 		JenisKelamin: r.FormValue("jenis_kelamin"),
 		Kelas:        r.FormValue("kelas"),
@@ -244,12 +246,10 @@ func (h *Handler) handleUpdateMember(w http.ResponseWriter, r *http.Request) {
 		}
 
 		avatarPathOld := dirAvatarPath + m.ProfilAnggota
+		info, _ := os.Stat(avatarPathOld)
 
-		if err := os.Remove(avatarPathOld); err != nil {
-			if errors.Is(err, fs.ErrNotExist) && m.ProfilAnggota != "-" {
-				utils.WriteJSONError(w, http.StatusNotFound, err)
-				return
-			}
+		if !info.IsDir() {
+			os.Remove(avatarPathOld)
 		}
 
 		fileName = header.Filename
@@ -294,16 +294,8 @@ func (h *Handler) handleDeleteMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	filePath := dirAvatarPath + m.ProfilAnggota
-	info, err := os.Stat(filePath)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			utils.WriteJSONError(w, http.StatusNotFound, fmt.Errorf("file not found"))
-			return
-		}
+	info, _ := os.Stat(filePath)
 
-		utils.WriteJSONError(w, http.StatusInternalServerError, err)
-		return
-	}
 	if !info.IsDir() {
 		os.Remove(filePath)
 	}

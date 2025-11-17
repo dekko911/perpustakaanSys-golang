@@ -26,18 +26,18 @@ type UserStore interface {
 	IncrementTokenVersion(id string) error
 }
 
-type PayloadLogin struct {
+type SetPayloadLogin struct {
 	Email    string `form:"email" validate:"required,email"`
 	Password string `form:"password" validate:"required"`
 }
 
-type PayloadUser struct {
+type SetPayloadUser struct {
 	Name     string `form:"name" validate:"required,min=3"`
 	Email    string `form:"email" validate:"required,email"`
 	Password string `form:"password" validate:"required,min=6"`
 }
 
-type PayloadUpdateUser struct {
+type SetPayloadUpdateUser struct {
 	Name     string `form:"name" validate:"omitempty,required,min=3"`
 	Email    string `form:"email" validate:"omitempty,required,email"`
 	Password string `form:"password" validate:"omitempty,required,min=6"`

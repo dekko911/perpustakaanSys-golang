@@ -26,7 +26,7 @@ type CirculationStore interface {
 	DeleteCirculation(id string) error
 }
 
-type PayloadCirculation struct {
+type SetPayloadCirculation struct {
 	BukuID        string `form:"book_id" validate:"required"`
 	Peminjam      string `form:"peminjam" validate:"required"`
 	TanggalPinjam string `form:"tanggal_pinjam" validate:"required"`
@@ -34,7 +34,7 @@ type PayloadCirculation struct {
 	Denda         string `form:"denda" validate:"required"`
 }
 
-type PayloadUpdateCirculation struct {
+type SetPayloadUpdateCirculation struct {
 	BukuID        string `form:"book_id" validate:"omitempty,required"`
 	Peminjam      string `form:"peminjam" validate:"omitempty,required"`
 	TanggalPinjam string `form:"tanggal_pinjam" validate:"omitempty,required"`

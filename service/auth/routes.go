@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -44,7 +43,7 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 
 // Handler auth login using JWT.
 func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
-	var payload types.PayloadLogin
+	var payload types.SetPayloadLogin
 
 	if r.Method != http.MethodPost {
 		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("method post only"))
@@ -56,7 +55,7 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload = types.PayloadLogin{
+	payload = types.SetPayloadLogin{
 		Email:    r.FormValue("email"),
 		Password: r.FormValue("password"),
 	}
@@ -69,12 +68,12 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	u, err := h.store.GetUserWithRolesByEmail(payload.Email)
 	if err != nil {
-		utils.WriteJSONError(w, http.StatusBadRequest, errors.New("wrong email"))
+		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("wrong email"))
 		return
 	}
 
 	if !hash.CompareHashedPassword(u.Password, []byte(payload.Password)) {
-		utils.WriteJSONError(w, http.StatusBadRequest, errors.New("wrong password"))
+		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("wrong password"))
 		return
 	}
 
@@ -110,7 +109,7 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 // Handle register user, this not will add the role.
 func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 	var (
-		payload types.PayloadUser
+		payload types.SetPayloadUser
 
 		fileName string
 	)
@@ -120,12 +119,14 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, size1MB)
+
 	if err := r.ParseMultipartForm(size1MB); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	payload = types.PayloadUser{
+	payload = types.SetPayloadUser{
 		Name:     r.FormValue("name"),
 		Email:    r.FormValue("email"),
 		Password: r.FormValue("password"),

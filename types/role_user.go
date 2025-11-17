@@ -7,7 +7,7 @@ type RoleUserStore interface {
 	DeleteRoleFromUser(userID, roleID string) error
 }
 
-type PayloadRoleUserID struct {
+type SetPayloadRoleAndUserID struct {
 	UserID string `form:"user_id" validate:"required"`
 	RoleID string `form:"role_id" validate:"required"`
 }

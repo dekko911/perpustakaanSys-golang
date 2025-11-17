@@ -9,7 +9,16 @@ import (
 // Allows web pages to securely access resources from other domains, overcoming the same-origin policy restrictions that apply by default.
 func CORSMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", fmt.Sprintf("%s:%s", config.Env.AppURL, "5173"))
+
+		// set to http for debug & https for production
+		switch config.Env.AppENV {
+		case "production":
+			// w.Header().Set("Access-Control-Allow-Origin", fmt.Sprintf("%s:%s", config.Env.AppURL, "5173")) ? help me
+		case "debug":
+			w.Header().Set("Access-Control-Allow-Origin", fmt.Sprintf("%s:%s", config.Env.AppURL, "5173"))
+		default:
+		}
+
 		w.Header().Set("Vary", "Origin")
 
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")

@@ -74,14 +74,14 @@ func (h *Handler) handleGetRoleByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleCreateRole(w http.ResponseWriter, r *http.Request) {
-	var payload types.PayloadRole
+	var payload types.SetPayloadRole
 
 	if err := r.ParseForm(); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	payload = types.PayloadRole{
+	payload = types.SetPayloadRole{
 		Name: r.FormValue("name"),
 	}
 
@@ -119,7 +119,7 @@ func (h *Handler) handleCreateRole(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleUpdateRole(w http.ResponseWriter, req *http.Request) {
 	roleID := mux.Vars(req)["roleID"]
 
-	var payload types.PayloadUpdateRole
+	var payload types.SetPayloadUpdateRole
 
 	if err := uuid.Validate(roleID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
@@ -131,7 +131,7 @@ func (h *Handler) handleUpdateRole(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	payload = types.PayloadUpdateRole{
+	payload = types.SetPayloadUpdateRole{
 		Name: req.FormValue("name"),
 	}
 

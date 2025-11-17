@@ -7,6 +7,8 @@ import (
 	"perpus_backend/cmd/api"
 	"perpus_backend/config"
 	"perpus_backend/db"
+	"runtime"
+	"runtime/debug"
 
 	"github.com/go-sql-driver/mysql"
 )
@@ -21,6 +23,17 @@ func initDBStorage(db *sql.DB) {
 }
 
 func main() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
+	runtime.SetDefaultGOMAXPROCS()
+
+	switch config.Env.AppENV {
+	case "production":
+		debug.SetGCPercent(200)
+	case "debug":
+		debug.SetGCPercent(50)
+	default:
+	}
+
 	db, err := db.NewMySQLStorage(&mysql.Config{
 		User:                 config.Env.DBUser,
 		Passwd:               config.Env.DBPassword,
