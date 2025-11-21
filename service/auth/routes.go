@@ -43,8 +43,6 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 
 // Handler auth login using JWT.
 func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
-	var payload types.SetPayloadLogin
-
 	if r.Method != http.MethodPost {
 		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("method post only"))
 		return
@@ -55,7 +53,7 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload = types.SetPayloadLogin{
+	payload := types.SetPayloadLogin{
 		Email:    r.FormValue("email"),
 		Password: r.FormValue("password"),
 	}
@@ -108,11 +106,7 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 // Handle register user, this not will add the role.
 func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
-	var (
-		payload types.SetPayloadUser
-
-		fileName string
-	)
+	var fileName string
 
 	if r.Method != http.MethodPost {
 		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("method post only"))
@@ -126,7 +120,7 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload = types.SetPayloadUser{
+	payload := types.SetPayloadUser{
 		Name:     r.FormValue("name"),
 		Email:    r.FormValue("email"),
 		Password: r.FormValue("password"),

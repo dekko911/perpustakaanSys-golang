@@ -16,7 +16,7 @@ func TestHandlerRoleUser(t *testing.T) {
 
 	h := NewHandler(roleUser, user, role)
 
-	t.Run("it should be get user & role with userid", func(t *testing.T) {
+	t.Run("it should be get user & role by userid", func(t *testing.T) {
 
 		req, err := http.NewRequest(http.MethodGet, "/role_user/6918315b-dff4-8324-969f-e43cd434eb3e", nil)
 		if err != nil {

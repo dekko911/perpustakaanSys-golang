@@ -103,8 +103,6 @@ func (h *Handler) handleGetProfileUser(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	var (
-		payload types.SetPayloadUser
-
 		fileName, filePath string
 		sizeFile           int64
 	)
@@ -116,7 +114,7 @@ func (h *Handler) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload = types.SetPayloadUser{
+	payload := types.SetPayloadUser{
 		Name:     r.FormValue("name"),
 		Email:    r.FormValue("email"),
 		Password: r.FormValue("password"),
@@ -193,8 +191,6 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	userID := mux.Vars(r)["userID"]
 
 	var (
-		payload types.SetPayloadUpdateUser
-
 		fileName, filePath string
 		sizeFile           int64
 	)
@@ -216,7 +212,7 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload = types.SetPayloadUpdateUser{
+	payload := types.SetPayloadUpdateUser{
 		Name:     r.FormValue("name"),
 		Email:    r.FormValue("email"),
 		Password: r.FormValue("password"),

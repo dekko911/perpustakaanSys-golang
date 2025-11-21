@@ -3,6 +3,7 @@ package api
 import (
 	"database/sql"
 	"net/http"
+	"perpus_backend/config"
 	"perpus_backend/pkg/cookie"
 	"perpus_backend/pkg/cors"
 	"perpus_backend/pkg/jwt"
@@ -47,7 +48,11 @@ func (s *APIServer) Run() error {
 	r.PathPrefix("/public/").Methods(http.MethodGet).Handler(publicURLHandler) // set accessing files across public url.
 
 	subrouter := r.PathPrefix("/api").Subrouter()
-	subrouter.Use(limiter.SetRateLimitMiddleware(rate.Every(2*time.Minute), 100))
+
+	// limiter for env production
+	if config.Env.AppENV == "production" {
+		subrouter.Use(limiter.SetRateLimitMiddleware(rate.Every(20*time.Second), 20))
+	}
 
 	// for ensures that OPTIONS "/api" is not thrown to 404 (which does not have a CORS header).
 	subrouter.Methods(http.MethodOptions).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -74,14 +74,12 @@ func (h *Handler) handleGetRoleByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleCreateRole(w http.ResponseWriter, r *http.Request) {
-	var payload types.SetPayloadRole
-
 	if err := r.ParseForm(); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	payload = types.SetPayloadRole{
+	payload := types.SetPayloadRole{
 		Name: r.FormValue("name"),
 	}
 
@@ -97,7 +95,7 @@ func (h *Handler) handleCreateRole(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// if the role name was out of the box, it should be triggered
-	if utils.IsInputRoleNameWasValid(payload.Name) {
+	if !utils.IsInputRoleNameWasValid(payload.Name) {
 		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("invalid role name; only admin, staff, user, and guest can be valid"))
 		return
 	}
@@ -151,7 +149,7 @@ func (h *Handler) handleUpdateRole(w http.ResponseWriter, req *http.Request) {
 		r.Name = payload.Name
 	}
 
-	if utils.IsInputRoleNameWasValid(r.Name) {
+	if !utils.IsInputRoleNameWasValid(r.Name) {
 		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("invalid role name; only admin, staff, user, and guest can be valid"))
 		return
 	}

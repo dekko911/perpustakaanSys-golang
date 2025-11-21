@@ -3,6 +3,7 @@ package utils
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -56,6 +57,7 @@ func WriteJSONError(w http.ResponseWriter, statusCode int, err error) {
 			Status: http.StatusText(statusCode),
 		})
 	default:
+		log.Fatalf("invalid value env: %s", config.Env.AppENV)
 	}
 }
 
@@ -117,48 +119,14 @@ func ParseDateFromFormInput(inputDate string) time.Time {
 	return d
 }
 
-// this was support names: admin, staff, user, guest, etc. out of that, is should be invalid.
+// this was support names: admin, staff, and user. out of that, it should be invalid.
 func IsInputRoleNameWasValid(name string) bool {
-	switch name {
-	// admin
-	case "admin":
-
-		// staff
-	case "staff":
-
-		// user
-	case "user":
-
-		// guest
-	case "guest":
-
-		// viewer
-	case "viewer":
-
-		// editor
-	case "editor":
-
-		// manager
-	case "manager":
-
-		// author
-	case "author":
-
-		// owner
-	case "owner":
-
-		// developer
-	case "developer":
-
-		// operator
-	case "operator":
-
-		// auditor
-	case "auditor":
-		return false
-	default:
-		return true
+	validRoleName := map[string]struct{}{ // irit memori, dan cek apakah param name ada di dalam map key validRoleName, kalau tidak, dia akan mengembalikan nilai false
+		"admin": {},
+		"staff": {},
+		"user":  {},
 	}
 
-	return true
+	_, ok := validRoleName[name]
+	return ok
 }

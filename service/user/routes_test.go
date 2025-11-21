@@ -30,7 +30,7 @@ func TestHandlerUser(t *testing.T) {
 		}
 	})
 
-	t.Run("it should get user with param ID", func(t *testing.T) {
+	t.Run("it should get user by ID", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/users/6918315b-dff4-8324-969f-e43cd434eb3e", nil)
 
 		w := httptest.NewRecorder()

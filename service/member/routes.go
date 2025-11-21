@@ -21,7 +21,7 @@ type Handler struct {
 }
 
 const (
-	COK = http.StatusOK
+	COK = http.StatusOK // for alias http.StatusOK
 
 	dirAvatarPath = "./assets/public/images/avatar/"
 
@@ -81,8 +81,6 @@ func (h *Handler) handleGetMemberByID(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleCreateMember(w http.ResponseWriter, r *http.Request) {
 	var (
-		payload types.SetPayloadMember
-
 		fileName, avatarPath, extFile string
 		sizeFile                      int64
 	)
@@ -94,7 +92,7 @@ func (h *Handler) handleCreateMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload = types.SetPayloadMember{
+	payload := types.SetPayloadMember{
 		Nama:         r.FormValue("nama"),
 		JenisKelamin: r.FormValue("jenis_kelamin"),
 		Kelas:        r.FormValue("kelas"),
@@ -158,10 +156,10 @@ func (h *Handler) handleCreateMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteJSON(w, COK, utils.JsonData{
-		Code:    COK,
+	utils.WriteJSON(w, http.StatusCreated, utils.JsonData{
+		Code:    http.StatusCreated,
 		Message: "Member Created!",
-		Status:  http.StatusText(COK),
+		Status:  http.StatusText(http.StatusCreated),
 	})
 }
 
@@ -169,8 +167,6 @@ func (h *Handler) handleUpdateMember(w http.ResponseWriter, r *http.Request) {
 	memberID := mux.Vars(r)["memberID"]
 
 	var (
-		payload types.SetPayloadUpdateMember
-
 		fileName, avatarPath, extFile string
 		sizeFile                      int64
 	)
@@ -192,7 +188,7 @@ func (h *Handler) handleUpdateMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload = types.SetPayloadUpdateMember{
+	payload := types.SetPayloadUpdateMember{
 		Nama:         r.FormValue("nama"),
 		JenisKelamin: r.FormValue("jenis_kelamin"),
 		Kelas:        r.FormValue("kelas"),

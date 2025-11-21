@@ -24,7 +24,6 @@ func initDBStorage(db *sql.DB) {
 
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
-	runtime.SetDefaultGOMAXPROCS()
 
 	switch config.Env.AppENV {
 	case "production":
@@ -32,6 +31,7 @@ func main() {
 	case "debug":
 		debug.SetGCPercent(50)
 	default:
+		log.Fatalf("invalid value env: %s", config.Env.AppENV)
 	}
 
 	db, err := db.NewMySQLStorage(&mysql.Config{

@@ -89,8 +89,6 @@ func (h *Handler) handleGetBookByID(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleCreateBook(w http.ResponseWriter, r *http.Request) {
 	var (
-		payload types.SetPayloadBook
-
 		fileName, filePDF  string
 		coverPath, pdfPath string
 		extCover, extPDF   string
@@ -104,7 +102,7 @@ func (h *Handler) handleCreateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload = types.SetPayloadBook{
+	payload := types.SetPayloadBook{
 		JudulBuku: r.FormValue("judul_buku"),
 		Penulis:   r.FormValue("penulis"),
 		Pengarang: r.FormValue("pengarang"),
@@ -221,8 +219,6 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 	bookID := mux.Vars(r)["bookID"]
 
 	var (
-		payload types.SetPayloadUpdateBook
-
 		fileName, filePDF  string
 		coverPath, pdfPath string
 		extCov, extPdf     string
@@ -246,7 +242,7 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload = types.SetPayloadUpdateBook{
+	payload := types.SetPayloadUpdateBook{
 		JudulBuku: r.FormValue("judul_buku"),
 		Penulis:   r.FormValue("penulis"),
 		Pengarang: r.FormValue("pengarang"),

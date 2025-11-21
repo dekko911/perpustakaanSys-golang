@@ -71,14 +71,12 @@ func (h *Handler) handleGetCirculationByID(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *Handler) handleCreateCirculation(w http.ResponseWriter, r *http.Request) {
-	var payload types.SetPayloadCirculation
-
 	if err := r.ParseForm(); err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	payload = types.SetPayloadCirculation{
+	payload := types.SetPayloadCirculation{
 		BukuID:        r.FormValue("buku_id"),
 		Peminjam:      r.FormValue("peminjam"),
 		TanggalPinjam: r.FormValue("tanggal_pinjam"),
@@ -118,8 +116,6 @@ func (h *Handler) handleCreateCirculation(w http.ResponseWriter, r *http.Request
 func (h *Handler) handleUpdateCirculation(w http.ResponseWriter, r *http.Request) {
 	circulationID := mux.Vars(r)["cID"]
 
-	var p types.SetPayloadUpdateCirculation
-
 	if err := uuid.Validate(circulationID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
@@ -130,7 +126,7 @@ func (h *Handler) handleUpdateCirculation(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	p = types.SetPayloadUpdateCirculation{
+	p := types.SetPayloadUpdateCirculation{
 		BukuID:        r.FormValue("buku_id"),
 		Peminjam:      r.FormValue("peminjam"),
 		TanggalPinjam: r.FormValue("tanggal_pinjam"),

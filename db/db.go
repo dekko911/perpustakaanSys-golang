@@ -14,7 +14,7 @@ func NewMySQLStorage(cfg *mysql.Config) (*sql.DB, error) {
 		log.Fatal(err)
 	}
 
-	// set limit request direct to db.
+	// set limit request, direct to db.
 	switch config.Env.AppENV {
 	case "production":
 		pool.SetMaxOpenConns(60)
@@ -23,6 +23,7 @@ func NewMySQLStorage(cfg *mysql.Config) (*sql.DB, error) {
 		pool.SetMaxOpenConns(5)
 		pool.SetMaxIdleConns(2)
 	default:
+		log.Fatalf("invalid value env: %s", config.Env.AppENV)
 	}
 
 	return pool, nil

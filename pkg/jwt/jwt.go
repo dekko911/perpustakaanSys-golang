@@ -15,7 +15,7 @@ import (
 	"github.com/golang-jwt/jwt"
 )
 
-type contextKey string
+type contextKey string // 16 bit string
 
 const UserKey contextKey = "userID"
 
@@ -78,9 +78,9 @@ func CreateTokenJWT(userID string, us types.UserStore) (string, error) {
 		return "", err
 	}
 
-	var roles string
+	var roles string // initial first
 	for _, role := range u.Roles {
-		roles = role.Name
+		roles = role.Name // get the all role from user
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
@@ -115,8 +115,7 @@ func permissionDenied(w http.ResponseWriter) {
 
 // get everything what u want.
 func GetUserIDFromContext(ctx context.Context) string {
-	userID, ok := ctx.Value(UserKey).(string)
-	if ok {
+	if userID, ok := ctx.Value(UserKey).(string); ok {
 		return userID
 	}
 
@@ -135,14 +134,14 @@ func RoleGate(us types.UserStore, roles ...string) func(http.HandlerFunc) http.H
 				return
 			}
 
-			user, err := us.GetUserWithRolesByID(userID)
+			u, err := us.GetUserWithRolesByID(userID)
 			if err != nil {
 				log.Printf("user not found, error: %v", err)
 				permissionDenied(w)
 				return
 			}
 
-			for _, role := range user.Roles {
+			for _, role := range u.Roles {
 				// check if role.Name has same value with roles param.
 				if slices.Contains(roles, role.Name) {
 					hf(w, r)
@@ -150,7 +149,7 @@ func RoleGate(us types.UserStore, roles ...string) func(http.HandlerFunc) http.H
 				}
 			}
 
-			log.Printf("user %s doesn't have role.", user.Name)
+			log.Printf("user %s doesn't have role.", u.Name)
 			permissionDenied(w)
 		}
 	}

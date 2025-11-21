@@ -15,7 +15,7 @@ func CookieMiddleware(next http.Handler) http.Handler {
 				Name:     config.Env.CookieName,
 				Value:    config.Env.CookieValue,
 				Path:     "/",
-				Domain:   "localhost",
+				Domain:   config.Env.SessionDomain,
 				HttpOnly: true,
 				SameSite: http.SameSiteLaxMode,
 				MaxAge:   3600,

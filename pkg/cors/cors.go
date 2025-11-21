@@ -2,6 +2,7 @@ package cors
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"perpus_backend/config"
 )
@@ -13,10 +14,11 @@ func CORSMiddleware(next http.Handler) http.Handler {
 		// set to http for debug & https for production
 		switch config.Env.AppENV {
 		case "production":
-			// w.Header().Set("Access-Control-Allow-Origin", fmt.Sprintf("%s:%s", config.Env.AppURL, "5173")) ? help me
+			w.Header().Set("Access-Control-Allow-Origin", config.Env.AppURL)
 		case "debug":
-			w.Header().Set("Access-Control-Allow-Origin", fmt.Sprintf("%s:%s", config.Env.AppURL, "5173"))
+			w.Header().Set("Access-Control-Allow-Origin", fmt.Sprintf("%s:%s", config.Env.AppURL, config.Env.ClientPort))
 		default:
+			log.Fatalf("invalid value env: %s", config.Env.AppENV)
 		}
 
 		w.Header().Set("Vary", "Origin")

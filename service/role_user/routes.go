@@ -54,14 +54,12 @@ func (h *Handler) handleGetUserWithRoleByUserID(w http.ResponseWriter, r *http.R
 }
 
 func (h *Handler) handleAssignRoleIntoUser(w http.ResponseWriter, req *http.Request) {
-	var payload types.SetPayloadRoleAndUserID
-
 	if err := req.ParseForm(); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	payload = types.SetPayloadRoleAndUserID{
+	payload := types.SetPayloadRoleAndUserID{
 		UserID: req.FormValue("user_id"),
 		RoleID: req.FormValue("role_id"),
 	}
