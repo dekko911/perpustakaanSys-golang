@@ -2,10 +2,10 @@ package circulation
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 	"perpus_backend/helper"
 	"perpus_backend/types"
+	"perpus_backend/utils"
 
 	"github.com/google/uuid"
 )
@@ -19,20 +19,32 @@ func NewStore(db *sql.DB) *Store {
 }
 
 func (s *Store) GetCirculations() ([]*types.Circulation, error) {
-	query := `SELECT 
-	c.id, 
-	c.buku_id, 
-	c.id_skl, 
-	c.peminjam, 
-	c.tanggal_pinjam, 
-	c.jatuh_tempo, 
-	c.denda, 
-	c.created_at, 
-	c.updated_at, 
-	b.id, 
+	sortByColumn := "id_skl"
+	sortOrder := "DESC"
+
+	if !utils.IsValidSortColumn(sortByColumn) {
+		return nil, fmt.Errorf("invalid sort column: %s", sortByColumn)
+	}
+
+	if !utils.IsValidSortOrder(sortOrder) {
+		return nil, fmt.Errorf("invalid sort order: %s", sortOrder)
+	}
+
+	query := fmt.Sprintf(`SELECT
+	c.id,
+	c.buku_id,
+	c.id_skl,
+	c.peminjam,
+	c.tanggal_pinjam,
+	c.jatuh_tempo,
+	c.denda,
+	c.created_at,
+	c.updated_at,
+	b.id,
 	b.judul_buku
-	FROM circulations c 
-	INNER JOIN books b ON c.buku_id = b.id`
+	FROM circulations c
+	INNER JOIN books b ON c.buku_id = b.id
+	ORDER BY %s %s`, sortByColumn, sortOrder)
 
 	stmt, err := s.db.Prepare(query)
 	if err != nil {
@@ -49,6 +61,7 @@ func (s *Store) GetCirculations() ([]*types.Circulation, error) {
 	defer rows.Close()
 
 	c := make([]*types.Circulation, 0)
+
 	for rows.Next() {
 		circulation, book, err := helper.ScanEachRowIntoCirculation(rows)
 		if err != nil {
@@ -86,23 +99,12 @@ func (s *Store) GetCirculationByID(id string) (*types.Circulation, error) {
 
 	defer stmt.Close()
 
-	var (
-		c types.Circulation
-		b types.Book
-	)
-
-	err = stmt.QueryRow(id).Scan(&c.ID, &c.BukuID, &c.IdSKL, &c.Peminjam, &c.TanggalPinjam, &c.JatuhTempo, &c.Denda, &c.CreatedAt, &c.UpdatedAt, &b.ID, &b.JudulBuku)
+	c, err := helper.ScanAndRetRowCirculation(stmt, id)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("circulation not found")
-		}
-
 		return nil, err
 	}
 
-	c.Book = &b
-
-	return &c, nil
+	return c, nil
 }
 
 func (s *Store) GetCirculationByPeminjam(borrowerName string) (*types.Circulation, error) {
@@ -129,23 +131,12 @@ func (s *Store) GetCirculationByPeminjam(borrowerName string) (*types.Circulatio
 
 	defer stmt.Close()
 
-	var (
-		c types.Circulation
-		b types.Book
-	)
-
-	err = stmt.QueryRow(borrowerName).Scan(&c.ID, &c.BukuID, &c.IdSKL, &c.Peminjam, &c.TanggalPinjam, &c.JatuhTempo, &c.Denda, &c.CreatedAt, &c.UpdatedAt, &b.ID, &b.JudulBuku)
+	c, err := helper.ScanAndRetRowCirculation(stmt, borrowerName)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("circulation not found")
-		}
-
 		return nil, err
 	}
 
-	c.Book = &b
-
-	return &c, nil
+	return c, nil
 }
 
 func (s *Store) CreateCirculation(c *types.Circulation) error {

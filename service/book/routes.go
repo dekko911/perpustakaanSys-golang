@@ -23,7 +23,7 @@ type Handler struct {
 }
 
 const (
-	COK = http.StatusOK
+	cok = http.StatusOK
 
 	dirCoverBookPath = "./assets/public/images/cover/"
 	dirPDFBookPath   = "./assets/private/pdf/"
@@ -34,10 +34,7 @@ const (
 )
 
 func NewHandler(s types.BookStore, us types.UserStore) *Handler {
-	return &Handler{
-		store:     s,
-		userStore: us,
-	}
+	return &Handler{store: s, userStore: us}
 }
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
@@ -59,10 +56,10 @@ func (h *Handler) handleGetBooks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteJSON(w, COK, utils.JsonData{
-		Code:   COK,
+	utils.WriteJSON(w, cok, utils.JsonData{
+		Code:   cok,
 		Data:   books,
-		Status: http.StatusText(COK),
+		Status: http.StatusText(cok),
 	})
 }
 
@@ -80,10 +77,10 @@ func (h *Handler) handleGetBookByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteJSON(w, COK, utils.JsonData{
-		Code:   COK,
+	utils.WriteJSON(w, cok, utils.JsonData{
+		Code:   cok,
 		Data:   book,
-		Status: http.StatusText(COK),
+		Status: http.StatusText(cok),
 	})
 }
 
@@ -317,10 +314,12 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 		defer fileCoverBook.Close()
 
 		fileImg := dirCoverBookPath + b.CoverBuku
-		info, _ := os.Stat(fileImg)
+		info, err := os.Stat(fileImg)
 
-		if !info.IsDir() {
-			os.Remove(fileImg) // remove file old first, for avoid accident stack a goddamn storage memory
+		if err == nil {
+			if !info.IsDir() {
+				os.Remove(fileImg) // remove file old first, for avoid accident stack a goddamn storage memory
+			}
 		}
 
 		randomString := xid.New().String()
@@ -339,10 +338,12 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 		defer filePDFBook.Close()
 
 		filePDFOld := dirPDFBookPath + b.BukuPDF
-		info, _ := os.Stat(filePDFOld)
+		info, err := os.Stat(filePDFOld)
 
-		if !info.IsDir() {
-			os.Remove(filePDFOld)
+		if err == nil {
+			if !info.IsDir() {
+				os.Remove(filePDFOld)
+			}
 		}
 
 		filePDF = headerPDF.Filename
@@ -368,10 +369,10 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteJSON(w, COK, utils.JsonData{
-		Code:    COK,
+	utils.WriteJSON(w, cok, utils.JsonData{
+		Code:    cok,
 		Message: "Book Updated!",
-		Status:  http.StatusText(COK),
+		Status:  http.StatusText(cok),
 	})
 }
 
@@ -391,18 +392,22 @@ func (h *Handler) handleDeleteBook(w http.ResponseWriter, r *http.Request) {
 
 	// file cover book
 	fileImg := dirCoverBookPath + b.CoverBuku
-	infoImg, _ := os.Stat(fileImg)
+	infoImg, errImg := os.Stat(fileImg)
 
-	if !infoImg.IsDir() {
-		os.Remove(fileImg)
+	if errImg == nil {
+		if !infoImg.IsDir() {
+			os.Remove(fileImg)
+		}
 	}
 
 	// file pdf book
 	filePDF := dirPDFBookPath + b.BukuPDF
-	infoPDF, _ := os.Stat(filePDF)
+	infoPDF, errPDF := os.Stat(filePDF)
 
-	if !infoPDF.IsDir() {
-		os.Remove(filePDF)
+	if errPDF == nil {
+		if !infoPDF.IsDir() {
+			os.Remove(filePDF)
+		}
 	}
 
 	if err := h.store.DeleteBook(bookID); err != nil {
@@ -410,9 +415,9 @@ func (h *Handler) handleDeleteBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteJSON(w, COK, utils.JsonData{
-		Code:    COK,
+	utils.WriteJSON(w, cok, utils.JsonData{
+		Code:    cok,
 		Message: "Book Deleted!",
-		Status:  http.StatusText(COK),
+		Status:  http.StatusText(cok),
 	})
 }

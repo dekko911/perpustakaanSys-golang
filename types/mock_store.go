@@ -9,6 +9,10 @@ func (m MockUserStore) GetUsers() ([]*User, error) {
 	return nil, nil
 }
 
+func (m MockUserStore) GetUsersBySearch(search string) []*User {
+	return nil
+}
+
 func (m MockUserStore) GetUserWithRolesByID(id string) (*User, error) {
 	return nil, nil
 }
@@ -63,7 +67,7 @@ func (m MockRoleStore) GetRoleByName(name string) (*Role, error) {
 	return nil, fmt.Errorf("role not found")
 }
 
-func (m MockRoleStore) CreateRole(*Role) error {
+func (m MockRoleStore) CreateRole(Role) error {
 	return nil
 }
 

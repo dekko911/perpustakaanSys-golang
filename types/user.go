@@ -5,15 +5,16 @@ import (
 )
 
 type User struct {
-	ID           string    `json:"id"`
-	Name         string    `json:"name"`
-	Email        string    `json:"email"`
-	Password     string    `json:"-"`
-	Avatar       string    `json:"avatar"`
-	Roles        Roles     `json:"roles"`
-	TokenVersion int       `json:"token_version"`
-	CreatedAt    time.Time `json:"created_at,omitzero"`
-	UpdatedAt    time.Time `json:"updated_at,omitzero"`
+	CreatedAt time.Time `json:"created_at,omitzero"`
+	UpdatedAt time.Time `json:"updated_at,omitzero"`
+	Roles     Roles     `json:"roles"`
+
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Email        string `json:"email"`
+	Password     string `json:"-"`
+	Avatar       string `json:"avatar"`
+	TokenVersion int    `json:"token_version"`
 }
 
 type UserStore interface {

@@ -17,7 +17,7 @@ type Handler struct {
 	userStore types.UserStore
 }
 
-const COK = http.StatusOK
+const cok = http.StatusOK
 
 func NewHandler(s types.CirculationStore, us types.UserStore) *Handler {
 	return &Handler{store: s, userStore: us}
@@ -42,10 +42,10 @@ func (h *Handler) handleGetCirculations(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	utils.WriteJSON(w, COK, utils.JsonData{
-		Code:   COK,
+	utils.WriteJSON(w, cok, utils.JsonData{
+		Code:   cok,
 		Data:   c,
-		Status: http.StatusText(COK),
+		Status: http.StatusText(cok),
 	})
 }
 
@@ -63,10 +63,10 @@ func (h *Handler) handleGetCirculationByID(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	utils.WriteJSON(w, COK, utils.JsonData{
-		Code:   COK,
+	utils.WriteJSON(w, cok, utils.JsonData{
+		Code:   cok,
 		Data:   c,
-		Status: http.StatusText(COK),
+		Status: http.StatusText(cok),
 	})
 }
 
@@ -98,8 +98,8 @@ func (h *Handler) handleCreateCirculation(w http.ResponseWriter, r *http.Request
 	if err := h.store.CreateCirculation(&types.Circulation{
 		BukuID:        payload.BukuID,
 		Peminjam:      payload.Peminjam,
-		TanggalPinjam: utils.ParseDateFromFormInput(payload.TanggalPinjam),
-		JatuhTempo:    utils.ParseDateFromFormInput(payload.JatuhTempo),
+		TanggalPinjam: utils.ParseStringToFormatDate(payload.TanggalPinjam),
+		JatuhTempo:    utils.ParseStringToFormatDate(payload.JatuhTempo),
 		Denda:         utils.ParseStringToFloat(payload.Denda),
 	}); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
@@ -153,10 +153,10 @@ func (h *Handler) handleUpdateCirculation(w http.ResponseWriter, r *http.Request
 		c.Peminjam = p.Peminjam
 	}
 	if p.TanggalPinjam != "" {
-		c.TanggalPinjam = utils.ParseDateFromFormInput(p.TanggalPinjam)
+		c.TanggalPinjam = utils.ParseStringToFormatDate(p.TanggalPinjam)
 	}
 	if p.JatuhTempo != "" {
-		c.JatuhTempo = utils.ParseDateFromFormInput(p.JatuhTempo)
+		c.JatuhTempo = utils.ParseStringToFormatDate(p.JatuhTempo)
 	}
 	if p.Denda != "" {
 		c.Denda = utils.ParseStringToFloat(p.Denda)
@@ -173,10 +173,10 @@ func (h *Handler) handleUpdateCirculation(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	utils.WriteJSON(w, COK, utils.JsonData{
-		Code:    COK,
+	utils.WriteJSON(w, cok, utils.JsonData{
+		Code:    cok,
 		Message: "Circulation updated!",
-		Status:  http.StatusText(COK),
+		Status:  http.StatusText(cok),
 	})
 }
 
@@ -193,9 +193,9 @@ func (h *Handler) handleDeleteCirculation(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	utils.WriteJSON(w, COK, utils.JsonData{
-		Code:    COK,
+	utils.WriteJSON(w, cok, utils.JsonData{
+		Code:    cok,
 		Message: "Circulation deleted!",
-		Status:  http.StatusText(COK),
+		Status:  http.StatusText(cok),
 	})
 }

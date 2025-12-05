@@ -2,10 +2,10 @@ package member
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 	"perpus_backend/helper"
 	"perpus_backend/types"
+	"perpus_backend/utils"
 
 	"github.com/google/uuid"
 )
@@ -19,7 +19,20 @@ func NewStore(db *sql.DB) *Store {
 }
 
 func (s *Store) GetMembers() ([]*types.Member, error) {
-	stmt, err := s.db.Prepare("SELECT m.id, m.id_anggota, m.nama, m.jenis_kelamin, m.kelas, m.no_telepon, m.profil_anggota, m.created_at, m.updated_at FROM members m ORDER BY m.id_anggota DESC")
+	sortByColumn := "id_anggota"
+	sortOrder := "DESC"
+
+	if !utils.IsValidSortColumn(sortByColumn) {
+		return nil, fmt.Errorf("invalid sort column: %s", sortByColumn)
+	}
+
+	if !utils.IsValidSortOrder(sortOrder) {
+		return nil, fmt.Errorf("invalid sort order: %s", sortOrder)
+	}
+
+	query := fmt.Sprintf("SELECT m.id, m.id_anggota, m.nama, m.jenis_kelamin, m.kelas, m.no_telepon, m.profil_anggota, m.created_at, m.updated_at FROM members m ORDER BY %s %s", sortByColumn, sortOrder)
+
+	stmt, err := s.db.Prepare(query)
 	if err != nil {
 		return nil, err
 	}
@@ -34,6 +47,7 @@ func (s *Store) GetMembers() ([]*types.Member, error) {
 	defer rows.Close()
 
 	members := make([]*types.Member, 0)
+
 	for rows.Next() {
 		m, err := helper.ScanEachRowIntoMember(rows)
 		if err != nil {
@@ -54,18 +68,12 @@ func (s *Store) GetMemberByID(id string) (*types.Member, error) {
 
 	defer stmt.Close()
 
-	var m types.Member
-
-	err = stmt.QueryRow(id).Scan(&m.ID, &m.IdAnggota, &m.Nama, &m.JenisKelamin, &m.Kelas, &m.NoTelepon, &m.ProfilAnggota, &m.CreatedAt, &m.UpdatedAt)
+	m, err := helper.ScanAndRetRowMember(stmt, id)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("member not found")
-		}
-
 		return nil, err
 	}
 
-	return &m, nil
+	return m, nil
 }
 
 func (s *Store) GetMemberByNama(nama string) (*types.Member, error) {
@@ -76,18 +84,12 @@ func (s *Store) GetMemberByNama(nama string) (*types.Member, error) {
 
 	defer stmt.Close()
 
-	var m types.Member
-
-	err = stmt.QueryRow(nama).Scan(&m.ID, &m.IdAnggota, &m.Nama, &m.JenisKelamin, &m.Kelas, &m.NoTelepon, &m.ProfilAnggota, &m.CreatedAt, &m.UpdatedAt)
+	m, err := helper.ScanAndRetRowMember(stmt, nama)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("member not found")
-		}
-
 		return nil, err
 	}
 
-	return &m, nil
+	return m, nil
 }
 
 func (s *Store) GetMemberByNoTelepon(no_phone string) (*types.Member, error) {
@@ -98,18 +100,12 @@ func (s *Store) GetMemberByNoTelepon(no_phone string) (*types.Member, error) {
 
 	defer stmt.Close()
 
-	var m types.Member
-
-	err = stmt.QueryRow(no_phone).Scan(&m.ID, &m.IdAnggota, &m.Nama, &m.JenisKelamin, &m.Kelas, &m.NoTelepon, &m.ProfilAnggota, &m.CreatedAt, &m.UpdatedAt)
+	m, err := helper.ScanAndRetRowMember(stmt, no_phone)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("member not found")
-		}
-
 		return nil, err
 	}
 
-	return &m, nil
+	return m, nil
 }
 
 func (s *Store) CreateMember(m *types.Member) error {

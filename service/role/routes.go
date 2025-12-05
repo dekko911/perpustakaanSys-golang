@@ -17,13 +17,10 @@ type Handler struct {
 	userStore types.UserStore
 }
 
-const COK = http.StatusOK
+const cok = http.StatusOK
 
 func NewHandler(store types.RoleStore, userStore types.UserStore) *Handler {
-	return &Handler{
-		store:     store,
-		userStore: userStore,
-	}
+	return &Handler{store: store, userStore: userStore}
 }
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
@@ -45,10 +42,10 @@ func (h *Handler) handleGetRoles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteJSON(w, COK, utils.JsonData{
-		Code:   COK,
+	utils.WriteJSON(w, cok, utils.JsonData{
+		Code:   cok,
 		Data:   roles,
-		Status: http.StatusText(COK),
+		Status: http.StatusText(cok),
 	})
 }
 
@@ -66,10 +63,10 @@ func (h *Handler) handleGetRoleByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteJSON(w, COK, utils.JsonData{
-		Code:   COK,
+	utils.WriteJSON(w, cok, utils.JsonData{
+		Code:   cok,
 		Data:   role,
-		Status: http.StatusText(COK),
+		Status: http.StatusText(cok),
 	})
 }
 
@@ -96,11 +93,11 @@ func (h *Handler) handleCreateRole(w http.ResponseWriter, r *http.Request) {
 
 	// if the role name was out of the box, it should be triggered
 	if !utils.IsInputRoleNameWasValid(payload.Name) {
-		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("invalid role name; only admin, staff, user, and guest can be valid"))
+		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("invalid role name; only admin, staff, and user can be valid"))
 		return
 	}
 
-	if err := h.store.CreateRole(&types.Role{
+	if err := h.store.CreateRole(types.Role{
 		Name: payload.Name,
 	}); err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
@@ -150,7 +147,7 @@ func (h *Handler) handleUpdateRole(w http.ResponseWriter, req *http.Request) {
 	}
 
 	if !utils.IsInputRoleNameWasValid(r.Name) {
-		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("invalid role name; only admin, staff, user, and guest can be valid"))
+		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("invalid role name; only admin, staff, and user can be valid"))
 		return
 	}
 
@@ -161,10 +158,10 @@ func (h *Handler) handleUpdateRole(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	utils.WriteJSON(w, COK, utils.JsonData{
-		Code:    COK,
+	utils.WriteJSON(w, cok, utils.JsonData{
+		Code:    cok,
 		Message: "Role Updated!",
-		Status:  http.StatusText(COK),
+		Status:  http.StatusText(cok),
 	})
 }
 
@@ -176,14 +173,25 @@ func (h *Handler) handleDeleteRole(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	r, err := h.store.GetRoleByID(roleID)
+	if err != nil {
+		utils.WriteJSONError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	if r.Name == "admin" {
+		utils.WriteJSONError(w, http.StatusForbidden, fmt.Errorf("you can't delete role admin"))
+		return
+	}
+
 	if err := h.store.DeleteRole(roleID); err != nil {
 		utils.WriteJSONError(w, http.StatusNotFound, err)
 		return
 	}
 
-	utils.WriteJSON(w, COK, utils.JsonData{
-		Code:    COK,
+	utils.WriteJSON(w, cok, utils.JsonData{
+		Code:    cok,
 		Message: "Role Deleted!",
-		Status:  http.StatusText(COK),
+		Status:  http.StatusText(cok),
 	})
 }

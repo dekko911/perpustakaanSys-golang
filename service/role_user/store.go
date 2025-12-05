@@ -2,8 +2,8 @@ package roleuser
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
+	"perpus_backend/helper"
 	"perpus_backend/types"
 )
 
@@ -26,12 +26,13 @@ func (s *Store) GetUserWithRoleByUserID(userID string) (*types.User, error) {
 	u.token_version AS user_token_version,
 	u.created_at,
 	u.updated_at,
-	r.id AS role_id,
-	r.name AS role_name
+	GROUP_CONCAT(r.id SEPARATOR ', ') AS role_id,
+	GROUP_CONCAT(r.name SEPARATOR ', ') AS role_name
 	FROM users u
 	LEFT JOIN role_user ru ON u.id = ru.user_id 
 	LEFT JOIN roles r ON ru.role_id = r.id
-	WHERE ru.user_id = ?`
+	WHERE ru.user_id = ?
+	GROUP BY ru.user_id`
 
 	stmt, err := s.db.Prepare(query)
 	if err != nil {
@@ -40,30 +41,12 @@ func (s *Store) GetUserWithRoleByUserID(userID string) (*types.User, error) {
 
 	defer stmt.Close()
 
-	var (
-		u types.User
-
-		roleID, roleName sql.NullString
-	)
-
-	r := new(types.Role)
-
-	err = stmt.QueryRow(userID).Scan(&u.ID, &u.Name, &u.Email, &u.Password, &u.Avatar, &u.TokenVersion, &u.CreatedAt, &u.UpdatedAt, &roleID, &roleName)
+	u, err := helper.ScanAndRetRowUserAndRole(stmt, userID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("user not found")
-		}
-
 		return nil, err
 	}
 
-	if roleID.Valid && roleName.Valid {
-		r.ID = roleID.String
-		r.Name = roleName.String
-		u.Roles = append(u.Roles, *r)
-	}
-
-	return &u, nil
+	return u, nil
 }
 
 func (s *Store) AssignRoleIntoUser(userID, roleID string) error {

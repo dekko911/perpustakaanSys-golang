@@ -6,6 +6,7 @@ import (
 	"perpus_backend/pkg/jwt"
 	"perpus_backend/types"
 	"perpus_backend/utils"
+	"strings"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
@@ -18,10 +19,14 @@ type Handler struct {
 	roleStore types.RoleStore
 }
 
-const COK = http.StatusOK
+const cok = http.StatusOK
 
 func NewHandler(store types.RoleUserStore, userStore types.UserStore, roleStore types.RoleStore) *Handler {
-	return &Handler{store: store, userStore: userStore, roleStore: roleStore}
+	return &Handler{
+		store:     store,
+		userStore: userStore,
+		roleStore: roleStore,
+	}
 }
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
@@ -46,10 +51,10 @@ func (h *Handler) handleGetUserWithRoleByUserID(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	utils.WriteJSON(w, COK, utils.JsonData{
-		Code:   COK,
+	utils.WriteJSON(w, cok, utils.JsonData{
+		Code:   cok,
 		Data:   roleUser,
-		Status: http.StatusText(COK),
+		Status: http.StatusText(cok),
 	})
 }
 
@@ -70,15 +75,27 @@ func (h *Handler) handleAssignRoleIntoUser(w http.ResponseWriter, req *http.Requ
 		return
 	}
 
+	// validate id user
+	if err := uuid.Validate(payload.UserID); err != nil {
+		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	// validate id role
+	if err := uuid.Validate(payload.RoleID); err != nil {
+		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		return
+	}
+
 	_, err := h.userStore.GetUserWithRolesByID(payload.UserID)
 	if err != nil {
-		utils.WriteJSONError(w, http.StatusInternalServerError, err)
+		utils.WriteJSONError(w, http.StatusNotFound, err)
 		return
 	}
 
 	r, err := h.roleStore.GetRoleByID(payload.RoleID)
 	if err != nil {
-		utils.WriteJSONError(w, http.StatusInternalServerError, err)
+		utils.WriteJSONError(w, http.StatusNotFound, err)
 		return
 	}
 
@@ -94,16 +111,16 @@ func (h *Handler) handleAssignRoleIntoUser(w http.ResponseWriter, req *http.Requ
 		return
 	}
 
-	utils.WriteJSON(w, COK, utils.JsonData{
-		Code:    COK,
+	utils.WriteJSON(w, cok, utils.JsonData{
+		Code:    cok,
 		Message: "User and Role has Connected.",
-		Status:  http.StatusText(COK),
+		Status:  http.StatusText(cok),
 	})
 }
 
-func (h *Handler) handleDeleteRoleFromUser(w http.ResponseWriter, r *http.Request) {
-	userID := mux.Vars(r)["userID"]
-	roleID := mux.Vars(r)["roleID"]
+func (h *Handler) handleDeleteRoleFromUser(w http.ResponseWriter, req *http.Request) {
+	userID := mux.Vars(req)["userID"]
+	roleID := mux.Vars(req)["roleID"]
 
 	// validate id user
 	if err := uuid.Validate(userID); err != nil {
@@ -117,14 +134,29 @@ func (h *Handler) handleDeleteRoleFromUser(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	u, err := h.userStore.GetUserWithRolesByID(userID)
+	if err != nil {
+		utils.WriteJSONError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	for _, r := range u.Roles {
+		for name := range strings.SplitSeq(r.Name, ",") {
+			if name == "admin" {
+				utils.WriteJSONError(w, http.StatusForbidden, fmt.Errorf("you can't delete admin"))
+				return
+			}
+		}
+	}
+
 	if err := h.store.DeleteRoleFromUser(userID, roleID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
 	utils.WriteJSON(w, http.StatusOK, utils.JsonData{
-		Code:    COK,
+		Code:    cok,
 		Message: "User and Role has Disconnected.",
-		Status:  http.StatusText(COK),
+		Status:  http.StatusText(cok),
 	})
 }

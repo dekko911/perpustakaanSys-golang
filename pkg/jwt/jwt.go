@@ -9,13 +9,12 @@ import (
 	"perpus_backend/config"
 	"perpus_backend/types"
 	"perpus_backend/utils"
-	"slices"
 	"time"
 
 	"github.com/golang-jwt/jwt"
 )
 
-type contextKey string // 16 bit string
+type contextKey string // 16 byte string
 
 const UserKey contextKey = "userID"
 
@@ -65,7 +64,7 @@ func AuthWithJWTToken(h http.HandlerFunc, us types.UserStore) http.HandlerFunc {
 		}
 
 		ctx := r.Context()
-		ctx = context.WithValue(ctx, UserKey, u.ID)
+		ctx = context.WithValue(ctx, UserKey, u.ID) // set the value with key userID
 
 		h(w, r.WithContext(ctx))
 	}
@@ -113,7 +112,7 @@ func permissionDenied(w http.ResponseWriter) {
 	utils.WriteJSONError(w, http.StatusForbidden, errors.New("permission denied"))
 }
 
-// get everything what u want.
+// get user login info from ctx.
 func GetUserIDFromContext(ctx context.Context) string {
 	if userID, ok := ctx.Value(UserKey).(string); ok {
 		return userID
@@ -141,15 +140,17 @@ func RoleGate(us types.UserStore, roles ...string) func(http.HandlerFunc) http.H
 				return
 			}
 
-			for _, role := range u.Roles {
+			for _, role := range u.Roles { // <- this called iteration
+				rolesFiltered := utils.ParseSliceRolesToFilteredString(roles) // ex: "admin, staff, user"
+
 				// check if role.Name has same value with roles param.
-				if slices.Contains(roles, role.Name) {
+				if utils.CompareRole(rolesFiltered, role.Name) {
 					hf(w, r)
 					return
 				}
 			}
 
-			log.Printf("user %s doesn't have role.", u.Name)
+			log.Printf("user %s doesn't have the requested role.", u.Name)
 			permissionDenied(w)
 		}
 	}

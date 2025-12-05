@@ -10,8 +10,8 @@ import (
 )
 
 type Config struct {
-	AppENV, AppURL, ClientPort, Port, CookieName, CookieValue, DBUser, DBPassword, DBName, DBAddress, JWTSecret, SessionDomain string
-	DBLoc                                                                                                                      *time.Location
+	AppENV, AppURL, ClientPort, CookieName, CookieValue, DBUser, DBPassword, DBName, DBAddress, MeilisearchURL, MSApiKey, Port, JWTSecret, SessionDomain string
+	DBLoc                                                                                                                                                *time.Location
 }
 
 var Env = initConfig()
@@ -19,32 +19,35 @@ var Env = initConfig()
 func initConfig() *Config {
 	_ = godotenv.Load()
 
-	loc, err := time.LoadLocation(os.Getenv("DB_LOC"))
+	loc, err := time.LoadLocation(getENVConfigValue("DB_LOC"))
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	return &Config{
-		AppENV:        getAppENV(),
-		AppURL:        os.Getenv("APP_URL"),
-		ClientPort:    os.Getenv("CLIENT_PORT"),
-		Port:          os.Getenv("PORT"),
-		CookieName:    os.Getenv("COOKIE_NAME"),
-		CookieValue:   os.Getenv("COOKIE_VALUE"),
-		DBUser:        os.Getenv("DB_USERNAME"),
-		DBPassword:    os.Getenv("DB_PASSWORD"),
-		DBName:        os.Getenv("DB_DATABASE"),
-		DBAddress:     fmt.Sprintf("%s:%s", os.Getenv("DB_HOST"), os.Getenv("DB_PORT")),
-		DBLoc:         loc,
-		JWTSecret:     os.Getenv("JWT_SECRET"),
-		SessionDomain: os.Getenv("SESSION_DOMAIN"),
+		AppENV:         getENVConfigValue("APP_ENV"),
+		AppURL:         getENVConfigValue("APP_URL"),
+		ClientPort:     getENVConfigValue("CLIENT_PORT"),
+		CookieName:     getENVConfigValue("COOKIE_NAME"),
+		CookieValue:    getENVConfigValue("COOKIE_VALUE"),
+		DBUser:         getENVConfigValue("DB_USERNAME"),
+		DBPassword:     getENVConfigValue("DB_PASSWORD"),
+		DBName:         getENVConfigValue("DB_DATABASE"),
+		DBAddress:      fmt.Sprintf("%s:%s", getENVConfigValue("DB_HOST"), getENVConfigValue("DB_PORT")),
+		DBLoc:          loc,
+		MeilisearchURL: getENVConfigValue("MEILISEARCH_URL"),
+		MSApiKey:       getENVConfigValue("MS_API_KEY"),
+		Port:           getENVConfigValue("PORT"),
+		JWTSecret:      getENVConfigValue("JWT_SECRET"),
+		SessionDomain:  getENVConfigValue("SESSION_DOMAIN"),
 	}
 }
 
-func getAppENV() string {
-	if v, ok := os.LookupEnv("APP_ENV"); ok {
+func getENVConfigValue(value string) string {
+	v, ok := os.LookupEnv(value)
+	if ok {
 		return v
 	}
 
-	return "debug" // set to "debug" if os.LookupEnv() doesn't read the actual value
+	return ""
 }

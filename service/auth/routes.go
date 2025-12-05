@@ -21,7 +21,7 @@ type Handler struct {
 }
 
 const (
-	COK = http.StatusOK
+	cok = http.StatusOK
 
 	profilePath = "./assets/public/images/profile/"
 	privateDir  = "./assets/private"
@@ -30,9 +30,7 @@ const (
 )
 
 func NewHandler(store types.UserStore) *Handler {
-	return &Handler{
-		store: store,
-	}
+	return &Handler{store: store}
 }
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
@@ -81,9 +79,9 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteJSON(w, COK, utils.JsonData{
-		Code:   COK,
-		Status: http.StatusText(COK),
+	utils.WriteJSON(w, cok, utils.JsonData{
+		Code:   cok,
+		Status: http.StatusText(cok),
 		Token:  token,
 	})
 }
@@ -97,10 +95,10 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteJSON(w, COK, utils.JsonData{
-		Code:    COK,
+	utils.WriteJSON(w, cok, utils.JsonData{
+		Code:    cok,
 		Message: "You've been Logout!",
-		Status:  http.StatusText(COK),
+		Status:  http.StatusText(cok),
 	})
 }
 

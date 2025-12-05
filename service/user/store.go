@@ -2,24 +2,37 @@ package user
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 	"perpus_backend/helper"
 	"perpus_backend/types"
+	"perpus_backend/utils"
 
 	"github.com/google/uuid"
 )
 
-type Store struct{ db *sql.DB }
+type Store struct {
+	db *sql.DB
+}
 
 func NewStore(db *sql.DB) *Store {
-	return &Store{
-		db: db,
-	}
+	return &Store{db: db}
 }
 
 func (s *Store) GetUsers() ([]*types.User, error) {
-	query := `SELECT 
+	sortByColumn := "created_at"
+	sortOrder := "DESC"
+
+	// prevent SQL INJECTION
+	if !utils.IsValidSortColumn(sortByColumn) {
+		return nil, fmt.Errorf("invalid sort column: %s", sortByColumn)
+	}
+
+	// prevent SQL INJECTION
+	if !utils.IsValidSortOrder(sortOrder) {
+		return nil, fmt.Errorf("invalid sort order: %s", sortOrder)
+	}
+
+	query := fmt.Sprintf(`SELECT 
 	u.id AS user_id, 
 	u.name AS user_name, 
 	u.email AS user_email, 
@@ -33,7 +46,7 @@ func (s *Store) GetUsers() ([]*types.User, error) {
 	FROM users u
 	LEFT JOIN role_user ru ON u.id = ru.user_id
 	LEFT JOIN roles r ON ru.role_id = r.id
-	ORDER BY u.created_at DESC`
+	ORDER BY %s %s`, sortByColumn, sortOrder)
 
 	stmt, err := s.db.Prepare(query)
 	if err != nil {
@@ -50,7 +63,8 @@ func (s *Store) GetUsers() ([]*types.User, error) {
 	defer rows.Close()
 
 	usersMap := make(map[string]*types.User)
-	for rows.Next() {
+
+	for rows.Next() { // <- like while
 		user, role, err := helper.ScanEachRowUserAndRoleIntoRoleUser(rows)
 		if err != nil {
 			return nil, err
@@ -58,16 +72,17 @@ func (s *Store) GetUsers() ([]*types.User, error) {
 
 		u, exists := usersMap[user.ID]
 		if !exists {
-			u = user
-			usersMap[user.ID] = u
+			u = user              // assign user scan to usersMap
+			usersMap[user.ID] = u // and last, assign final user scan to usersMap
 		}
 
 		if role != nil {
-			u.Roles = append(u.Roles, *role)
+			u.Roles = append(u.Roles, *role) // add roles data to usersMap
 		}
 	}
 
 	users := make([]*types.User, 0, len(usersMap))
+
 	for _, u := range usersMap {
 		users = append(users, u)
 	}
@@ -85,12 +100,13 @@ func (s *Store) GetUserWithRolesByID(id string) (*types.User, error) {
 	u.token_version AS user_token_version,
 	u.created_at,
 	u.updated_at,
-	r.id AS role_id,
-	r.name AS role_name
+	GROUP_CONCAT(r.id SEPARATOR ', ') AS role_id,
+	GROUP_CONCAT(r.name SEPARATOR ', ') AS role_name
 	FROM users u
 	LEFT JOIN role_user ru ON u.id = ru.user_id 
 	LEFT JOIN roles r ON ru.role_id = r.id
-	WHERE u.id = ?`
+	WHERE u.id = ?
+	GROUP BY u.id`
 
 	stmt, err := s.db.Prepare(query)
 	if err != nil {
@@ -99,30 +115,12 @@ func (s *Store) GetUserWithRolesByID(id string) (*types.User, error) {
 
 	defer stmt.Close()
 
-	var (
-		u types.User
-
-		roleID, roleName sql.NullString
-	)
-
-	r := new(types.Role)
-
-	err = stmt.QueryRow(id).Scan(&u.ID, &u.Name, &u.Email, &u.Password, &u.Avatar, &u.TokenVersion, &u.CreatedAt, &u.UpdatedAt, &roleID, &roleName)
+	u, err := helper.ScanAndRetRowUserAndRole(stmt, id)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("user not found")
-		}
-
 		return nil, err
 	}
 
-	if roleID.Valid && roleName.Valid {
-		r.ID = roleID.String
-		r.Name = roleName.String
-		u.Roles = append(u.Roles, *r)
-	}
-
-	return &u, nil
+	return u, nil
 }
 
 func (s *Store) GetUserWithRolesByEmail(email string) (*types.User, error) {
@@ -135,12 +133,13 @@ func (s *Store) GetUserWithRolesByEmail(email string) (*types.User, error) {
 	u.token_version AS user_token_version,
 	u.created_at,
 	u.updated_at,
-	r.id AS role_id,
-	r.name AS role_name
+	GROUP_CONCAT(r.id SEPARATOR ', ') AS role_id,
+	GROUP_CONCAT(r.name SEPARATOR ', ') AS role_name
 	FROM users u
 	LEFT JOIN role_user ru ON u.id = ru.user_id 
 	LEFT JOIN roles r ON ru.role_id = r.id
-	WHERE u.email = ?`
+	WHERE u.email = ?
+	GROUP BY u.id`
 
 	stmt, err := s.db.Prepare(query)
 	if err != nil {
@@ -149,34 +148,12 @@ func (s *Store) GetUserWithRolesByEmail(email string) (*types.User, error) {
 
 	defer stmt.Close()
 
-	var (
-		u types.User
-
-		roleID, roleName sql.NullString
-	)
-
-	r := new(types.Role)
-
-	err = stmt.QueryRow(email).Scan(&u.ID, &u.Name, &u.Email, &u.Password, &u.Avatar, &u.TokenVersion, &u.CreatedAt, &u.UpdatedAt, &roleID, &roleName)
+	u, err := helper.ScanAndRetRowUserAndRole(stmt, email)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("user not found")
-		}
-
 		return nil, err
 	}
 
-	if roleID.Valid && roleName.Valid {
-		r.ID = roleID.String
-		r.Name = roleName.String
-		u.Roles = append(u.Roles, *r)
-	}
-
-	if u.ID == "" {
-		return nil, fmt.Errorf("user not found")
-	}
-
-	return &u, nil
+	return u, nil
 }
 
 func (s *Store) CreateUser(u *types.User) error {
@@ -226,9 +203,6 @@ func (s *Store) DeleteUser(id string) error {
 }
 
 func (s *Store) IncrementTokenVersion(id string) error {
-	if err := uuid.Validate(id); err != nil {
-		return fmt.Errorf("invalid uuid format")
-	}
 	// use s.db.Prepare(query) and stmt(variable).Exec(...args) <- when used at SPAM MOTHERFUCKER
 	// stmt, err := s.db.Prepare("UPDATE users SET token_version = token_version + 1 WHERE id = ?")
 	// if err != nil {
@@ -240,6 +214,11 @@ func (s *Store) IncrementTokenVersion(id string) error {
 	// _, err = stmt.Exec(id)
 
 	// use s.db.Exec(query, ...args) <- when used it once go execution.
+
+	if err := uuid.Validate(id); err != nil {
+		return fmt.Errorf("invalid uuid format")
+	}
+
 	_, err := s.db.Exec("UPDATE users SET token_version = token_version + 1 WHERE id = ?", id)
 	if err != nil {
 		return err

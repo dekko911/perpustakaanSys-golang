@@ -5,16 +5,19 @@ import (
 )
 
 type Circulation struct {
-	ID            string    `json:"id"`
-	BukuID        string    `json:"buku_id"` // relation
-	Book          *Book     `json:"book"`
-	IdSKL         string    `json:"id_skl"` // slug type
-	Peminjam      string    `json:"peminjam"`
-	TanggalPinjam time.Time `json:"tanggal_pinjam"` // date type, not datetime
-	JatuhTempo    time.Time `json:"jatuh_tempo"`
-	Denda         float64   `json:"denda"`
 	CreatedAt     time.Time `json:"created_at,omitzero"`
 	UpdatedAt     time.Time `json:"updated_at,omitzero"`
+	TanggalPinjam time.Time `json:"tanggal_pinjam"` // date type, not datetime
+	JatuhTempo    time.Time `json:"jatuh_tempo"`
+
+	ID       string `json:"id"`
+	BukuID   string `json:"buku_id"` // relation
+	IdSKL    string `json:"id_skl"`  // slug type
+	Peminjam string `json:"peminjam"`
+
+	Denda float64 `json:"denda"`
+
+	Book *Book `json:"book"`
 }
 
 type CirculationStore interface {

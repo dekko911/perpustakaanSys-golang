@@ -2,10 +2,10 @@ package book
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 	"perpus_backend/helper"
 	"perpus_backend/types"
+	"perpus_backend/utils"
 
 	"github.com/google/uuid"
 )
@@ -20,7 +20,20 @@ func NewStore(db *sql.DB) *Store {
 	}
 }
 func (s *Store) GetBooks() ([]*types.Book, error) {
-	stmt, err := s.db.Prepare("SELECT b.id, b.id_buku, b.judul_buku, b.cover_buku, b.buku_pdf, b.penulis, b.pengarang, b.tahun, b.created_at, b.updated_at FROM books b ORDER BY b.id_buku DESC")
+	sortByColumn := "id_buku"
+	sortOrder := "DESC"
+
+	if !utils.IsValidSortColumn(sortByColumn) {
+		return nil, fmt.Errorf("invalid sort column: %s", sortByColumn)
+	}
+
+	if !utils.IsValidSortOrder(sortOrder) {
+		return nil, fmt.Errorf("invalid sort order: %s", sortOrder)
+	}
+
+	query := fmt.Sprintf("SELECT b.id, b.id_buku, b.judul_buku, b.cover_buku, b.buku_pdf, b.penulis, b.pengarang, b.tahun, b.created_at, b.updated_at FROM books b ORDER BY %s %s", sortByColumn, sortOrder)
+
+	stmt, err := s.db.Prepare(query)
 	if err != nil {
 		return nil, err
 	}
@@ -56,18 +69,12 @@ func (s *Store) GetBookByID(id string) (*types.Book, error) {
 
 	defer stmt.Close()
 
-	var b types.Book
-
-	err = stmt.QueryRow(id).Scan(&b.ID, &b.IdBuku, &b.JudulBuku, &b.CoverBuku, &b.BukuPDF, &b.Penulis, &b.Pengarang, &b.Tahun, &b.CreatedAt, &b.UpdatedAt)
+	b, err := helper.ScanAndRetRowBook(stmt, id)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("book not found")
-		}
-
 		return nil, err
 	}
 
-	return &b, nil
+	return b, nil
 }
 
 func (s *Store) GetBookByJudulBuku(judulBuku string) (*types.Book, error) {
@@ -78,18 +85,12 @@ func (s *Store) GetBookByJudulBuku(judulBuku string) (*types.Book, error) {
 
 	defer stmt.Close()
 
-	var b types.Book
-
-	err = stmt.QueryRow(judulBuku).Scan(&b.ID, &b.IdBuku, &b.JudulBuku, &b.CoverBuku, &b.BukuPDF, &b.Penulis, &b.Pengarang, &b.Tahun, &b.CreatedAt, &b.UpdatedAt)
+	b, err := helper.ScanAndRetRowBook(stmt, judulBuku)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("book not found")
-		}
-
 		return nil, err
 	}
 
-	return &b, nil
+	return b, nil
 }
 
 func (s *Store) CreateBook(b *types.Book) error {

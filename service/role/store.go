@@ -2,10 +2,10 @@ package role
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 	"perpus_backend/helper"
 	"perpus_backend/types"
+	"perpus_backend/utils"
 
 	"github.com/google/uuid"
 )
@@ -15,13 +15,24 @@ type Store struct {
 }
 
 func NewStore(db *sql.DB) *Store {
-	return &Store{
-		db: db,
-	}
+	return &Store{db: db}
 }
 
 func (s *Store) GetRoles() ([]*types.Role, error) {
-	stmt, err := s.db.Prepare("SELECT r.id, r.name, r.created_at, r.updated_at FROM roles r ORDER BY created_at DESC")
+	sortByColumn := "created_at"
+	sortOrder := "DESC"
+
+	if !utils.IsValidSortColumn(sortByColumn) {
+		return nil, fmt.Errorf("invalid sort column: %s", sortByColumn)
+	}
+
+	if !utils.IsValidSortOrder(sortOrder) {
+		return nil, fmt.Errorf("invalid sort order: %s", sortOrder)
+	}
+
+	query := fmt.Sprintf("SELECT r.id, r.name, r.created_at, r.updated_at FROM roles r ORDER BY %s %s", sortByColumn, sortOrder)
+
+	stmt, err := s.db.Prepare(query)
 	if err != nil {
 		return nil, err
 	}
@@ -36,13 +47,14 @@ func (s *Store) GetRoles() ([]*types.Role, error) {
 	defer rows.Close()
 
 	r := make([]*types.Role, 0)
+
 	for rows.Next() {
-		roles, err := helper.ScanEachRowIntoRole(rows)
+		role, err := helper.ScanEachRowIntoRole(rows)
 		if err != nil {
 			return nil, err
 		}
 
-		r = append(r, roles)
+		r = append(r, role)
 	}
 
 	return r, nil
@@ -51,40 +63,28 @@ func (s *Store) GetRoles() ([]*types.Role, error) {
 func (s *Store) GetRoleByID(id string) (*types.Role, error) {
 	stmt, err := s.db.Prepare("SELECT r.id, r.name, r.created_at, r.updated_at FROM roles r WHERE r.id = ?")
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("role not found")
-		}
-
 		return nil, err
 	}
 
 	defer stmt.Close()
 
-	var r types.Role
-
-	err = stmt.QueryRow(id).Scan(&r.ID, &r.Name, &r.CreatedAt, &r.UpdatedAt)
+	r, err := helper.ScanAndRetRowRole(stmt, id)
 	if err != nil {
 		return nil, err
 	}
 
-	return &r, nil
+	return r, nil
 }
 
 func (s *Store) GetRoleByName(name string) (*types.Role, error) {
 	stmt, err := s.db.Prepare("SELECT r.id, r.name, r.created_at, r.updated_at FROM roles r WHERE r.name = ?")
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("role not found")
-		}
-
 		return nil, err
 	}
 
 	defer stmt.Close()
 
-	var r types.Role
-
-	err = stmt.QueryRow(name).Scan(&r.ID, &r.Name, &r.CreatedAt, &r.UpdatedAt)
+	r, err := helper.ScanAndRetRowRole(stmt, name)
 	if err != nil {
 		return nil, err
 	}
@@ -93,10 +93,10 @@ func (s *Store) GetRoleByName(name string) (*types.Role, error) {
 		return nil, fmt.Errorf("role not found")
 	}
 
-	return &r, nil
+	return r, nil
 }
 
-func (s *Store) CreateRole(r *types.Role) error {
+func (s *Store) CreateRole(r types.Role) error {
 	if r.ID == "" {
 		r.ID = uuid.NewString()
 	}

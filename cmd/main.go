@@ -31,7 +31,7 @@ func main() {
 	case "debug":
 		debug.SetGCPercent(50)
 	default:
-		log.Fatalf("invalid value env: %s", config.Env.AppENV)
+		log.Fatalf("invalid app env: %s", config.Env.AppENV)
 	}
 
 	db, err := db.NewMySQLStorage(&mysql.Config{

@@ -5,15 +5,16 @@ import (
 )
 
 type Member struct {
-	ID            string    `json:"id"`
-	IdAnggota     string    `json:"id_anggota"` // slug type, not relation
-	Nama          string    `json:"nama"`
-	JenisKelamin  string    `json:"jenis_kelamin"` // enum type
-	Kelas         string    `json:"kelas"`
-	NoTelepon     string    `json:"no_telepon"`
-	ProfilAnggota string    `json:"profil_anggota"` // image type
-	CreatedAt     time.Time `json:"created_at,omitzero"`
-	UpdatedAt     time.Time `json:"updated_at,omitzero"`
+	CreatedAt time.Time `json:"created_at,omitzero"`
+	UpdatedAt time.Time `json:"updated_at,omitzero"`
+
+	ID            string `json:"id"`
+	IdAnggota     string `json:"id_anggota"` // slug type, not relation
+	Nama          string `json:"nama"`
+	JenisKelamin  string `json:"jenis_kelamin"` // enum type
+	Kelas         string `json:"kelas"`
+	NoTelepon     string `json:"no_telepon"`
+	ProfilAnggota string `json:"profil_anggota"` // image type
 }
 
 type MemberStore interface {

@@ -3,32 +3,55 @@ package utils
 import (
 	"encoding/json"
 	"errors"
+	"flag"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"perpus_backend/config"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/bytedance/sonic"
 	"github.com/go-playground/validator/v10"
+	"github.com/gorilla/websocket"
+	"github.com/meilisearch/meilisearch-go"
+)
+
+var (
+	MSClient = meilisearch.New(config.Env.MeilisearchURL,
+		meilisearch.WithAPIKey(config.Env.MSApiKey),
+		meilisearch.WithCustomJsonMarshaler(sonic.Marshal),
+		meilisearch.WithCustomJsonUnmarshaler(sonic.Unmarshal))
+
+	WSUpgrader = websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool {
+			return true
+		},
+	}
+
+	Validate = validator.New() // validate the request input.
 )
 
 type JsonData struct {
-	Code    int    `json:"code,omitempty"`
-	Data    any    `json:"data,omitempty"`
+	Data any `json:"data,omitempty"`
+
+	Token   string `json:"token,omitempty"`
 	Error   string `json:"error,omitempty"`
 	File    string `json:"file,omitempty"`
-	Line    int    `json:"line,omitempty"`
 	Message string `json:"message,omitempty"`
 	Status  string `json:"status,omitempty"`
-	Token   string `json:"token,omitempty"`
+
+	Line int `json:"line,omitempty"`
+	Code int `json:"code,omitempty"`
 }
 
-// validate the request input.
-var Validate = validator.New()
+func IsTesting() bool {
+	return flag.Lookup("test.v") != nil
+}
 
 // returned information into json type.
 func WriteJSON(w http.ResponseWriter, statusCode int, d JsonData) error {
@@ -57,7 +80,17 @@ func WriteJSONError(w http.ResponseWriter, statusCode int, err error) {
 			Status: http.StatusText(statusCode),
 		})
 	default:
-		log.Fatalf("invalid value env: %s", config.Env.AppENV)
+		if IsTesting() {
+			WriteJSON(w, statusCode, JsonData{
+				Code:   statusCode,
+				Error:  err.Error(),
+				File:   file,
+				Line:   line,
+				Status: http.StatusText(statusCode),
+			})
+		} else {
+			log.Fatalf("invalid value app_env: %s", config.Env.AppENV)
+		}
 	}
 }
 
@@ -101,27 +134,24 @@ func IsItInBaseDir(path, baseDir string) bool {
 	return len(absPath) >= len(absBaseDir) && absPath[:len(absBaseDir)] == absBaseDir
 }
 
-func ParseStringToInt(val string) int {
-	n, _ := strconv.Atoi(val)
-
-	return n
+func ParseStringToInt(number string) int {
+	i, _ := strconv.Atoi(number)
+	return i
 }
 
-func ParseStringToFloat(val string) float64 {
-	f, _ := strconv.ParseFloat(val, 64)
-
+func ParseStringToFloat(number string) float64 {
+	f, _ := strconv.ParseFloat(number, 64)
 	return f
 }
 
-func ParseDateFromFormInput(inputDate string) time.Time {
-	d, _ := time.Parse(time.DateOnly, inputDate)
-
+func ParseStringToFormatDate(date string) time.Time {
+	d, _ := time.Parse(time.DateOnly, date)
 	return d
 }
 
 // this was support names: admin, staff, and user. out of that, it should be invalid.
 func IsInputRoleNameWasValid(name string) bool {
-	validRoleName := map[string]struct{}{ // irit memori, dan cek apakah param name ada di dalam map key validRoleName, kalau tidak, dia akan mengembalikan nilai false
+	validRoleName := map[string]struct{}{
 		"admin": {},
 		"staff": {},
 		"user":  {},
@@ -129,4 +159,46 @@ func IsInputRoleNameWasValid(name string) bool {
 
 	_, ok := validRoleName[name]
 	return ok
+}
+
+func IsValidSortColumn(column string) bool {
+	validColumn := regexp.MustCompile(`^[a-zA-Z0-9_]+$`)
+	return validColumn.MatchString(column)
+}
+
+func IsValidSortOrder(sortOrder string) bool {
+	validSortOrder := map[string]struct{}{
+		"ASC":  {},
+		"DESC": {},
+	}
+
+	_, ok := validSortOrder[sortOrder]
+	return ok
+}
+
+func ParseSliceRolesToFilteredString(s []string) string {
+	filtered := make([]string, 0, len(s))
+
+	for _, v := range s { // ["admin" "staff" "user"]
+		v = strings.TrimSpace(v) // "admin""staff""user"
+
+		// check it, if there has empty string or null, it will be skipped
+		if v != "" {
+			filtered = append(filtered, v)
+		}
+	}
+
+	return strings.Join(filtered, ", ") // "admin, staff, user"
+}
+
+func CompareRole(sliceRoles, targetRole string) bool {
+	for s := range strings.SplitSeq(sliceRoles, ",") {
+		for t := range strings.SplitSeq(targetRole, ",") {
+			if s == t { // [admin staff] compare [staff user]
+				return true
+			}
+		}
+	}
+
+	return false
 }

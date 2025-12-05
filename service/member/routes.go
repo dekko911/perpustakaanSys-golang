@@ -21,7 +21,7 @@ type Handler struct {
 }
 
 const (
-	COK = http.StatusOK // for alias http.StatusOK
+	cok = http.StatusOK // for alias http.StatusOK
 
 	dirAvatarPath = "./assets/public/images/avatar/"
 
@@ -51,10 +51,10 @@ func (h *Handler) handleGetMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteJSON(w, COK, utils.JsonData{
-		Code:   COK,
+	utils.WriteJSON(w, cok, utils.JsonData{
+		Code:   cok,
 		Data:   members,
-		Status: http.StatusText(COK),
+		Status: http.StatusText(cok),
 	})
 }
 
@@ -72,10 +72,10 @@ func (h *Handler) handleGetMemberByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteJSON(w, COK, utils.JsonData{
-		Code:   COK,
+	utils.WriteJSON(w, cok, utils.JsonData{
+		Code:   cok,
 		Data:   member,
-		Status: http.StatusText(COK),
+		Status: http.StatusText(cok),
 	})
 }
 
@@ -242,10 +242,12 @@ func (h *Handler) handleUpdateMember(w http.ResponseWriter, r *http.Request) {
 		}
 
 		avatarPathOld := dirAvatarPath + m.ProfilAnggota
-		info, _ := os.Stat(avatarPathOld)
+		info, err := os.Stat(avatarPathOld)
 
-		if !info.IsDir() {
-			os.Remove(avatarPathOld)
+		if err == nil {
+			if !info.IsDir() {
+				os.Remove(avatarPathOld)
+			}
 		}
 
 		fileName = header.Filename
@@ -268,10 +270,10 @@ func (h *Handler) handleUpdateMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteJSON(w, COK, utils.JsonData{
-		Code:    COK,
+	utils.WriteJSON(w, cok, utils.JsonData{
+		Code:    cok,
 		Message: "Member Updated!",
-		Status:  http.StatusText(COK),
+		Status:  http.StatusText(cok),
 	})
 }
 
@@ -290,10 +292,12 @@ func (h *Handler) handleDeleteMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	filePath := dirAvatarPath + m.ProfilAnggota
-	info, _ := os.Stat(filePath)
+	info, err := os.Stat(filePath)
 
-	if !info.IsDir() {
-		os.Remove(filePath)
+	if err == nil {
+		if !info.IsDir() {
+			os.Remove(filePath)
+		}
 	}
 
 	if err := h.store.DeleteMember(memberID); err != nil {
@@ -301,9 +305,9 @@ func (h *Handler) handleDeleteMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteJSON(w, COK, utils.JsonData{
-		Code:    COK,
+	utils.WriteJSON(w, cok, utils.JsonData{
+		Code:    cok,
 		Message: "Member Deleted!",
-		Status:  http.StatusText(COK),
+		Status:  http.StatusText(cok),
 	})
 }

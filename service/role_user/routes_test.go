@@ -17,7 +17,6 @@ func TestHandlerRoleUser(t *testing.T) {
 	h := NewHandler(roleUser, user, role)
 
 	t.Run("it should be get user & role by userid", func(t *testing.T) {
-
 		req, err := http.NewRequest(http.MethodGet, "/role_user/6918315b-dff4-8324-969f-e43cd434eb3e", nil)
 		if err != nil {
 			t.Fatal(err)
@@ -32,8 +31,8 @@ func TestHandlerRoleUser(t *testing.T) {
 
 		// t.Log(w.Body) // for check the body purpose
 
-		if w.Code != COK {
-			t.Errorf("expected status code %d, got %d", COK, w.Code)
+		if w.Code != cok {
+			t.Errorf("expected status code %d, got %d", cok, w.Code)
 		}
 	})
 

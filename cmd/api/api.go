@@ -15,6 +15,7 @@ import (
 	"perpus_backend/service/role"
 	roleuser "perpus_backend/service/role_user"
 	"perpus_backend/service/user"
+	"perpus_backend/service/websocket"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -26,19 +27,16 @@ type APIServer struct {
 	db   *sql.DB
 }
 
-var publicURLHandler = http.StripPrefix("/public/", http.FileServer(http.Dir("./assets/public")))
-
 func NewAPIServer(addr string, db *sql.DB) *APIServer {
-	return &APIServer{
-		addr: addr,
-		db:   db,
-	}
+	return &APIServer{addr: addr, db: db}
 }
+
+var publicURLHandler = http.StripPrefix("/public/", http.FileServer(http.Dir("./assets/public")))
 
 func (s *APIServer) Run() error {
 	r := mux.NewRouter()
-	r.Use(cors.CORSMiddleware)
 	r.Use(cookie.CookieMiddleware)
+	r.Use(cors.CORSMiddleware)
 
 	// for ensures that OPTIONS "/" is not thrown to 404 (which does not have a CORS header).
 	r.Methods(http.MethodOptions).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -92,6 +90,11 @@ func (s *APIServer) Run() error {
 	// auth routes
 	authHandler := auth.NewHandler(userStore)
 	authHandler.RegisterRoutes(subrouter)
+
+	// search routes
+	wsSubrouter := r.PathPrefix("/ws").Subrouter()
+	wsHandler := websocket.NewHandler(userStore, roleStore, memberStore, bookStore, circulationStore)
+	wsHandler.RegisterRoutes(wsSubrouter)
 
 	// set accessing files across private routes. Which means, it is need to login auth.
 	r.HandleFunc("/private/{filename:.+}", jwt.AuthWithJWTToken(jwt.RoleGate(userStore, "admin", "staff", "user")(authHandler.PrivateURLHandler), userStore)).Methods(http.MethodGet)

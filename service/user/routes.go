@@ -11,6 +11,7 @@ import (
 	"perpus_backend/pkg/jwt"
 	"perpus_backend/types"
 	"perpus_backend/utils"
+	"strings"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
@@ -23,7 +24,7 @@ type Handler struct {
 }
 
 const (
-	COK = http.StatusOK
+	cok = http.StatusOK
 
 	filePublicPath = "./assets/public/images/profile/"
 
@@ -31,9 +32,7 @@ const (
 )
 
 func NewHandler(store types.UserStore) *Handler {
-	return &Handler{
-		store: store,
-	}
+	return &Handler{store: store}
 }
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
@@ -57,10 +56,10 @@ func (h *Handler) handleGetUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteJSON(w, COK, utils.JsonData{
-		Code:   COK,
+	utils.WriteJSON(w, cok, utils.JsonData{
+		Code:   cok,
 		Data:   users,
-		Status: http.StatusText(COK),
+		Status: http.StatusText(cok),
 	})
 }
 
@@ -78,10 +77,10 @@ func (h *Handler) handleGetUserWithRolesByID(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	utils.WriteJSON(w, COK, utils.JsonData{
-		Code:   COK,
+	utils.WriteJSON(w, cok, utils.JsonData{
+		Code:   cok,
 		Data:   user,
-		Status: http.StatusText(COK),
+		Status: http.StatusText(cok),
 	})
 }
 
@@ -94,10 +93,10 @@ func (h *Handler) handleGetProfileUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteJSON(w, COK, utils.JsonData{
-		Code:   COK,
+	utils.WriteJSON(w, cok, utils.JsonData{
+		Code:   cok,
 		Data:   user,
-		Status: http.StatusText(COK),
+		Status: http.StatusText(cok),
 	})
 }
 
@@ -171,10 +170,10 @@ func (h *Handler) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.store.CreateUser(&types.User{
-		Name:     payload.Name,  // miko
-		Email:    payload.Email, // miko@email.com
-		Password: hashPass,      // miko123
-		Avatar:   fileName,      // img.jpg
+		Name:     payload.Name,
+		Email:    payload.Email,
+		Password: hashPass,
+		Avatar:   fileName,
 	}); err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
@@ -265,9 +264,11 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 
 				fileImgOld := filePublicPath + u.Avatar
 
-				info, _ := os.Stat(fileImgOld)
-				if !info.IsDir() {
-					os.Remove(fileImgOld) // for reason, to not delete the folder when file doesn't exist in dir
+				info, err := os.Stat(fileImgOld)
+				if err == nil {
+					if !info.IsDir() {
+						os.Remove(fileImgOld) // for reason, to not delete the folder when file doesn't exist inside the dir
+					}
 				}
 
 				fileName = randomString + ext
@@ -297,10 +298,10 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteJSON(w, COK, utils.JsonData{
-		Code:    COK,
+	utils.WriteJSON(w, cok, utils.JsonData{
+		Code:    cok,
 		Message: "User Updated!",
-		Status:  http.StatusText(COK),
+		Status:  http.StatusText(cok),
 	})
 }
 
@@ -319,17 +320,21 @@ func (h *Handler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, r := range u.Roles {
-		if r.Name == "admin" {
-			utils.WriteJSONError(w, http.StatusForbidden, fmt.Errorf("you can't delete admin"))
-			return
+		for name := range strings.SplitSeq(r.Name, ",") {
+			if name == "admin" {
+				utils.WriteJSONError(w, http.StatusForbidden, fmt.Errorf("you can't delete admin"))
+				return
+			}
 		}
 	}
 
 	fileName := filePublicPath + u.Avatar
-	info, _ := os.Stat(fileName)
+	info, err := os.Stat(fileName)
 
-	if !info.IsDir() {
-		os.Remove(fileName)
+	if err == nil {
+		if !info.IsDir() {
+			os.Remove(fileName)
+		}
 	}
 
 	if err := h.store.DeleteUser(userID); err != nil {
@@ -337,9 +342,9 @@ func (h *Handler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteJSON(w, COK, utils.JsonData{
-		Code:    COK,
+	utils.WriteJSON(w, cok, utils.JsonData{
+		Code:    cok,
 		Message: "User Deleted!",
-		Status:  http.StatusText(COK),
+		Status:  http.StatusText(cok),
 	})
 }
