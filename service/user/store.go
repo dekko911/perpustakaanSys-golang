@@ -65,7 +65,7 @@ func (s *Store) GetUsers() ([]*types.User, error) {
 	usersMap := make(map[string]*types.User)
 
 	for rows.Next() { // <- like while
-		user, role, err := helper.ScanEachRowUserAndRoleIntoRoleUser(rows)
+		user, role, err := helper.ScanEachRowUserAndRoleIntoUser(rows)
 		if err != nil {
 			return nil, err
 		}

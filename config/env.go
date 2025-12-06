@@ -11,7 +11,8 @@ import (
 
 type Config struct {
 	AppENV, AppURL, ClientPort, CookieName, CookieValue, DBUser, DBPassword, DBName, DBAddress, MeilisearchURL, MSApiKey, Port, JWTSecret, SessionDomain string
-	DBLoc                                                                                                                                                *time.Location
+
+	DBLoc *time.Location
 }
 
 var Env = initConfig()

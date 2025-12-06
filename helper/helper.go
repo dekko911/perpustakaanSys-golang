@@ -10,10 +10,10 @@ import (
 )
 
 type stringAndNumberOnly interface {
-	~string | ~int64 | ~float64
+	~string | ~int | ~int64 | ~float64
 }
 
-func ScanEachRowUserAndRoleIntoRoleUser(rows *sql.Rows) (*types.User, *types.Role, error) {
+func ScanEachRowUserAndRoleIntoUser(rows *sql.Rows) (*types.User, *types.Role, error) {
 	u := new(types.User)
 	r := new(types.Role)
 
@@ -130,7 +130,7 @@ func ScanEachRowIntoCirculation(rows *sql.Rows) (*types.Circulation, *types.Book
 
 // scan and return user row query has given before.
 func ScanAndRetRowUserAndRole[T stringAndNumberOnly](stmt *sql.Stmt, param T) (*types.User, error) {
-	u := new(types.User)
+	var u types.User
 	r := new(types.Role)
 
 	var roleID, roleName sql.NullString
@@ -151,7 +151,7 @@ func ScanAndRetRowUserAndRole[T stringAndNumberOnly](stmt *sql.Stmt, param T) (*
 		u.Roles = append(u.Roles, *r)
 	}
 
-	return u, nil
+	return &u, nil
 }
 
 // scan and return role row query has given before.
@@ -222,7 +222,8 @@ func ScanAndRetRowCirculation[T stringAndNumberOnly](stmt *sql.Stmt, param T) (*
 }
 
 func GenerateNextIDBuku(db *sql.DB) string {
-	var lastID string
+	lastID := new(string)
+
 	stmt, err := db.Prepare("SELECT b.id_buku FROM books b ORDER BY b.id_buku DESC LIMIT 1")
 	if err != nil {
 		return err.Error()
@@ -230,7 +231,7 @@ func GenerateNextIDBuku(db *sql.DB) string {
 
 	defer stmt.Close()
 
-	if err := stmt.QueryRow().Scan(&lastID); err != nil {
+	if err := stmt.QueryRow().Scan(lastID); err != nil {
 		if err == sql.ErrNoRows {
 			return "BK001"
 		}
@@ -238,23 +239,24 @@ func GenerateNextIDBuku(db *sql.DB) string {
 		return err.Error()
 	}
 
-	idStr := strings.TrimPrefix(lastID, "BK")
+	idStr := strings.TrimPrefix(*lastID, "BK")
 	num, err := strconv.Atoi(idStr)
 	if err != nil {
 		return err.Error()
 	}
 
 	if num > 999 {
-		next4DigitsID := fmt.Sprintf("BK%04d", num+1)
-		return next4DigitsID
+		*lastID = fmt.Sprintf("BK%04d", num+1)
+		return *lastID
 	}
 
-	nextID := fmt.Sprintf("BK%03d", num+1)
-	return nextID
+	*lastID = fmt.Sprintf("BK%03d", num+1)
+	return *lastID
 }
 
 func GenerateNextIDAnggota(db *sql.DB) string {
-	var lastID string
+	lastID := new(string) // initial lastID
+
 	stmt, err := db.Prepare("SELECT m.id_anggota FROM members m ORDER BY m.id_anggota DESC LIMIT 1")
 	if err != nil {
 		return err.Error()
@@ -262,7 +264,7 @@ func GenerateNextIDAnggota(db *sql.DB) string {
 
 	defer stmt.Close()
 
-	if err := stmt.QueryRow().Scan(&lastID); err != nil {
+	if err := stmt.QueryRow().Scan(lastID); err != nil {
 		if err == sql.ErrNoRows {
 			return "ID001" // end line here if there is no rows at db
 		}
@@ -270,23 +272,24 @@ func GenerateNextIDAnggota(db *sql.DB) string {
 		return err.Error()
 	}
 
-	idStr := strings.TrimPrefix(lastID, "ID")
+	idStr := strings.TrimPrefix(*lastID, "ID") // copy value at original variable lastID
 	num, err := strconv.Atoi(idStr)
 	if err != nil {
 		return err.Error()
 	}
 
 	if num > 999 {
-		next4DigitsID := fmt.Sprintf("BK%04d", num+1)
-		return next4DigitsID
+		*lastID = fmt.Sprintf("ID%04d", num+1)
+		return *lastID
 	}
 
-	nextID := fmt.Sprintf("ID%03d", num+1)
-	return nextID
+	*lastID = fmt.Sprintf("ID%03d", num+1)
+	return *lastID
 }
 
 func GenerateNextIDSKL(db *sql.DB) string {
-	var lastID string
+	lastID := new(string)
+
 	stmt, err := db.Prepare("SELECT c.id_skl FROM circulations c ORDER BY c.id_skl DESC LIMIT 1")
 	if err != nil {
 		return err.Error()
@@ -294,7 +297,7 @@ func GenerateNextIDSKL(db *sql.DB) string {
 
 	defer stmt.Close()
 
-	if err := stmt.QueryRow().Scan(&lastID); err != nil {
+	if err := stmt.QueryRow().Scan(lastID); err != nil {
 		if err == sql.ErrNoRows {
 			return "SKL001"
 		}
@@ -302,17 +305,17 @@ func GenerateNextIDSKL(db *sql.DB) string {
 		return err.Error()
 	}
 
-	idStr := strings.TrimPrefix(lastID, "SKL")
+	idStr := strings.TrimPrefix(*lastID, "SKL")
 	num, err := strconv.Atoi(idStr)
 	if err != nil {
 		return err.Error()
 	}
 
 	if num > 999 {
-		next4DigitsID := fmt.Sprintf("BK%04d", num+1)
-		return next4DigitsID
+		*lastID = fmt.Sprintf("SKL%04d", num+1)
+		return *lastID
 	}
 
-	nextID := fmt.Sprintf("SKL%03d", num+1)
-	return nextID
+	*lastID = fmt.Sprintf("SKL%03d", num+1)
+	return *lastID
 }

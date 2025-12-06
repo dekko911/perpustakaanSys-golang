@@ -49,6 +49,7 @@ type JsonData struct {
 	Code int `json:"code,omitempty"`
 }
 
+// for check if has do some go test, it will return true.
 func IsTesting() bool {
 	return flag.Lookup("test.v") != nil
 }
