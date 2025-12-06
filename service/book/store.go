@@ -94,23 +94,53 @@ func (s *Store) GetBookByJudulBuku(judulBuku string) (*types.Book, error) {
 }
 
 func (s *Store) CreateBook(b *types.Book) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+
+	query := `
+	SELECT CAST(SUBSTRING(id_buku, 3) AS UNSIGNED) as last_num
+	FROM books
+	ORDER BY last_num DESC
+	LIMIT 1
+	FOR UPDATE
+	`
+
+	var lastNum int
+
+	if err := tx.QueryRow(query).Scan(&lastNum); err == sql.ErrNoRows {
+		lastNum = 0
+	} else if err != nil {
+		return err
+	}
+
+	IDBook := new(string)
+
+	if lastNum > 999 {
+		*IDBook = utils.GenerateSpecificID("BK", lastNum, 4)
+	} else {
+		*IDBook = utils.GenerateSpecificID("BK", lastNum, 3)
+	}
+
 	if b.ID == "" {
 		b.ID = uuid.NewString()
 	}
 
 	if b.IdBuku == "" {
-		b.IdBuku = helper.GenerateNextIDBuku(s.db)
+		b.IdBuku = *IDBook
 	}
 
-	stmt, err := s.db.Prepare("INSERT INTO books (id, id_buku, judul_buku, cover_buku, buku_pdf, penulis, pengarang, tahun) VALUES (?,?,?,?,?,?,?,?)")
+	_, err = tx.Exec("INSERT INTO books (id, id_buku, judul_buku, cover_buku, buku_pdf, penulis, pengarang, tahun) VALUES (?,?,?,?,?,?,?,?)", b.ID, b.IdBuku, b.JudulBuku, b.CoverBuku, b.BukuPDF, b.Penulis, b.Pengarang, b.Tahun)
 	if err != nil {
 		return err
 	}
 
-	defer stmt.Close()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
 
-	_, err = stmt.Exec(b.ID, b.IdBuku, b.JudulBuku, b.CoverBuku, b.BukuPDF, b.Penulis, b.Pengarang, b.Tahun)
-	return err
+	return nil
 }
 
 func (s *Store) UpdateBook(id string, b *types.Book) error {

@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"perpus_backend/types"
-	"strconv"
-	"strings"
 )
 
 type stringAndNumberOnly interface {
@@ -219,103 +217,4 @@ func ScanAndRetRowCirculation[T stringAndNumberOnly](stmt *sql.Stmt, param T) (*
 	c.Book = &b
 
 	return &c, nil
-}
-
-func GenerateNextIDBuku(db *sql.DB) string {
-	lastID := new(string)
-
-	stmt, err := db.Prepare("SELECT b.id_buku FROM books b ORDER BY b.id_buku DESC LIMIT 1")
-	if err != nil {
-		return err.Error()
-	}
-
-	defer stmt.Close()
-
-	if err := stmt.QueryRow().Scan(lastID); err != nil {
-		if err == sql.ErrNoRows {
-			return "BK001"
-		}
-
-		return err.Error()
-	}
-
-	idStr := strings.TrimPrefix(*lastID, "BK")
-	num, err := strconv.Atoi(idStr)
-	if err != nil {
-		return err.Error()
-	}
-
-	if num > 999 {
-		*lastID = fmt.Sprintf("BK%04d", num+1)
-		return *lastID
-	}
-
-	*lastID = fmt.Sprintf("BK%03d", num+1)
-	return *lastID
-}
-
-func GenerateNextIDAnggota(db *sql.DB) string {
-	lastID := new(string) // initial lastID
-
-	stmt, err := db.Prepare("SELECT m.id_anggota FROM members m ORDER BY m.id_anggota DESC LIMIT 1")
-	if err != nil {
-		return err.Error()
-	}
-
-	defer stmt.Close()
-
-	if err := stmt.QueryRow().Scan(lastID); err != nil {
-		if err == sql.ErrNoRows {
-			return "ID001" // end line here if there is no rows at db
-		}
-
-		return err.Error()
-	}
-
-	idStr := strings.TrimPrefix(*lastID, "ID") // copy value at original variable lastID
-	num, err := strconv.Atoi(idStr)
-	if err != nil {
-		return err.Error()
-	}
-
-	if num > 999 {
-		*lastID = fmt.Sprintf("ID%04d", num+1)
-		return *lastID
-	}
-
-	*lastID = fmt.Sprintf("ID%03d", num+1)
-	return *lastID
-}
-
-func GenerateNextIDSKL(db *sql.DB) string {
-	lastID := new(string)
-
-	stmt, err := db.Prepare("SELECT c.id_skl FROM circulations c ORDER BY c.id_skl DESC LIMIT 1")
-	if err != nil {
-		return err.Error()
-	}
-
-	defer stmt.Close()
-
-	if err := stmt.QueryRow().Scan(lastID); err != nil {
-		if err == sql.ErrNoRows {
-			return "SKL001"
-		}
-
-		return err.Error()
-	}
-
-	idStr := strings.TrimPrefix(*lastID, "SKL")
-	num, err := strconv.Atoi(idStr)
-	if err != nil {
-		return err.Error()
-	}
-
-	if num > 999 {
-		*lastID = fmt.Sprintf("SKL%04d", num+1)
-		return *lastID
-	}
-
-	*lastID = fmt.Sprintf("SKL%03d", num+1)
-	return *lastID
 }

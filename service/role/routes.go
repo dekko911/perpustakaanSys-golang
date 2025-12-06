@@ -97,9 +97,10 @@ func (h *Handler) handleCreateRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.store.CreateRole(types.Role{
+	err := h.store.CreateRole(types.Role{
 		Name: payload.Name,
-	}); err != nil {
+	})
+	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
@@ -151,9 +152,10 @@ func (h *Handler) handleUpdateRole(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if err := h.store.UpdateRole(roleID, types.Role{
+	err = h.store.UpdateRole(roleID, types.Role{
 		Name: r.Name,
-	}); err != nil {
+	})
+	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}

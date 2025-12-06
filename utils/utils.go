@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -202,4 +203,8 @@ func CompareRole(sliceRoles, targetRole string) bool {
 	}
 
 	return false
+}
+
+func GenerateSpecificID(prefix string, number int, width int) string {
+	return fmt.Sprintf("%s%0*d", prefix, width, number+1) // prefix itu adalah awalan kata
 }

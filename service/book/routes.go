@@ -192,14 +192,15 @@ func (h *Handler) handleCreateBook(w http.ResponseWriter, r *http.Request) {
 		io.Copy(dest, filePDFbook)
 	}
 
-	if err := h.store.CreateBook(&types.Book{
+	err := h.store.CreateBook(&types.Book{
 		JudulBuku: payload.JudulBuku,
 		CoverBuku: fileName,
 		BukuPDF:   filePDF,
 		Penulis:   payload.Penulis,
 		Pengarang: payload.Pengarang,
 		Tahun:     utils.ParseStringToInt(payload.Tahun),
-	}); err != nil {
+	})
+	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		// in this line, it should be exist remove file if the err was triggered
 		return
@@ -356,14 +357,15 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 		io.Copy(dest, fileCoverBook)
 	}
 
-	if err := h.store.UpdateBook(bookID, &types.Book{
+	err = h.store.UpdateBook(bookID, &types.Book{
 		JudulBuku: b.JudulBuku,
 		CoverBuku: fileName,
 		BukuPDF:   filePDF,
 		Penulis:   b.Penulis,
 		Pengarang: b.Pengarang,
 		Tahun:     b.Tahun,
-	}); err != nil {
+	})
+	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		// it should be exist a remove file, but i don't know yet how to remove it
 		return

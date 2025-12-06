@@ -169,12 +169,13 @@ func (h *Handler) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.store.CreateUser(&types.User{
+	err = h.store.CreateUser(&types.User{
 		Name:     payload.Name,
 		Email:    payload.Email,
 		Password: hashPass,
 		Avatar:   fileName,
-	}); err != nil {
+	})
+	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
@@ -288,12 +289,13 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := h.store.UpdateUser(userID, &types.User{
+	err = h.store.UpdateUser(userID, &types.User{
 		Name:     u.Name,
 		Email:    u.Email,
 		Password: u.Password,
 		Avatar:   fileName,
-	}); err != nil {
+	})
+	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}

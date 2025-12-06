@@ -140,23 +140,53 @@ func (s *Store) GetCirculationByPeminjam(borrowerName string) (*types.Circulatio
 }
 
 func (s *Store) CreateCirculation(c *types.Circulation) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+
+	query := `
+	SELECT CAST(SUBSTRING(id_skl, 3) AS UNSIGNED) AS last_num
+	FROM circulations
+	ORDER BY last_num DESC
+	LIMIT 1
+	FOR UPDATE
+	`
+
+	var lastNum int
+
+	if err := tx.QueryRow(query).Scan(&lastNum); err == sql.ErrNoRows {
+		lastNum = 0
+	} else if err != nil {
+		return err
+	}
+
+	IDSKL := new(string)
+
+	if lastNum > 999 {
+		*IDSKL = utils.GenerateSpecificID("SKL", lastNum, 4)
+	} else {
+		*IDSKL = utils.GenerateSpecificID("SKL", lastNum, 3)
+	}
+
 	if c.ID == "" {
 		c.ID = uuid.NewString()
 	}
 
 	if c.IdSKL == "" {
-		c.IdSKL = helper.GenerateNextIDSKL(s.db)
+		c.IdSKL = *IDSKL
 	}
 
-	stmt, err := s.db.Prepare("INSERT INTO circulations (id, buku_id, id_skl, peminjam, tanggal_pinjam, jatuh_tempo, denda) VALUES (?,?,?,?,?,?,?)")
+	_, err = tx.Exec("INSERT INTO circulations (id, buku_id, id_skl, peminjam, tanggal_pinjam, jatuh_tempo, denda) VALUES (?,?,?,?,?,?,?)", c.ID, c.BukuID, c.IdSKL, c.Peminjam, c.TanggalPinjam, c.JatuhTempo, c.Denda)
 	if err != nil {
 		return err
 	}
 
-	defer stmt.Close()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
 
-	_, err = stmt.Exec(c.ID, c.BukuID, c.IdSKL, c.Peminjam, c.TanggalPinjam, c.JatuhTempo, c.Denda)
-	return err
+	return nil
 }
 
 func (s *Store) UpdateCirculation(id string, c *types.Circulation) error {

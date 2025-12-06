@@ -109,23 +109,54 @@ func (s *Store) GetMemberByNoTelepon(no_phone string) (*types.Member, error) {
 }
 
 func (s *Store) CreateMember(m *types.Member) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+
+	defer tx.Rollback()
+
+	query := `
+	SELECT CAST(SUBSTRING(id_anggota, 3) AS UNSIGNED) AS last_num
+	FROM members
+	ORDER BY last_num DESC
+	LIMIT 1
+	FOR UPDATE`
+
+	var lastNum int // initial first the last number in query row members
+
+	if err := tx.QueryRow(query).Scan(&lastNum); err == sql.ErrNoRows {
+		lastNum = 0
+	} else if err != nil {
+		return err
+	}
+
+	IDMember := new(string)
+
+	if lastNum > 999 {
+		*IDMember = utils.GenerateSpecificID("ID", lastNum, 4)
+	} else {
+		*IDMember = utils.GenerateSpecificID("ID", lastNum, 3)
+	}
+
 	if m.ID == "" {
 		m.ID = uuid.NewString()
 	}
 
 	if m.IdAnggota == "" {
-		m.IdAnggota = helper.GenerateNextIDAnggota(s.db)
+		m.IdAnggota = *IDMember
 	}
 
-	stmt, err := s.db.Prepare("INSERT INTO members (id, id_anggota, nama, jenis_kelamin, kelas, no_telepon, profil_anggota) VALUES (?,?,?,?,?,?,?)")
+	_, err = tx.Exec("INSERT INTO members (id, id_anggota, nama, jenis_kelamin, kelas, no_telepon, profil_anggota) VALUES (?,?,?,?,?,?,?)", m.ID, m.IdAnggota, m.Nama, m.JenisKelamin, m.Kelas, m.NoTelepon, m.ProfilAnggota)
 	if err != nil {
 		return err
 	}
 
-	defer stmt.Close()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
 
-	_, err = stmt.Exec(m.ID, m.IdAnggota, m.Nama, m.JenisKelamin, m.Kelas, m.NoTelepon, m.ProfilAnggota)
-	return err
+	return nil
 }
 
 func (s *Store) UpdateMember(id string, m *types.Member) error {

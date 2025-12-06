@@ -145,13 +145,14 @@ func (h *Handler) handleCreateMember(w http.ResponseWriter, r *http.Request) {
 		io.Copy(dst, file)
 	}
 
-	if err := h.store.CreateMember(&types.Member{
+	err = h.store.CreateMember(&types.Member{
 		Nama:          payload.Nama,
 		JenisKelamin:  payload.JenisKelamin,
 		Kelas:         payload.Kelas,
 		NoTelepon:     payload.NoTelepon,
 		ProfilAnggota: fileName,
-	}); err != nil {
+	})
+	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
@@ -259,13 +260,14 @@ func (h *Handler) handleUpdateMember(w http.ResponseWriter, r *http.Request) {
 		io.Copy(dst, file)
 	}
 
-	if err := h.store.UpdateMember(memberID, &types.Member{
+	err = h.store.UpdateMember(memberID, &types.Member{
 		Nama:          m.Nama,
 		JenisKelamin:  m.JenisKelamin,
 		Kelas:         m.Kelas,
 		NoTelepon:     m.NoTelepon,
 		ProfilAnggota: fileName,
-	}); err != nil {
+	})
+	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}

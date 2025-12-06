@@ -95,13 +95,14 @@ func (h *Handler) handleCreateCirculation(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if err := h.store.CreateCirculation(&types.Circulation{
+	err := h.store.CreateCirculation(&types.Circulation{
 		BukuID:        payload.BukuID,
 		Peminjam:      payload.Peminjam,
 		TanggalPinjam: utils.ParseStringToFormatDate(payload.TanggalPinjam),
 		JatuhTempo:    utils.ParseStringToFormatDate(payload.JatuhTempo),
 		Denda:         utils.ParseStringToFloat(payload.Denda),
-	}); err != nil {
+	})
+	if err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
@@ -162,13 +163,14 @@ func (h *Handler) handleUpdateCirculation(w http.ResponseWriter, r *http.Request
 		c.Denda = utils.ParseStringToFloat(p.Denda)
 	}
 
-	if err := h.store.UpdateCirculation(circulationID, &types.Circulation{
+	err = h.store.UpdateCirculation(circulationID, &types.Circulation{
 		BukuID:        c.BukuID,
 		Peminjam:      c.Peminjam,
 		TanggalPinjam: c.TanggalPinjam,
 		JatuhTempo:    c.JatuhTempo,
 		Denda:         c.Denda,
-	}); err != nil {
+	})
+	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
