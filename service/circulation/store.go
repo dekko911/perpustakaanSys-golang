@@ -155,7 +155,14 @@ func (s *Store) CreateCirculation(c *types.Circulation) error {
 
 	var lastNum int
 
-	if err := tx.QueryRow(query).Scan(&lastNum); err == sql.ErrNoRows {
+	stmtQuery, err := tx.Prepare(query)
+	if err != nil {
+		return err
+	}
+
+	defer stmtQuery.Close()
+
+	if err := stmtQuery.QueryRow().Scan(&lastNum); err == sql.ErrNoRows {
 		lastNum = 0
 	} else if err != nil {
 		return err
@@ -177,7 +184,14 @@ func (s *Store) CreateCirculation(c *types.Circulation) error {
 		c.IdSKL = *IDSKL
 	}
 
-	_, err = tx.Exec("INSERT INTO circulations (id, buku_id, id_skl, peminjam, tanggal_pinjam, jatuh_tempo, denda) VALUES (?,?,?,?,?,?,?)", c.ID, c.BukuID, c.IdSKL, c.Peminjam, c.TanggalPinjam, c.JatuhTempo, c.Denda)
+	stmtInsert, err := tx.Prepare("INSERT INTO circulations (id, buku_id, id_skl, peminjam, tanggal_pinjam, jatuh_tempo, denda) VALUES (?,?,?,?,?,?,?)")
+	if err != nil {
+		return err
+	}
+
+	defer stmtInsert.Close()
+
+	_, err = stmtInsert.Exec(c.ID, c.BukuID, c.IdSKL, c.Peminjam, c.TanggalPinjam, c.JatuhTempo, c.Denda)
 	if err != nil {
 		return err
 	}

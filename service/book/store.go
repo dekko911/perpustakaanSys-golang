@@ -109,7 +109,14 @@ func (s *Store) CreateBook(b *types.Book) error {
 
 	var lastNum int
 
-	if err := tx.QueryRow(query).Scan(&lastNum); err == sql.ErrNoRows {
+	stmtQuery, err := tx.Prepare(query)
+	if err != nil {
+		return err
+	}
+
+	defer stmtQuery.Close()
+
+	if err := stmtQuery.QueryRow().Scan(&lastNum); err == sql.ErrNoRows {
 		lastNum = 0
 	} else if err != nil {
 		return err
@@ -131,7 +138,14 @@ func (s *Store) CreateBook(b *types.Book) error {
 		b.IdBuku = *IDBook
 	}
 
-	_, err = tx.Exec("INSERT INTO books (id, id_buku, judul_buku, cover_buku, buku_pdf, penulis, pengarang, tahun) VALUES (?,?,?,?,?,?,?,?)", b.ID, b.IdBuku, b.JudulBuku, b.CoverBuku, b.BukuPDF, b.Penulis, b.Pengarang, b.Tahun)
+	stmtInsert, err := tx.Prepare("INSERT INTO books (id, id_buku, judul_buku, cover_buku, buku_pdf, penulis, pengarang, tahun) VALUES (?,?,?,?,?,?,?,?)")
+	if err != nil {
+		return err
+	}
+
+	defer stmtInsert.Close()
+
+	_, err = stmtInsert.Exec(b.ID, b.IdBuku, b.JudulBuku, b.CoverBuku, b.BukuPDF, b.Penulis, b.Pengarang, b.Tahun)
 	if err != nil {
 		return err
 	}

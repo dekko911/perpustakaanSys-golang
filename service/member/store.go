@@ -123,9 +123,16 @@ func (s *Store) CreateMember(m *types.Member) error {
 	LIMIT 1
 	FOR UPDATE`
 
+	stmtSelect, err := tx.Prepare(query)
+	if err != nil {
+		return err
+	}
+
+	defer stmtSelect.Close()
+
 	var lastNum int // initial first the last number in query row members
 
-	if err := tx.QueryRow(query).Scan(&lastNum); err == sql.ErrNoRows {
+	if err := stmtSelect.QueryRow().Scan(&lastNum); err == sql.ErrNoRows {
 		lastNum = 0
 	} else if err != nil {
 		return err
@@ -147,7 +154,14 @@ func (s *Store) CreateMember(m *types.Member) error {
 		m.IdAnggota = *IDMember
 	}
 
-	_, err = tx.Exec("INSERT INTO members (id, id_anggota, nama, jenis_kelamin, kelas, no_telepon, profil_anggota) VALUES (?,?,?,?,?,?,?)", m.ID, m.IdAnggota, m.Nama, m.JenisKelamin, m.Kelas, m.NoTelepon, m.ProfilAnggota)
+	stmtInsert, err := tx.Prepare("INSERT INTO members (id, id_anggota, nama, jenis_kelamin, kelas, no_telepon, profil_anggota) VALUES (?,?,?,?,?,?,?)")
+	if err != nil {
+		return err
+	}
+
+	defer stmtInsert.Close()
+
+	_, err = stmtInsert.Exec(m.ID, m.IdAnggota, m.Nama, m.JenisKelamin, m.Kelas, m.NoTelepon, m.ProfilAnggota)
 	if err != nil {
 		return err
 	}
