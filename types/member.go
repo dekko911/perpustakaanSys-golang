@@ -1,6 +1,7 @@
 package types
 
 import (
+	"context"
 	"time"
 )
 
@@ -18,13 +19,13 @@ type Member struct {
 }
 
 type MemberStore interface {
-	GetMembers() ([]*Member, error)
-	GetMemberByID(id string) (*Member, error)
-	GetMemberByNama(nama string) (*Member, error)
-	GetMemberByNoTelepon(no_phone string) (*Member, error)
-	CreateMember(*Member) error
-	UpdateMember(id string, m *Member) error
-	DeleteMember(id string) error
+	GetMembers(ctx context.Context) ([]*Member, error)
+	GetMemberByID(ctx context.Context, id string) (*Member, error)
+	GetMemberByNama(ctx context.Context, nama string) (*Member, error)
+	GetMemberByNoTelepon(ctx context.Context, no_phone string) (*Member, error)
+	CreateMember(ctx context.Context, m *Member) error
+	UpdateMember(ctx context.Context, id string, m *Member) error
+	DeleteMember(ctx context.Context, id string) error
 }
 
 type SetPayloadMember struct {

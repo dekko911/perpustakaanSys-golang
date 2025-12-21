@@ -1,162 +1,161 @@
 package types
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+)
 
 // mock user store for test purpose
 type MockUserStore struct{}
 
-func (m MockUserStore) GetUsers() ([]*User, error) {
+func (m MockUserStore) GetUsers(ctx context.Context) ([]*User, error) {
 	return nil, nil
 }
 
-func (m MockUserStore) GetUsersBySearch(search string) []*User {
-	return nil
-}
-
-func (m MockUserStore) GetUserWithRolesByID(id string) (*User, error) {
+func (m MockUserStore) GetUserWithRolesByID(ctx context.Context, id string) (*User, error) {
 	return nil, nil
 }
 
-func (m MockUserStore) GetUserWithRolesByEmail(email string) (*User, error) {
+func (m MockUserStore) GetUserWithRolesByEmail(ctx context.Context, email string) (*User, error) {
 	return nil, fmt.Errorf("user not found")
 }
 
-func (m MockUserStore) CreateUser(*User) error {
+func (m MockUserStore) CreateUser(ctx context.Context, u *User) error {
 	return nil
 }
 
-func (m MockUserStore) UpdateUser(id string, u *User) error {
+func (m MockUserStore) UpdateUser(ctx context.Context, id string, u *User) error {
 	return nil
 }
 
-func (m MockUserStore) DeleteUser(id string) error {
+func (m MockUserStore) DeleteUser(ctx context.Context, id string) error {
 	return nil
 }
 
-func (m MockUserStore) IncrementTokenVersion(id string) error {
+func (m MockUserStore) IncrementTokenVersion(ctx context.Context, id, token string) error {
 	return nil
 }
 
 // mock role & user store for test purpose
 type MockRoleUserStore struct{}
 
-func (m MockRoleUserStore) GetUserWithRoleByUserID(userID string) (*User, error) {
+func (m MockRoleUserStore) GetUserWithRoleByUserID(ctx context.Context, userID string) (*User, error) {
 	return nil, nil
 }
 
-func (m MockRoleUserStore) AssignRoleIntoUser(userID, roleID string) error {
+func (m MockRoleUserStore) AssignRoleIntoUser(ctx context.Context, userID, roleID string) error {
 	return nil
 }
 
-func (m MockRoleUserStore) DeleteRoleFromUser(userID, roleID string) error {
+func (m MockRoleUserStore) DeleteRoleFromUser(ctx context.Context, userID, roleID string) error {
 	return nil
 }
 
 // mock role store for test purpose
 type MockRoleStore struct{}
 
-func (m MockRoleStore) GetRoles() ([]*Role, error) {
+func (m MockRoleStore) GetRoles(ctx context.Context) ([]*Role, error) {
 	return nil, nil
 }
 
-func (m MockRoleStore) GetRoleByID(id string) (*Role, error) {
+func (m MockRoleStore) GetRoleByID(ctx context.Context, id string) (*Role, error) {
 	return nil, nil
 }
 
-func (m MockRoleStore) GetRoleByName(name string) (*Role, error) {
+func (m MockRoleStore) GetRoleByName(ctx context.Context, name string) (*Role, error) {
 	return nil, fmt.Errorf("role not found")
 }
 
-func (m MockRoleStore) CreateRole(Role) error {
+func (m MockRoleStore) CreateRole(ctx context.Context, r Role) error {
 	return nil
 }
 
-func (m MockRoleStore) UpdateRole(id string, r Role) error {
+func (m MockRoleStore) UpdateRole(ctx context.Context, id string, r Role) error {
 	return nil
 }
 
-func (m MockRoleStore) DeleteRole(id string) error {
+func (m MockRoleStore) DeleteRole(ctx context.Context, id string) error {
 	return nil
 }
 
 type MockMemberStore struct{}
 
-func (m MockMemberStore) GetMembers() ([]*Member, error) {
+func (m MockMemberStore) GetMembers(ctx context.Context) ([]*Member, error) {
 	return nil, nil
 }
 
-func (m MockMemberStore) GetMemberByID(id string) (*Member, error) {
+func (m MockMemberStore) GetMemberByID(ctx context.Context, id string) (*Member, error) {
 	return nil, nil
 }
 
-func (m MockMemberStore) GetMemberByNama(nama string) (*Member, error) {
+func (m MockMemberStore) GetMemberByNama(ctx context.Context, nama string) (*Member, error) {
 	return nil, fmt.Errorf("member not found")
 }
 
-func (m MockMemberStore) GetMemberByNoTelepon(no_phone string) (*Member, error) {
+func (m MockMemberStore) GetMemberByNoTelepon(ctx context.Context, no_phone string) (*Member, error) {
 	return nil, fmt.Errorf("member not found")
 }
 
-func (m MockMemberStore) CreateMember(*Member) error {
+func (mm MockMemberStore) CreateMember(ctx context.Context, m *Member) error {
 	return nil
 }
 
-func (m MockMemberStore) UpdateMember(id string, mem *Member) error {
+func (mm MockMemberStore) UpdateMember(ctx context.Context, id string, m *Member) error {
 	return nil
 }
 
-func (m MockMemberStore) DeleteMember(id string) error {
+func (m MockMemberStore) DeleteMember(ctx context.Context, id string) error {
 	return nil
 }
 
 type MockCirculationStore struct{}
 
-func (m MockCirculationStore) GetCirculations() ([]*Circulation, error) {
+func (m MockCirculationStore) GetCirculations(ctx context.Context) ([]*Circulation, error) {
 	return nil, nil
 }
 
-func (m MockCirculationStore) GetCirculationByID(id string) (*Circulation, error) {
+func (m MockCirculationStore) GetCirculationByID(ctx context.Context, id string) (*Circulation, error) {
 	return nil, nil
 }
 
-func (m MockCirculationStore) GetCirculationByPeminjam(borrowerName string) (*Circulation, error) {
+func (m MockCirculationStore) GetCirculationByPeminjam(ctx context.Context, borrowerName string) (*Circulation, error) {
 	return nil, fmt.Errorf("circulation not found")
 }
 
-func (m MockCirculationStore) CreateCirculation(*Circulation) error {
+func (m MockCirculationStore) CreateCirculation(ctx context.Context, c *Circulation) error {
 	return nil
 }
 
-func (m MockCirculationStore) UpdateCirculation(id string, c *Circulation) error {
+func (m MockCirculationStore) UpdateCirculation(ctx context.Context, id string, c *Circulation) error {
 	return nil
 }
 
-func (m MockCirculationStore) DeleteCirculation(id string) error {
+func (m MockCirculationStore) DeleteCirculation(ctx context.Context, id string) error {
 	return nil
 }
 
 type MockBookStore struct{}
 
-func (m MockBookStore) GetBooks() ([]*Book, error) {
+func (m MockBookStore) GetBooks(ctx context.Context) ([]*Book, error) {
 	return nil, nil
 }
 
-func (m MockBookStore) GetBookByID(id string) (*Book, error) {
+func (m MockBookStore) GetBookByID(ctx context.Context, id string) (*Book, error) {
 	return nil, nil
 }
 
-func (m MockBookStore) GetBookByJudulBuku(judulBuku string) (*Book, error) {
+func (m MockBookStore) GetBookByJudulBuku(ctx context.Context, judulBuku string) (*Book, error) {
 	return nil, fmt.Errorf("book not found")
 }
 
-func (m MockBookStore) CreateBook(*Book) error {
+func (m MockBookStore) CreateBook(ctx context.Context, b *Book) error {
 	return nil
 }
 
-func (m MockBookStore) UpdateBook(id string, b *Book) error {
+func (m MockBookStore) UpdateBook(ctx context.Context, id string, b *Book) error {
 	return nil
 }
 
-func (m MockBookStore) DeleteBook(id string) error {
+func (m MockBookStore) DeleteBook(ctx context.Context, id string) error {
 	return nil
 }

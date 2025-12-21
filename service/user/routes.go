@@ -7,11 +7,12 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"perpus_backend/pkg/hash"
-	"perpus_backend/pkg/jwt"
-	"perpus_backend/types"
-	"perpus_backend/utils"
 	"strings"
+
+	"github.com/perpus_backend/pkg/hash"
+	"github.com/perpus_backend/pkg/jwt"
+	"github.com/perpus_backend/types"
+	"github.com/perpus_backend/utils"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
@@ -21,6 +22,12 @@ import (
 
 type Handler struct {
 	store types.UserStore
+
+	jwt *jwt.AuthJWT
+}
+
+func NewHandler(jwt *jwt.AuthJWT, store types.UserStore) *Handler {
+	return &Handler{store: store, jwt: jwt}
 }
 
 const (
@@ -31,26 +38,22 @@ const (
 	size1MB = 1 << 20
 )
 
-func NewHandler(store types.UserStore) *Handler {
-	return &Handler{store: store}
-}
-
 func (h *Handler) RegisterRoutes(r *mux.Router) {
-	r.HandleFunc("/users", jwt.AuthWithJWTToken(jwt.RoleGate(h.store, "admin")(h.handleGetUsers), h.store)).Methods(http.MethodGet)
+	r.HandleFunc("/users", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetUsers, "admin"))).Methods(http.MethodGet)
 
-	r.HandleFunc("/users/{userID}", jwt.AuthWithJWTToken(jwt.RoleGate(h.store, "admin")(h.handleGetUserWithRolesByID), h.store)).Methods(http.MethodGet)
+	r.HandleFunc("/users/{userID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetUserWithRolesByID, "admin"))).Methods(http.MethodGet)
 
-	r.HandleFunc("/profile", jwt.AuthWithJWTToken(h.handleGetProfileUser, h.store)).Methods(http.MethodGet)
+	r.HandleFunc("/users", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleCreateUser, "admin"))).Methods(http.MethodPost)
 
-	r.HandleFunc("/users", jwt.AuthWithJWTToken(jwt.RoleGate(h.store, "admin")(h.handleCreateUser), h.store)).Methods(http.MethodPost)
+	r.HandleFunc("/users/{userID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleUpdateUser, "admin"))).Methods(http.MethodPut)
 
-	r.HandleFunc("/users/{userID}", jwt.AuthWithJWTToken(jwt.RoleGate(h.store, "admin")(h.handleUpdateUser), h.store)).Methods(http.MethodPut)
-
-	r.HandleFunc("/users/{userID}", jwt.AuthWithJWTToken(jwt.RoleGate(h.store, "admin")(h.handleDeleteUser), h.store)).Methods(http.MethodDelete)
+	r.HandleFunc("/users/{userID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleDeleteUser, "admin"))).Methods(http.MethodDelete)
 }
 
 func (h *Handler) handleGetUsers(w http.ResponseWriter, r *http.Request) {
-	users, err := h.store.GetUsers()
+	ctx := r.Context()
+
+	users, err := h.store.GetUsers(ctx)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
@@ -65,13 +68,14 @@ func (h *Handler) handleGetUsers(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleGetUserWithRolesByID(w http.ResponseWriter, r *http.Request) {
 	userID := mux.Vars(r)["userID"]
+	ctx := r.Context()
 
 	if err := uuid.Validate(userID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	user, err := h.store.GetUserWithRolesByID(userID)
+	user, err := h.store.GetUserWithRolesByID(ctx, userID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
@@ -84,10 +88,11 @@ func (h *Handler) handleGetUserWithRolesByID(w http.ResponseWriter, r *http.Requ
 	})
 }
 
-func (h *Handler) handleGetProfileUser(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleGetProfileUser(w http.ResponseWriter, r *http.Request) {
 	userID := jwt.GetUserIDFromContext(r.Context())
+	ctx := r.Context()
 
-	user, err := h.store.GetUserWithRolesByID(userID)
+	user, err := h.store.GetUserWithRolesByID(ctx, userID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
@@ -102,6 +107,8 @@ func (h *Handler) handleGetProfileUser(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	var (
+		ctx = r.Context()
+
 		fileName, filePath string
 		sizeFile           int64
 	)
@@ -125,7 +132,7 @@ func (h *Handler) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := h.store.GetUserWithRolesByEmail(payload.Email); err == nil {
+	if _, err := h.store.GetUserWithRolesByEmail(ctx, payload.Email); err == nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("user with email %s already exists", payload.Email))
 		return
 	}
@@ -169,7 +176,7 @@ func (h *Handler) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.store.CreateUser(&types.User{
+	err = h.store.CreateUser(ctx, &types.User{
 		Name:     payload.Name,
 		Email:    payload.Email,
 		Password: hashPass,
@@ -188,7 +195,12 @@ func (h *Handler) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
-	userID := mux.Vars(r)["userID"]
+	var (
+		ctx = r.Context()
+
+		authID = jwt.GetUserIDFromContext(r.Context())
+		userID = mux.Vars(r)["userID"]
+	)
 
 	var (
 		fileName, filePath string
@@ -224,10 +236,19 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	u, err := h.store.GetUserWithRolesByID(userID)
+	u, err := h.store.GetUserWithRolesByID(ctx, userID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
+	}
+
+	for _, r := range u.Roles {
+		if r.Name == "admin" {
+			if authID != u.ID {
+				utils.WriteJSONError(w, http.StatusForbidden, fmt.Errorf("dilarang edit admin selain admin sendiri"))
+				return
+			}
+		}
 	}
 
 	hashPass, err := hash.HashPassword(payload.Password)
@@ -289,7 +310,7 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	err = h.store.UpdateUser(userID, &types.User{
+	err = h.store.UpdateUser(ctx, userID, &types.User{
 		Name:     u.Name,
 		Email:    u.Email,
 		Password: u.Password,
@@ -309,13 +330,14 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	userID := mux.Vars(r)["userID"]
+	ctx := r.Context()
 
 	if err := uuid.Validate(userID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	u, err := h.store.GetUserWithRolesByID(userID)
+	u, err := h.store.GetUserWithRolesByID(ctx, userID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusNotFound, err)
 		return
@@ -339,7 +361,7 @@ func (h *Handler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := h.store.DeleteUser(userID); err != nil {
+	if err := h.store.DeleteUser(ctx, userID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}

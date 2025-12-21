@@ -5,15 +5,19 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
-	"perpus_backend/types"
 	"testing"
+
+	"github.com/perpus_backend/pkg/jwt"
+	"github.com/perpus_backend/types"
 
 	"github.com/gorilla/mux"
 )
 
 func TestAuthHandler(t *testing.T) {
+	jwt := &jwt.AuthJWT{}
 	userStore := &types.MockUserStore{}
-	h := NewHandler(userStore)
+
+	h := NewHandler(jwt, userStore)
 
 	t.Run("it should fail register, because use wrong email format", func(t *testing.T) {
 		body := &bytes.Buffer{}

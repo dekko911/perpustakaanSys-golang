@@ -3,9 +3,10 @@ package role
 import (
 	"fmt"
 	"net/http"
-	"perpus_backend/pkg/jwt"
-	"perpus_backend/types"
-	"perpus_backend/utils"
+
+	"github.com/perpus_backend/pkg/jwt"
+	"github.com/perpus_backend/types"
+	"github.com/perpus_backend/utils"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
@@ -15,28 +16,36 @@ import (
 type Handler struct {
 	store     types.RoleStore
 	userStore types.UserStore
+
+	jwt *jwt.AuthJWT
+}
+
+func NewHandler(jwt *jwt.AuthJWT, store types.RoleStore, userStore types.UserStore) *Handler {
+	return &Handler{
+		store:     store,
+		userStore: userStore,
+		jwt:       jwt,
+	}
 }
 
 const cok = http.StatusOK
 
-func NewHandler(store types.RoleStore, userStore types.UserStore) *Handler {
-	return &Handler{store: store, userStore: userStore}
-}
-
 func (h *Handler) RegisterRoutes(r *mux.Router) {
-	r.HandleFunc("/roles", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin")(h.handleGetRoles), h.userStore)).Methods(http.MethodGet)
+	r.HandleFunc("/roles", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetRoles, "admin"))).Methods(http.MethodGet)
 
-	r.HandleFunc("/roles/{roleID}", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin")(h.handleGetRoleByID), h.userStore)).Methods(http.MethodGet)
+	r.HandleFunc("/roles/{roleID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetRoleByID, "admin"))).Methods(http.MethodGet)
 
-	r.HandleFunc("/roles", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin")(h.handleCreateRole), h.userStore)).Methods(http.MethodPost)
+	r.HandleFunc("/roles", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleCreateRole, "admin"))).Methods(http.MethodPost)
 
-	r.HandleFunc("/roles/{roleID}", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin")(h.handleUpdateRole), h.userStore)).Methods(http.MethodPatch)
+	r.HandleFunc("/roles/{roleID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleUpdateRole, "admin"))).Methods(http.MethodPatch)
 
-	r.HandleFunc("/roles/{roleID}", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin")(h.handleDeleteRole), h.userStore)).Methods(http.MethodDelete)
+	r.HandleFunc("/roles/{roleID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleDeleteRole, "admin"))).Methods(http.MethodDelete)
 }
 
 func (h *Handler) handleGetRoles(w http.ResponseWriter, r *http.Request) {
-	roles, err := h.store.GetRoles()
+	ctx := r.Context()
+
+	roles, err := h.store.GetRoles(ctx)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
@@ -52,12 +61,14 @@ func (h *Handler) handleGetRoles(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleGetRoleByID(w http.ResponseWriter, r *http.Request) {
 	roleID := mux.Vars(r)["roleID"]
 
+	ctx := r.Context()
+
 	if err := uuid.Validate(roleID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	role, err := h.store.GetRoleByID(roleID)
+	role, err := h.store.GetRoleByID(ctx, roleID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusNotFound, err)
 		return
@@ -71,6 +82,8 @@ func (h *Handler) handleGetRoleByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleCreateRole(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
 	if err := r.ParseForm(); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
@@ -86,7 +99,7 @@ func (h *Handler) handleCreateRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := h.store.GetRoleByName(payload.Name); err == nil {
+	if _, err := h.store.GetRoleByName(ctx, payload.Name); err == nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("role with name: %s is already exists", payload.Name))
 		return
 	}
@@ -97,7 +110,7 @@ func (h *Handler) handleCreateRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.store.CreateRole(types.Role{
+	err := h.store.CreateRole(ctx, types.Role{
 		Name: payload.Name,
 	})
 	if err != nil {
@@ -115,7 +128,7 @@ func (h *Handler) handleCreateRole(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleUpdateRole(w http.ResponseWriter, req *http.Request) {
 	roleID := mux.Vars(req)["roleID"]
 
-	var payload types.SetPayloadUpdateRole
+	ctx := req.Context()
 
 	if err := uuid.Validate(roleID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
@@ -127,7 +140,7 @@ func (h *Handler) handleUpdateRole(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	payload = types.SetPayloadUpdateRole{
+	payload := types.SetPayloadUpdateRole{
 		Name: req.FormValue("name"),
 	}
 
@@ -137,7 +150,7 @@ func (h *Handler) handleUpdateRole(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	r, err := h.store.GetRoleByID(roleID)
+	r, err := h.store.GetRoleByID(ctx, roleID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusNotFound, err)
 		return
@@ -152,7 +165,7 @@ func (h *Handler) handleUpdateRole(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	err = h.store.UpdateRole(roleID, types.Role{
+	err = h.store.UpdateRole(ctx, roleID, types.Role{
 		Name: r.Name,
 	})
 	if err != nil {
@@ -170,12 +183,14 @@ func (h *Handler) handleUpdateRole(w http.ResponseWriter, req *http.Request) {
 func (h *Handler) handleDeleteRole(w http.ResponseWriter, req *http.Request) {
 	roleID := mux.Vars(req)["roleID"]
 
+	ctx := req.Context()
+
 	if err := uuid.Validate(roleID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	r, err := h.store.GetRoleByID(roleID)
+	r, err := h.store.GetRoleByID(ctx, roleID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
@@ -186,7 +201,7 @@ func (h *Handler) handleDeleteRole(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if err := h.store.DeleteRole(roleID); err != nil {
+	if err := h.store.DeleteRole(ctx, roleID); err != nil {
 		utils.WriteJSONError(w, http.StatusNotFound, err)
 		return
 	}

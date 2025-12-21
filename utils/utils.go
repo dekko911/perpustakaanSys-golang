@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -9,12 +8,14 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"perpus_backend/config"
 	"regexp"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/perpus_backend/config"
 
 	"github.com/bytedance/sonic"
 	"github.com/go-playground/validator/v10"
@@ -26,7 +27,8 @@ var (
 	MSClient = meilisearch.New(config.Env.MeilisearchURL,
 		meilisearch.WithAPIKey(config.Env.MSApiKey),
 		meilisearch.WithCustomJsonMarshaler(sonic.Marshal),
-		meilisearch.WithCustomJsonUnmarshaler(sonic.Unmarshal))
+		meilisearch.WithCustomJsonUnmarshaler(sonic.Unmarshal),
+		meilisearch.WithContentEncoding(meilisearch.GzipEncoding, meilisearch.BestCompression))
 
 	WSUpgrader = websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
@@ -34,7 +36,7 @@ var (
 		},
 	}
 
-	Validate = validator.New() // validate the request input.
+	Validate = validator.New(validator.WithRequiredStructEnabled()) // validate the request input.
 )
 
 type JsonData struct {
@@ -50,7 +52,7 @@ type JsonData struct {
 	Code int `json:"code,omitempty"`
 }
 
-// for check if has do some go test, it will return true.
+// check if there had do some "go test", it will return true.
 func IsTesting() bool {
 	return flag.Lookup("test.v") != nil
 }
@@ -60,7 +62,12 @@ func WriteJSON(w http.ResponseWriter, statusCode int, d JsonData) error {
 	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 
-	return json.NewEncoder(w).Encode(d)
+	cfg := sonic.Config{
+		DisallowUnknownFields: true,
+		CaseSensitive:         true,
+	}
+
+	return cfg.Froze().NewEncoder(w).Encode(d)
 }
 
 // returned information into json error type.
@@ -94,6 +101,16 @@ func WriteJSONError(w http.ResponseWriter, statusCode int, err error) {
 			log.Fatalf("invalid value app_env: %s", config.Env.AppENV)
 		}
 	}
+}
+
+// make custom key in redis db. {object|table|struct:value|id}
+func Redis2Key(keyName, keyValue string) string {
+	return fmt.Sprintf("%s:%s", keyName, keyValue)
+}
+
+// make custom key in redis db. {object|table|struct:field|column:value|id}
+func Redis3Key(keyName, keyField, keyValue string) string {
+	return fmt.Sprintf("%s:%s:%s", keyName, keyField, keyValue)
 }
 
 // get the token from headers.
@@ -148,19 +165,20 @@ func ParseStringToFloat(number string) float64 {
 
 func ParseStringToFormatDate(date string) time.Time {
 	d, _ := time.Parse(time.DateOnly, date)
+	// return d.GoString()
 	return d
 }
 
 // this was support names: admin, staff, and user. out of that, it should be invalid.
 func IsInputRoleNameWasValid(name string) bool {
-	validRoleName := map[string]struct{}{
+	roleNamesMap := map[string]struct{}{
 		"admin": {},
 		"staff": {},
 		"user":  {},
 	}
 
-	_, ok := validRoleName[name]
-	return ok
+	_, exist := roleNamesMap[name]
+	return exist
 }
 
 func IsValidSortColumn(column string) bool {
@@ -169,35 +187,26 @@ func IsValidSortColumn(column string) bool {
 }
 
 func IsValidSortOrder(sortOrder string) bool {
-	validSortOrder := map[string]struct{}{
+	sortOrdersMap := map[string]struct{}{
 		"ASC":  {},
 		"DESC": {},
 	}
 
-	_, ok := validSortOrder[sortOrder]
-	return ok
+	_, exist := sortOrdersMap[sortOrder]
+	return exist
 }
 
-func ParseSliceRolesToFilteredString(s []string) string {
-	filtered := make([]string, 0, len(s))
+// brute force algorithm
+func CompareRole(roles, targetRoles []string) bool {
+	slices.Sort(roles)       // sort to ascending
+	slices.Sort(targetRoles) // sort to ascending
 
-	for _, v := range s { // ["admin" "staff" "user"]
-		v = strings.TrimSpace(v) // "admin""staff""user"
-
-		// check it, if there has empty string or null, it will be skipped
-		if v != "" {
-			filtered = append(filtered, v)
-		}
-	}
-
-	return strings.Join(filtered, ", ") // "admin, staff, user"
-}
-
-func CompareRole(sliceRoles, targetRole string) bool {
-	for s := range strings.SplitSeq(sliceRoles, ",") {
-		for t := range strings.SplitSeq(targetRole, ",") {
-			if s == t { // [admin staff] compare [staff user]
-				return true
+	for _, s := range roles {
+		for _, t := range targetRoles {
+			if s != "" && t != "" {
+				if s == t {
+					return true
+				}
 			}
 		}
 	}

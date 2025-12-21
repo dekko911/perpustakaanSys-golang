@@ -1,24 +1,30 @@
 package circulation
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
-	"perpus_backend/helper"
-	"perpus_backend/types"
-	"perpus_backend/utils"
+	"time"
 
+	"github.com/perpus_backend/helper"
+	"github.com/perpus_backend/types"
+	"github.com/perpus_backend/utils"
+
+	"github.com/bytedance/sonic"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 )
 
 type Store struct {
-	db *sql.DB
+	db  *sql.DB
+	rdb *redis.Client
 }
 
-func NewStore(db *sql.DB) *Store {
-	return &Store{db: db}
+func NewStore(db *sql.DB, rdb *redis.Client) *Store {
+	return &Store{db: db, rdb: rdb}
 }
 
-func (s *Store) GetCirculations() ([]*types.Circulation, error) {
+func (s *Store) GetCirculations(ctx context.Context) ([]*types.Circulation, error) {
 	sortByColumn := "id_skl"
 	sortOrder := "DESC"
 
@@ -30,21 +36,7 @@ func (s *Store) GetCirculations() ([]*types.Circulation, error) {
 		return nil, fmt.Errorf("invalid sort order: %s", sortOrder)
 	}
 
-	query := fmt.Sprintf(`SELECT
-	c.id,
-	c.buku_id,
-	c.id_skl,
-	c.peminjam,
-	c.tanggal_pinjam,
-	c.jatuh_tempo,
-	c.denda,
-	c.created_at,
-	c.updated_at,
-	b.id,
-	b.judul_buku
-	FROM circulations c
-	INNER JOIN books b ON c.buku_id = b.id
-	ORDER BY %s %s`, sortByColumn, sortOrder)
+	query := fmt.Sprintf(`SELECT c.id, c.buku_id, c.id_skl, c.peminjam, c.tanggal_pinjam, c.jatuh_tempo, c.denda, c.created_at, c.updated_at, b.id, b.judul_buku FROM circulations c INNER JOIN books b ON c.buku_id = b.id ORDER BY %s %s`, sortByColumn, sortOrder)
 
 	stmt, err := s.db.Prepare(query)
 	if err != nil {
@@ -53,7 +45,7 @@ func (s *Store) GetCirculations() ([]*types.Circulation, error) {
 
 	defer stmt.Close()
 
-	rows, err := stmt.Query()
+	rows, err := stmt.QueryContext(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +67,22 @@ func (s *Store) GetCirculations() ([]*types.Circulation, error) {
 	return c, nil
 }
 
-func (s *Store) GetCirculationByID(id string) (*types.Circulation, error) {
+func (s *Store) GetCirculationByID(ctx context.Context, id string) (*types.Circulation, error) {
+	circKey := utils.Redis2Key("circulation", id)
+
+	res, err := s.rdb.Get(ctx, circKey).Result()
+	if err == nil {
+		circ := new(types.Circulation)
+
+		if err := sonic.Unmarshal([]byte(res), circ); err == nil {
+			return circ, nil
+		}
+
+		s.rdb.Del(ctx, circKey)
+	} else if err != redis.Nil {
+		return nil, err
+	}
+
 	query := `SELECT
 	c.id,
 	c.buku_id,
@@ -99,15 +106,19 @@ func (s *Store) GetCirculationByID(id string) (*types.Circulation, error) {
 
 	defer stmt.Close()
 
-	c, err := helper.ScanAndRetRowCirculation(stmt, id)
+	c, err := helper.ScanAndRetRowCirculation(ctx, stmt, id)
 	if err != nil {
 		return nil, err
+	}
+
+	if data, err := sonic.Marshal(c); err == nil {
+		_ = s.rdb.SetEx(ctx, circKey, data, 5*time.Minute).Err()
 	}
 
 	return c, nil
 }
 
-func (s *Store) GetCirculationByPeminjam(borrowerName string) (*types.Circulation, error) {
+func (s *Store) GetCirculationByPeminjam(ctx context.Context, borrowerName string) (*types.Circulation, error) {
 	query := `SELECT
 	c.id,
 	c.buku_id,
@@ -131,7 +142,7 @@ func (s *Store) GetCirculationByPeminjam(borrowerName string) (*types.Circulatio
 
 	defer stmt.Close()
 
-	c, err := helper.ScanAndRetRowCirculation(stmt, borrowerName)
+	c, err := helper.ScanAndRetRowCirculation(ctx, stmt, borrowerName)
 	if err != nil {
 		return nil, err
 	}
@@ -139,11 +150,13 @@ func (s *Store) GetCirculationByPeminjam(borrowerName string) (*types.Circulatio
 	return c, nil
 }
 
-func (s *Store) CreateCirculation(c *types.Circulation) error {
-	tx, err := s.db.Begin()
+func (s *Store) CreateCirculation(ctx context.Context, c *types.Circulation) error {
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
 		return err
 	}
+
+	defer tx.Rollback()
 
 	query := `
 	SELECT CAST(SUBSTRING(id_skl, 3) AS UNSIGNED) AS last_num
@@ -162,7 +175,7 @@ func (s *Store) CreateCirculation(c *types.Circulation) error {
 
 	defer stmtQuery.Close()
 
-	if err := stmtQuery.QueryRow().Scan(&lastNum); err == sql.ErrNoRows {
+	if err := stmtQuery.QueryRowContext(ctx).Scan(&lastNum); err == sql.ErrNoRows {
 		lastNum = 0
 	} else if err != nil {
 		return err
@@ -191,7 +204,7 @@ func (s *Store) CreateCirculation(c *types.Circulation) error {
 
 	defer stmtInsert.Close()
 
-	_, err = stmtInsert.Exec(c.ID, c.BukuID, c.IdSKL, c.Peminjam, c.TanggalPinjam, c.JatuhTempo, c.Denda)
+	_, err = stmtInsert.ExecContext(ctx, c.ID, c.BukuID, c.IdSKL, c.Peminjam, c.TanggalPinjam, c.JatuhTempo, c.Denda)
 	if err != nil {
 		return err
 	}
@@ -203,18 +216,23 @@ func (s *Store) CreateCirculation(c *types.Circulation) error {
 	return nil
 }
 
-func (s *Store) UpdateCirculation(id string, c *types.Circulation) error {
+func (s *Store) UpdateCirculation(ctx context.Context, id string, c *types.Circulation) error {
+	circKey := utils.Redis2Key("circulation", id)
+
 	stmt, err := s.db.Prepare("UPDATE circulations SET buku_id = ?, peminjam = ?, tanggal_pinjam = ?, jatuh_tempo = ?, denda = ? WHERE id = ?")
 	if err != nil {
 		return err
 	}
 
-	_, err = stmt.Exec(c.BukuID, c.Peminjam, c.TanggalPinjam, c.JatuhTempo, c.Denda, id)
+	s.rdb.Del(ctx, circKey)
+	_, err = stmt.ExecContext(ctx, c.BukuID, c.Peminjam, c.TanggalPinjam, c.JatuhTempo, c.Denda, id)
 	return err
 }
 
-func (s *Store) DeleteCirculation(id string) error {
-	res, err := s.db.Exec("DELETE FROM circulations WHERE id = ?", id)
+func (s *Store) DeleteCirculation(ctx context.Context, id string) error {
+	circKey := utils.Redis2Key("circulation", id)
+
+	res, err := s.db.ExecContext(ctx, "DELETE FROM circulations WHERE id = ?", id)
 	if err != nil {
 		return err
 	}
@@ -228,5 +246,6 @@ func (s *Store) DeleteCirculation(id string) error {
 		return fmt.Errorf("circulation not found")
 	}
 
+	s.rdb.Del(ctx, circKey)
 	return nil
 }

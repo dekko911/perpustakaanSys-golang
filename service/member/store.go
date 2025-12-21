@@ -1,24 +1,30 @@
 package member
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
-	"perpus_backend/helper"
-	"perpus_backend/types"
-	"perpus_backend/utils"
+	"time"
 
+	"github.com/perpus_backend/helper"
+	"github.com/perpus_backend/types"
+	"github.com/perpus_backend/utils"
+
+	"github.com/bytedance/sonic"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 )
 
 type Store struct {
-	db *sql.DB
+	db  *sql.DB
+	rdb *redis.Client
 }
 
-func NewStore(db *sql.DB) *Store {
-	return &Store{db: db}
+func NewStore(db *sql.DB, rdb *redis.Client) *Store {
+	return &Store{db: db, rdb: rdb}
 }
 
-func (s *Store) GetMembers() ([]*types.Member, error) {
+func (s *Store) GetMembers(ctx context.Context) ([]*types.Member, error) {
 	sortByColumn := "id_anggota"
 	sortOrder := "DESC"
 
@@ -39,7 +45,7 @@ func (s *Store) GetMembers() ([]*types.Member, error) {
 
 	defer stmt.Close()
 
-	rows, err := stmt.Query()
+	rows, err := stmt.QueryContext(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +66,22 @@ func (s *Store) GetMembers() ([]*types.Member, error) {
 	return members, nil
 }
 
-func (s *Store) GetMemberByID(id string) (*types.Member, error) {
+func (s *Store) GetMemberByID(ctx context.Context, id string) (*types.Member, error) {
+	memberKey := utils.Redis2Key("member", id)
+
+	res, err := s.rdb.Get(ctx, memberKey).Result()
+	if err == nil {
+		member := new(types.Member)
+
+		if err := sonic.Unmarshal([]byte(res), member); err == nil {
+			return member, nil
+		}
+
+		s.rdb.Del(ctx, memberKey)
+	} else if err != redis.Nil {
+		return nil, err
+	}
+
 	stmt, err := s.db.Prepare("SELECT m.id, m.id_anggota, m.nama, m.jenis_kelamin, m.kelas, m.no_telepon, m.profil_anggota, m.created_at, m.updated_at FROM members m WHERE m.id = ?")
 	if err != nil {
 		return nil, err
@@ -68,15 +89,19 @@ func (s *Store) GetMemberByID(id string) (*types.Member, error) {
 
 	defer stmt.Close()
 
-	m, err := helper.ScanAndRetRowMember(stmt, id)
+	m, err := helper.ScanAndRetRowMember(ctx, stmt, id)
 	if err != nil {
 		return nil, err
+	}
+
+	if data, err := sonic.Marshal(m); err == nil {
+		_ = s.rdb.SetEx(ctx, memberKey, data, 5*time.Minute)
 	}
 
 	return m, nil
 }
 
-func (s *Store) GetMemberByNama(nama string) (*types.Member, error) {
+func (s *Store) GetMemberByNama(ctx context.Context, nama string) (*types.Member, error) {
 	stmt, err := s.db.Prepare("SELECT m.id, m.id_anggota, m.nama, m.jenis_kelamin, m.kelas, m.no_telepon, m.profil_anggota, m.created_at, m.updated_at FROM members m WHERE m.nama = ?")
 	if err != nil {
 		return nil, err
@@ -84,7 +109,7 @@ func (s *Store) GetMemberByNama(nama string) (*types.Member, error) {
 
 	defer stmt.Close()
 
-	m, err := helper.ScanAndRetRowMember(stmt, nama)
+	m, err := helper.ScanAndRetRowMember(ctx, stmt, nama)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +117,7 @@ func (s *Store) GetMemberByNama(nama string) (*types.Member, error) {
 	return m, nil
 }
 
-func (s *Store) GetMemberByNoTelepon(no_phone string) (*types.Member, error) {
+func (s *Store) GetMemberByNoTelepon(ctx context.Context, no_phone string) (*types.Member, error) {
 	stmt, err := s.db.Prepare("SELECT m.id, m.id_anggota, m.nama, m.jenis_kelamin, m.kelas, m.no_telepon, m.profil_anggota, m.created_at, m.updated_at FROM members m WHERE m.no_telepon = ?")
 	if err != nil {
 		return nil, err
@@ -100,7 +125,7 @@ func (s *Store) GetMemberByNoTelepon(no_phone string) (*types.Member, error) {
 
 	defer stmt.Close()
 
-	m, err := helper.ScanAndRetRowMember(stmt, no_phone)
+	m, err := helper.ScanAndRetRowMember(ctx, stmt, no_phone)
 	if err != nil {
 		return nil, err
 	}
@@ -108,8 +133,8 @@ func (s *Store) GetMemberByNoTelepon(no_phone string) (*types.Member, error) {
 	return m, nil
 }
 
-func (s *Store) CreateMember(m *types.Member) error {
-	tx, err := s.db.Begin()
+func (s *Store) CreateMember(ctx context.Context, m *types.Member) error {
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
 		return err
 	}
@@ -132,7 +157,7 @@ func (s *Store) CreateMember(m *types.Member) error {
 
 	var lastNum int // initial first the last number in query row members
 
-	if err := stmtSelect.QueryRow().Scan(&lastNum); err == sql.ErrNoRows {
+	if err := stmtSelect.QueryRowContext(ctx).Scan(&lastNum); err == sql.ErrNoRows {
 		lastNum = 0
 	} else if err != nil {
 		return err
@@ -161,7 +186,7 @@ func (s *Store) CreateMember(m *types.Member) error {
 
 	defer stmtInsert.Close()
 
-	_, err = stmtInsert.Exec(m.ID, m.IdAnggota, m.Nama, m.JenisKelamin, m.Kelas, m.NoTelepon, m.ProfilAnggota)
+	_, err = stmtInsert.ExecContext(ctx, m.ID, m.IdAnggota, m.Nama, m.JenisKelamin, m.Kelas, m.NoTelepon, m.ProfilAnggota)
 	if err != nil {
 		return err
 	}
@@ -173,7 +198,9 @@ func (s *Store) CreateMember(m *types.Member) error {
 	return nil
 }
 
-func (s *Store) UpdateMember(id string, m *types.Member) error {
+func (s *Store) UpdateMember(ctx context.Context, id string, m *types.Member) error {
+	memberKey := utils.Redis2Key("member", id)
+
 	stmt, err := s.db.Prepare("UPDATE members SET nama = ?, jenis_kelamin = ?, kelas = ?, no_telepon = ?, profil_anggota = ? WHERE id = ?")
 	if err != nil {
 		return err
@@ -181,12 +208,15 @@ func (s *Store) UpdateMember(id string, m *types.Member) error {
 
 	defer stmt.Close()
 
-	_, err = stmt.Exec(m.Nama, m.JenisKelamin, m.Kelas, m.NoTelepon, m.ProfilAnggota, id)
+	s.rdb.Del(ctx, memberKey)
+	_, err = stmt.ExecContext(ctx, m.Nama, m.JenisKelamin, m.Kelas, m.NoTelepon, m.ProfilAnggota, id)
 	return err
 }
 
-func (s *Store) DeleteMember(id string) error {
-	res, err := s.db.Exec("DELETE FROM members WHERE id = ?", id)
+func (s *Store) DeleteMember(ctx context.Context, id string) error {
+	memberKey := utils.Redis2Key("member", id)
+
+	res, err := s.db.ExecContext(ctx, "DELETE FROM members WHERE id = ?", id)
 	if err != nil {
 		return err
 	}
@@ -200,5 +230,6 @@ func (s *Store) DeleteMember(id string) error {
 		return fmt.Errorf("member not found")
 	}
 
+	s.rdb.Del(ctx, memberKey)
 	return nil
 }

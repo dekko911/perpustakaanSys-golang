@@ -5,16 +5,20 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
-	"perpus_backend/types"
 	"testing"
+
+	"github.com/perpus_backend/pkg/jwt"
+	"github.com/perpus_backend/types"
 
 	"github.com/gorilla/mux"
 )
 
 func TestHandlerMember(t *testing.T) {
+	jwt := &jwt.AuthJWT{}
 	mockMemberStore := &types.MockMemberStore{}
 	mockUserStore := &types.MockUserStore{}
-	h := NewHandler(mockMemberStore, mockUserStore)
+
+	h := NewHandler(jwt, mockMemberStore, mockUserStore)
 
 	t.Run("it should be get members", func(t *testing.T) {
 		req, err := http.NewRequest(http.MethodGet, "/members", nil)

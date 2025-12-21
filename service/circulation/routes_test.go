@@ -4,17 +4,21 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"perpus_backend/types"
 	"strings"
 	"testing"
+
+	"github.com/perpus_backend/pkg/jwt"
+	"github.com/perpus_backend/types"
 
 	"github.com/gorilla/mux"
 )
 
 func TestHandlerCirculation(t *testing.T) {
+	jwt := &jwt.AuthJWT{}
 	mockCirculationStore := &types.MockCirculationStore{}
 	mockUserStore := &types.MockUserStore{}
-	h := NewHandler(mockCirculationStore, mockUserStore)
+
+	h := NewHandler(jwt, mockCirculationStore, mockUserStore)
 
 	t.Run("it should get circulations", func(t *testing.T) {
 		req, err := http.NewRequest(http.MethodGet, "/circulations", nil)

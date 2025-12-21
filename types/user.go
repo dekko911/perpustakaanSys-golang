@@ -1,6 +1,7 @@
 package types
 
 import (
+	"context"
 	"time"
 )
 
@@ -9,22 +10,23 @@ type User struct {
 	UpdatedAt time.Time `json:"updated_at,omitzero"`
 	Roles     Roles     `json:"roles"`
 
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	Email        string `json:"email"`
-	Password     string `json:"-"`
-	Avatar       string `json:"avatar"`
-	TokenVersion int    `json:"token_version"`
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+	Password string `json:"-"`
+	Avatar   string `json:"avatar"`
+
+	TokenVersion int `json:"token_version"`
 }
 
 type UserStore interface {
-	GetUsers() ([]*User, error)
-	GetUserWithRolesByID(id string) (*User, error)
-	GetUserWithRolesByEmail(email string) (*User, error)
-	CreateUser(*User) error
-	UpdateUser(id string, u *User) error
-	DeleteUser(id string) error
-	IncrementTokenVersion(id string) error
+	GetUsers(ctx context.Context) ([]*User, error)
+	GetUserWithRolesByID(ctx context.Context, id string) (*User, error)
+	GetUserWithRolesByEmail(ctx context.Context, email string) (*User, error)
+	CreateUser(ctx context.Context, u *User) error
+	UpdateUser(ctx context.Context, id string, u *User) error
+	DeleteUser(ctx context.Context, id string) error
+	IncrementTokenVersion(ctx context.Context, id, token string) error
 }
 
 type SetPayloadLogin struct {

@@ -1,10 +1,14 @@
 package helper
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
-	"perpus_backend/types"
+	"time"
+
+	"github.com/meilisearch/meilisearch-go"
+	"github.com/perpus_backend/types"
 )
 
 type stringAndNumberOnly interface {
@@ -127,13 +131,13 @@ func ScanEachRowIntoCirculation(rows *sql.Rows) (*types.Circulation, *types.Book
 }
 
 // scan and return user row query has given before.
-func ScanAndRetRowUserAndRole[T stringAndNumberOnly](stmt *sql.Stmt, param T) (*types.User, error) {
+func ScanAndRetRowUserAndRole[T stringAndNumberOnly](ctx context.Context, stmt *sql.Stmt, param T) (*types.User, error) {
 	var u types.User
 	r := new(types.Role)
 
 	var roleID, roleName sql.NullString
 
-	err := stmt.QueryRow(param).Scan(&u.ID, &u.Name, &u.Email, &u.Password, &u.Avatar, &u.TokenVersion, &u.CreatedAt, &u.UpdatedAt, &roleID, &roleName)
+	err := stmt.QueryRowContext(ctx, param).Scan(&u.ID, &u.Name, &u.Email, &u.Password, &u.Avatar, &u.TokenVersion, &u.CreatedAt, &u.UpdatedAt, &roleID, &roleName)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("user not found")
@@ -153,10 +157,10 @@ func ScanAndRetRowUserAndRole[T stringAndNumberOnly](stmt *sql.Stmt, param T) (*
 }
 
 // scan and return role row query has given before.
-func ScanAndRetRowRole[T stringAndNumberOnly](stmt *sql.Stmt, param T) (*types.Role, error) {
+func ScanAndRetRowRole[T stringAndNumberOnly](ctx context.Context, stmt *sql.Stmt, param T) (*types.Role, error) {
 	var r types.Role
 
-	err := stmt.QueryRow(param).Scan(&r.ID, &r.Name, &r.CreatedAt, &r.UpdatedAt)
+	err := stmt.QueryRowContext(ctx, param).Scan(&r.ID, &r.Name, &r.CreatedAt, &r.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("role not found")
@@ -169,10 +173,10 @@ func ScanAndRetRowRole[T stringAndNumberOnly](stmt *sql.Stmt, param T) (*types.R
 }
 
 // scan and return member row query has given before.
-func ScanAndRetRowMember[T stringAndNumberOnly](stmt *sql.Stmt, param T) (*types.Member, error) {
+func ScanAndRetRowMember[T stringAndNumberOnly](ctx context.Context, stmt *sql.Stmt, param T) (*types.Member, error) {
 	var m types.Member
 
-	err := stmt.QueryRow(param).Scan(&m.ID, &m.IdAnggota, &m.Nama, &m.JenisKelamin, &m.Kelas, &m.NoTelepon, &m.ProfilAnggota, &m.CreatedAt, &m.UpdatedAt)
+	err := stmt.QueryRowContext(ctx, param).Scan(&m.ID, &m.IdAnggota, &m.Nama, &m.JenisKelamin, &m.Kelas, &m.NoTelepon, &m.ProfilAnggota, &m.CreatedAt, &m.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("member not found")
@@ -185,10 +189,10 @@ func ScanAndRetRowMember[T stringAndNumberOnly](stmt *sql.Stmt, param T) (*types
 }
 
 // scan and return book row query has given before.
-func ScanAndRetRowBook[T stringAndNumberOnly](stmt *sql.Stmt, param T) (*types.Book, error) {
+func ScanAndRetRowBook[T stringAndNumberOnly](ctx context.Context, stmt *sql.Stmt, param T) (*types.Book, error) {
 	var b types.Book
 
-	err := stmt.QueryRow(param).Scan(&b.ID, &b.IdBuku, &b.JudulBuku, &b.CoverBuku, &b.BukuPDF, &b.Penulis, &b.Pengarang, &b.Tahun, &b.CreatedAt, &b.UpdatedAt)
+	err := stmt.QueryRowContext(ctx, param).Scan(&b.ID, &b.IdBuku, &b.JudulBuku, &b.CoverBuku, &b.BukuPDF, &b.Penulis, &b.Pengarang, &b.Tahun, &b.CreatedAt, &b.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("book not found")
@@ -201,11 +205,11 @@ func ScanAndRetRowBook[T stringAndNumberOnly](stmt *sql.Stmt, param T) (*types.B
 }
 
 // scan and return circulation row query has given before.
-func ScanAndRetRowCirculation[T stringAndNumberOnly](stmt *sql.Stmt, param T) (*types.Circulation, error) {
+func ScanAndRetRowCirculation[T stringAndNumberOnly](ctx context.Context, stmt *sql.Stmt, param T) (*types.Circulation, error) {
 	var c types.Circulation
 	var b types.Book
 
-	err := stmt.QueryRow(param).Scan(&c.ID, &c.BukuID, &c.IdSKL, &c.Peminjam, &c.TanggalPinjam, &c.JatuhTempo, &c.Denda, &c.CreatedAt, &c.UpdatedAt, &b.ID, &b.JudulBuku)
+	err := stmt.QueryRowContext(ctx, param).Scan(&c.ID, &c.BukuID, &c.IdSKL, &c.Peminjam, &c.TanggalPinjam, &c.JatuhTempo, &c.Denda, &c.CreatedAt, &c.UpdatedAt, &b.ID, &b.JudulBuku)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("circulation not found")
@@ -217,4 +221,23 @@ func ScanAndRetRowCirculation[T stringAndNumberOnly](stmt *sql.Stmt, param T) (*
 	c.Book = &b
 
 	return &c, nil
+}
+
+// method AddDocuments custom meili for all tables.
+func AddDocumentsWithWait(client meilisearch.ServiceManager, index string, primaryKey string, dbTable any) error {
+	res, err := client.Index(index).AddDocuments(dbTable, &primaryKey)
+	if err != nil {
+		return err
+	}
+
+	task, err := client.WaitForTask(res.TaskUID, 3*time.Second)
+	if err != nil {
+		return err
+	}
+
+	if task.Status != meilisearch.TaskStatusSucceeded {
+		return fmt.Errorf("error indexing task: %v", task.Error)
+	}
+
+	return nil
 }

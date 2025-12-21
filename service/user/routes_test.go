@@ -5,15 +5,19 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
-	"perpus_backend/types"
 	"testing"
+
+	"github.com/perpus_backend/pkg/jwt"
+	"github.com/perpus_backend/types"
 
 	"github.com/gorilla/mux"
 )
 
 func TestHandlerUser(t *testing.T) {
+	jwt := &jwt.AuthJWT{}
 	us := &types.MockUserStore{}
-	h := NewHandler(us)
+
+	h := NewHandler(jwt, us)
 
 	t.Run("should get users", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/users", nil)

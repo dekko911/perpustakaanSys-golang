@@ -4,17 +4,21 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"perpus_backend/types"
 	"strings"
 	"testing"
+
+	"github.com/perpus_backend/pkg/jwt"
+	"github.com/perpus_backend/types"
 
 	"github.com/gorilla/mux"
 )
 
 func TestHandlerRole(t *testing.T) {
+	jwt := &jwt.AuthJWT{}
 	mockRoleStore := types.MockRoleStore{}
 	mockUserStore := types.MockUserStore{}
-	h := NewHandler(mockRoleStore, mockUserStore)
+
+	h := NewHandler(jwt, mockRoleStore, mockUserStore)
 
 	t.Run("it should be get roles data", func(t *testing.T) {
 		req, err := http.NewRequest(http.MethodGet, "/roles", nil)

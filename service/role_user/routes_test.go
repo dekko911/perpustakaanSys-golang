@@ -3,18 +3,21 @@ package roleuser
 import (
 	"net/http"
 	"net/http/httptest"
-	"perpus_backend/types"
 	"testing"
+
+	"github.com/perpus_backend/pkg/jwt"
+	"github.com/perpus_backend/types"
 
 	"github.com/gorilla/mux"
 )
 
 func TestHandlerRoleUser(t *testing.T) {
+	jwt := &jwt.AuthJWT{}
 	roleUser := &types.MockRoleUserStore{}
 	user := &types.MockUserStore{}
 	role := &types.MockRoleStore{}
 
-	h := NewHandler(roleUser, user, role)
+	h := NewHandler(jwt, roleUser, user, role)
 
 	t.Run("it should be get user & role by userid", func(t *testing.T) {
 		req, err := http.NewRequest(http.MethodGet, "/role_user/6918315b-dff4-8324-969f-e43cd434eb3e", nil)

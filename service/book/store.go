@@ -1,25 +1,30 @@
 package book
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
-	"perpus_backend/helper"
-	"perpus_backend/types"
-	"perpus_backend/utils"
+	"time"
 
+	"github.com/perpus_backend/helper"
+	"github.com/perpus_backend/types"
+	"github.com/perpus_backend/utils"
+
+	"github.com/bytedance/sonic"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 )
 
 type Store struct {
-	db *sql.DB
+	db  *sql.DB
+	rdb *redis.Client
 }
 
-func NewStore(db *sql.DB) *Store {
-	return &Store{
-		db: db,
-	}
+func NewStore(db *sql.DB, rdb *redis.Client) *Store {
+	return &Store{db: db, rdb: rdb}
 }
-func (s *Store) GetBooks() ([]*types.Book, error) {
+
+func (s *Store) GetBooks(ctx context.Context) ([]*types.Book, error) {
 	sortByColumn := "id_buku"
 	sortOrder := "DESC"
 
@@ -40,7 +45,7 @@ func (s *Store) GetBooks() ([]*types.Book, error) {
 
 	defer stmt.Close()
 
-	rows, err := stmt.Query()
+	rows, err := stmt.QueryContext(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +66,22 @@ func (s *Store) GetBooks() ([]*types.Book, error) {
 	return books, nil
 }
 
-func (s *Store) GetBookByID(id string) (*types.Book, error) {
+func (s *Store) GetBookByID(ctx context.Context, id string) (*types.Book, error) {
+	bookKey := utils.Redis2Key("book", id)
+
+	res, err := s.rdb.Get(ctx, bookKey).Result()
+	if err == nil {
+		book := new(types.Book)
+
+		if err := sonic.Unmarshal([]byte(res), book); err == nil {
+			return book, nil
+		}
+
+		s.rdb.Del(ctx, bookKey)
+	} else if err != redis.Nil {
+		return nil, err
+	}
+
 	stmt, err := s.db.Prepare("SELECT b.id, b.id_buku, b.judul_buku, b.cover_buku, b.buku_pdf, b.penulis, b.pengarang, b.tahun, b.created_at, b.updated_at FROM books b WHERE b.id = ?")
 	if err != nil {
 		return nil, err
@@ -69,15 +89,19 @@ func (s *Store) GetBookByID(id string) (*types.Book, error) {
 
 	defer stmt.Close()
 
-	b, err := helper.ScanAndRetRowBook(stmt, id)
+	b, err := helper.ScanAndRetRowBook(ctx, stmt, id)
 	if err != nil {
 		return nil, err
+	}
+
+	if data, err := sonic.Marshal(b); err == nil {
+		_ = s.rdb.SetEx(ctx, bookKey, data, 5*time.Minute)
 	}
 
 	return b, nil
 }
 
-func (s *Store) GetBookByJudulBuku(judulBuku string) (*types.Book, error) {
+func (s *Store) GetBookByJudulBuku(ctx context.Context, judulBuku string) (*types.Book, error) {
 	stmt, err := s.db.Prepare("SELECT b.id, b.id_buku, b.judul_buku, b.cover_buku, b.buku_pdf, b.penulis, b.pengarang, b.tahun, b.created_at, b.updated_at FROM books b WHERE b.judul_buku = ?")
 	if err != nil {
 		return nil, err
@@ -85,7 +109,7 @@ func (s *Store) GetBookByJudulBuku(judulBuku string) (*types.Book, error) {
 
 	defer stmt.Close()
 
-	b, err := helper.ScanAndRetRowBook(stmt, judulBuku)
+	b, err := helper.ScanAndRetRowBook(ctx, stmt, judulBuku)
 	if err != nil {
 		return nil, err
 	}
@@ -93,11 +117,13 @@ func (s *Store) GetBookByJudulBuku(judulBuku string) (*types.Book, error) {
 	return b, nil
 }
 
-func (s *Store) CreateBook(b *types.Book) error {
-	tx, err := s.db.Begin()
+func (s *Store) CreateBook(ctx context.Context, b *types.Book) error {
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
 		return err
 	}
+
+	defer tx.Rollback()
 
 	query := `
 	SELECT CAST(SUBSTRING(id_buku, 3) AS UNSIGNED) as last_num
@@ -116,7 +142,7 @@ func (s *Store) CreateBook(b *types.Book) error {
 
 	defer stmtQuery.Close()
 
-	if err := stmtQuery.QueryRow().Scan(&lastNum); err == sql.ErrNoRows {
+	if err := stmtQuery.QueryRowContext(ctx).Scan(&lastNum); err == sql.ErrNoRows {
 		lastNum = 0
 	} else if err != nil {
 		return err
@@ -145,7 +171,7 @@ func (s *Store) CreateBook(b *types.Book) error {
 
 	defer stmtInsert.Close()
 
-	_, err = stmtInsert.Exec(b.ID, b.IdBuku, b.JudulBuku, b.CoverBuku, b.BukuPDF, b.Penulis, b.Pengarang, b.Tahun)
+	_, err = stmtInsert.ExecContext(ctx, b.ID, b.IdBuku, b.JudulBuku, b.CoverBuku, b.BukuPDF, b.Penulis, b.Pengarang, b.Tahun)
 	if err != nil {
 		return err
 	}
@@ -157,7 +183,9 @@ func (s *Store) CreateBook(b *types.Book) error {
 	return nil
 }
 
-func (s *Store) UpdateBook(id string, b *types.Book) error {
+func (s *Store) UpdateBook(ctx context.Context, id string, b *types.Book) error {
+	bookKey := utils.Redis2Key("book", id)
+
 	stmt, err := s.db.Prepare("UPDATE books SET judul_buku = ?, cover_buku = ?, buku_pdf = ?, penulis = ?, pengarang = ?, tahun = ? WHERE id = ?")
 	if err != nil {
 		return err
@@ -165,12 +193,15 @@ func (s *Store) UpdateBook(id string, b *types.Book) error {
 
 	defer stmt.Close()
 
-	_, err = stmt.Exec(b.JudulBuku, b.CoverBuku, b.BukuPDF, b.Penulis, b.Pengarang, b.Tahun, id)
+	s.rdb.Del(ctx, bookKey)
+	_, err = stmt.ExecContext(ctx, b.JudulBuku, b.CoverBuku, b.BukuPDF, b.Penulis, b.Pengarang, b.Tahun, id)
 	return err
 }
 
-func (s *Store) DeleteBook(id string) error {
-	res, err := s.db.Exec("DELETE FROM books WHERE id = ?", id)
+func (s *Store) DeleteBook(ctx context.Context, id string) error {
+	bookKey := utils.Redis2Key("book", id)
+
+	res, err := s.db.ExecContext(ctx, "DELETE FROM books WHERE id = ?", id)
 	if err != nil {
 		return err
 	}
@@ -184,5 +215,6 @@ func (s *Store) DeleteBook(id string) error {
 		return fmt.Errorf("book not found")
 	}
 
+	s.rdb.Del(ctx, bookKey)
 	return nil
 }

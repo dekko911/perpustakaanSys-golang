@@ -3,10 +3,11 @@ package roleuser
 import (
 	"fmt"
 	"net/http"
-	"perpus_backend/pkg/jwt"
-	"perpus_backend/types"
-	"perpus_backend/utils"
 	"strings"
+
+	"github.com/perpus_backend/pkg/jwt"
+	"github.com/perpus_backend/types"
+	"github.com/perpus_backend/utils"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
@@ -17,35 +18,40 @@ type Handler struct {
 	store     types.RoleUserStore
 	userStore types.UserStore
 	roleStore types.RoleStore
+
+	jwt *jwt.AuthJWT
 }
 
-const cok = http.StatusOK
-
-func NewHandler(store types.RoleUserStore, userStore types.UserStore, roleStore types.RoleStore) *Handler {
+func NewHandler(jwt *jwt.AuthJWT, store types.RoleUserStore, userStore types.UserStore, roleStore types.RoleStore) *Handler {
 	return &Handler{
 		store:     store,
 		userStore: userStore,
 		roleStore: roleStore,
+		jwt:       jwt,
 	}
 }
 
+const cok = http.StatusOK
+
 func (h *Handler) RegisterRoutes(r *mux.Router) {
-	r.HandleFunc("/role_user/{userID}", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin")(h.handleGetUserWithRoleByUserID), h.userStore)).Methods(http.MethodGet)
+	r.HandleFunc("/role_user/{userID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetUserWithRoleByUserID, "admin"))).Methods(http.MethodGet)
 
-	r.HandleFunc("/role_user", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin")(h.handleAssignRoleIntoUser), h.userStore)).Methods(http.MethodPost)
+	r.HandleFunc("/role_user", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleAssignRoleIntoUser, "admin"))).Methods(http.MethodPost)
 
-	r.HandleFunc("/user/{userID}/role/{roleID}", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin")(h.handleDeleteRoleFromUser), h.userStore)).Methods(http.MethodDelete)
+	r.HandleFunc("/user/{userID}/role/{roleID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleDeleteRoleFromUser, "admin"))).Methods(http.MethodDelete)
 }
 
 func (h *Handler) handleGetUserWithRoleByUserID(w http.ResponseWriter, r *http.Request) {
 	userID := mux.Vars(r)["userID"]
+
+	ctx := r.Context()
 
 	if err := uuid.Validate(userID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	roleUser, err := h.store.GetUserWithRoleByUserID(userID)
+	roleUser, err := h.store.GetUserWithRoleByUserID(ctx, userID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
@@ -59,6 +65,8 @@ func (h *Handler) handleGetUserWithRoleByUserID(w http.ResponseWriter, r *http.R
 }
 
 func (h *Handler) handleAssignRoleIntoUser(w http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+
 	if err := req.ParseForm(); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
@@ -87,13 +95,13 @@ func (h *Handler) handleAssignRoleIntoUser(w http.ResponseWriter, req *http.Requ
 		return
 	}
 
-	_, err := h.userStore.GetUserWithRolesByID(payload.UserID)
+	_, err := h.userStore.GetUserWithRolesByID(ctx, payload.UserID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusNotFound, err)
 		return
 	}
 
-	r, err := h.roleStore.GetRoleByID(payload.RoleID)
+	r, err := h.roleStore.GetRoleByID(ctx, payload.RoleID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusNotFound, err)
 		return
@@ -106,7 +114,7 @@ func (h *Handler) handleAssignRoleIntoUser(w http.ResponseWriter, req *http.Requ
 		}
 	}
 
-	if err := h.store.AssignRoleIntoUser(payload.UserID, payload.RoleID); err != nil {
+	if err := h.store.AssignRoleIntoUser(ctx, payload.UserID, payload.RoleID); err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
@@ -119,8 +127,12 @@ func (h *Handler) handleAssignRoleIntoUser(w http.ResponseWriter, req *http.Requ
 }
 
 func (h *Handler) handleDeleteRoleFromUser(w http.ResponseWriter, req *http.Request) {
-	userID := mux.Vars(req)["userID"]
-	roleID := mux.Vars(req)["roleID"]
+	var (
+		ctx = req.Context()
+
+		userID = mux.Vars(req)["userID"]
+		roleID = mux.Vars(req)["roleID"]
+	)
 
 	// validate id user
 	if err := uuid.Validate(userID); err != nil {
@@ -134,7 +146,7 @@ func (h *Handler) handleDeleteRoleFromUser(w http.ResponseWriter, req *http.Requ
 		return
 	}
 
-	u, err := h.userStore.GetUserWithRolesByID(userID)
+	u, err := h.userStore.GetUserWithRolesByID(ctx, userID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
@@ -149,7 +161,7 @@ func (h *Handler) handleDeleteRoleFromUser(w http.ResponseWriter, req *http.Requ
 		}
 	}
 
-	if err := h.store.DeleteRoleFromUser(userID, roleID); err != nil {
+	if err := h.store.DeleteRoleFromUser(ctx, userID, roleID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}

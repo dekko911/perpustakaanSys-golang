@@ -7,9 +7,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"perpus_backend/pkg/jwt"
-	"perpus_backend/types"
-	"perpus_backend/utils"
+
+	"github.com/perpus_backend/pkg/jwt"
+	"github.com/perpus_backend/types"
+	"github.com/perpus_backend/utils"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
@@ -20,6 +21,16 @@ import (
 type Handler struct {
 	store     types.BookStore
 	userStore types.UserStore
+
+	jwt *jwt.AuthJWT
+}
+
+func NewHandler(jwt *jwt.AuthJWT, s types.BookStore, us types.UserStore) *Handler {
+	return &Handler{
+		store:     s,
+		userStore: us,
+		jwt:       jwt,
+	}
 }
 
 const (
@@ -33,24 +44,22 @@ const (
 	size1MB  = 1 << 20
 )
 
-func NewHandler(s types.BookStore, us types.UserStore) *Handler {
-	return &Handler{store: s, userStore: us}
-}
-
 func (h *Handler) RegisterRoutes(r *mux.Router) {
-	r.HandleFunc("/books", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin", "staff", "user")(h.handleGetBooks), h.userStore)).Methods(http.MethodGet)
+	r.HandleFunc("/books", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetBooks, "admin", "staff", "user"))).Methods(http.MethodGet)
 
-	r.HandleFunc("/books/{bookID}", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin", "staff", "user")(h.handleGetBookByID), h.userStore)).Methods(http.MethodGet)
+	r.HandleFunc("/books/{bookID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetBookByID, "admin", "staff", "user"))).Methods(http.MethodGet)
 
-	r.HandleFunc("/books", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin", "staff")(h.handleCreateBook), h.userStore)).Methods(http.MethodPost)
+	r.HandleFunc("/books", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleCreateBook, "admin", "staff"))).Methods(http.MethodPost)
 
-	r.HandleFunc("/books/{bookID}", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin", "staff")(h.handleUpdateBook), h.userStore)).Methods(http.MethodPut)
+	r.HandleFunc("/books/{bookID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleUpdateBook, "admin", "staff"))).Methods(http.MethodPut)
 
-	r.HandleFunc("/books/{bookID}", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin", "staff")(h.handleDeleteBook), h.userStore)).Methods(http.MethodDelete)
+	r.HandleFunc("/books/{bookID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleDeleteBook, "admin", "staff"))).Methods(http.MethodDelete)
 }
 
 func (h *Handler) handleGetBooks(w http.ResponseWriter, r *http.Request) {
-	books, err := h.store.GetBooks()
+	ctx := r.Context()
+
+	books, err := h.store.GetBooks(ctx)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
@@ -66,12 +75,14 @@ func (h *Handler) handleGetBooks(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleGetBookByID(w http.ResponseWriter, r *http.Request) {
 	bookID := mux.Vars(r)["bookID"]
 
+	ctx := r.Context()
+
 	if err := uuid.Validate(bookID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	book, err := h.store.GetBookByID(bookID)
+	book, err := h.store.GetBookByID(ctx, bookID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
@@ -86,6 +97,8 @@ func (h *Handler) handleGetBookByID(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleCreateBook(w http.ResponseWriter, r *http.Request) {
 	var (
+		ctx = r.Context()
+
 		fileName, filePDF  string
 		coverPath, pdfPath string
 		extCover, extPDF   string
@@ -112,7 +125,7 @@ func (h *Handler) handleCreateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := h.store.GetBookByJudulBuku(payload.JudulBuku); err == nil {
+	if _, err := h.store.GetBookByJudulBuku(ctx, payload.JudulBuku); err == nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("judul_buku: %s is already exists", payload.JudulBuku))
 		return
 	}
@@ -192,7 +205,7 @@ func (h *Handler) handleCreateBook(w http.ResponseWriter, r *http.Request) {
 		io.Copy(dest, filePDFbook)
 	}
 
-	err := h.store.CreateBook(&types.Book{
+	err := h.store.CreateBook(ctx, &types.Book{
 		JudulBuku: payload.JudulBuku,
 		CoverBuku: fileName,
 		BukuPDF:   filePDF,
@@ -217,6 +230,8 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 	bookID := mux.Vars(r)["bookID"]
 
 	var (
+		ctx = r.Context()
+
 		fileName, filePDF  string
 		coverPath, pdfPath string
 		extCov, extPdf     string
@@ -253,7 +268,7 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	b, err := h.store.GetBookByID(bookID)
+	b, err := h.store.GetBookByID(ctx, bookID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
@@ -357,7 +372,7 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 		io.Copy(dest, fileCoverBook)
 	}
 
-	err = h.store.UpdateBook(bookID, &types.Book{
+	err = h.store.UpdateBook(ctx, bookID, &types.Book{
 		JudulBuku: b.JudulBuku,
 		CoverBuku: fileName,
 		BukuPDF:   filePDF,
@@ -381,12 +396,14 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleDeleteBook(w http.ResponseWriter, r *http.Request) {
 	bookID := mux.Vars(r)["bookID"]
 
+	ctx := r.Context()
+
 	if err := uuid.Validate(bookID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	b, err := h.store.GetBookByID(bookID)
+	b, err := h.store.GetBookByID(ctx, bookID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
@@ -412,7 +429,7 @@ func (h *Handler) handleDeleteBook(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := h.store.DeleteBook(bookID); err != nil {
+	if err := h.store.DeleteBook(ctx, bookID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}

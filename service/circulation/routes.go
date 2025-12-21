@@ -3,9 +3,10 @@ package circulation
 import (
 	"fmt"
 	"net/http"
-	"perpus_backend/pkg/jwt"
-	"perpus_backend/types"
-	"perpus_backend/utils"
+
+	"github.com/perpus_backend/pkg/jwt"
+	"github.com/perpus_backend/types"
+	"github.com/perpus_backend/utils"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
@@ -15,28 +16,36 @@ import (
 type Handler struct {
 	store     types.CirculationStore
 	userStore types.UserStore
+
+	jwt *jwt.AuthJWT
+}
+
+func NewHandler(jwt *jwt.AuthJWT, s types.CirculationStore, us types.UserStore) *Handler {
+	return &Handler{
+		store:     s,
+		userStore: us,
+		jwt:       jwt,
+	}
 }
 
 const cok = http.StatusOK
 
-func NewHandler(s types.CirculationStore, us types.UserStore) *Handler {
-	return &Handler{store: s, userStore: us}
-}
-
 func (h *Handler) RegisterRoutes(r *mux.Router) {
-	r.HandleFunc("/circulations", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin", "staff")(h.handleGetCirculations), h.userStore)).Methods(http.MethodGet)
+	r.HandleFunc("/circulations", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetCirculations, "admin", "staff"))).Methods(http.MethodGet)
 
-	r.HandleFunc("/circulations/{cID}", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin", "staff")(h.handleGetCirculationByID), h.userStore)).Methods(http.MethodGet)
+	r.HandleFunc("/circulations/{cID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetCirculationByID, "admin", "staff"))).Methods(http.MethodGet)
 
-	r.HandleFunc("/circulations", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin", "staff")(h.handleCreateCirculation), h.userStore)).Methods(http.MethodPost)
+	r.HandleFunc("/circulations", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleCreateCirculation, "admin", "staff"))).Methods(http.MethodPost)
 
-	r.HandleFunc("/circulations/{cID}", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin", "staff")(h.handleUpdateCirculation), h.userStore)).Methods(http.MethodPatch)
+	r.HandleFunc("/circulations/{cID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleUpdateCirculation, "admin", "staff"))).Methods(http.MethodPatch)
 
-	r.HandleFunc("/circulations/{cID}", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin", "staff")(h.handleDeleteCirculation), h.userStore)).Methods(http.MethodDelete)
+	r.HandleFunc("/circulations/{cID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleDeleteCirculation, "admin", "staff"))).Methods(http.MethodDelete)
 }
 
 func (h *Handler) handleGetCirculations(w http.ResponseWriter, r *http.Request) {
-	c, err := h.store.GetCirculations()
+	ctx := r.Context()
+
+	c, err := h.store.GetCirculations(ctx)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
@@ -52,12 +61,14 @@ func (h *Handler) handleGetCirculations(w http.ResponseWriter, r *http.Request) 
 func (h *Handler) handleGetCirculationByID(w http.ResponseWriter, r *http.Request) {
 	circulationID := mux.Vars(r)["cID"]
 
+	ctx := r.Context()
+
 	if err := uuid.Validate(circulationID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	c, err := h.store.GetCirculationByID(circulationID)
+	c, err := h.store.GetCirculationByID(ctx, circulationID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
@@ -71,6 +82,8 @@ func (h *Handler) handleGetCirculationByID(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *Handler) handleCreateCirculation(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
 	if err := r.ParseForm(); err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
@@ -90,12 +103,12 @@ func (h *Handler) handleCreateCirculation(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if _, err := h.store.GetCirculationByPeminjam(payload.Peminjam); err == nil {
+	if _, err := h.store.GetCirculationByPeminjam(ctx, payload.Peminjam); err == nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("peminjam has name: %v been exist", payload.Peminjam))
 		return
 	}
 
-	err := h.store.CreateCirculation(&types.Circulation{
+	err := h.store.CreateCirculation(ctx, &types.Circulation{
 		BukuID:        payload.BukuID,
 		Peminjam:      payload.Peminjam,
 		TanggalPinjam: utils.ParseStringToFormatDate(payload.TanggalPinjam),
@@ -116,6 +129,8 @@ func (h *Handler) handleCreateCirculation(w http.ResponseWriter, r *http.Request
 
 func (h *Handler) handleUpdateCirculation(w http.ResponseWriter, r *http.Request) {
 	circulationID := mux.Vars(r)["cID"]
+
+	ctx := r.Context()
 
 	if err := uuid.Validate(circulationID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
@@ -141,7 +156,7 @@ func (h *Handler) handleUpdateCirculation(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	c, err := h.store.GetCirculationByID(circulationID)
+	c, err := h.store.GetCirculationByID(ctx, circulationID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
@@ -163,7 +178,7 @@ func (h *Handler) handleUpdateCirculation(w http.ResponseWriter, r *http.Request
 		c.Denda = utils.ParseStringToFloat(p.Denda)
 	}
 
-	err = h.store.UpdateCirculation(circulationID, &types.Circulation{
+	err = h.store.UpdateCirculation(ctx, circulationID, &types.Circulation{
 		BukuID:        c.BukuID,
 		Peminjam:      c.Peminjam,
 		TanggalPinjam: c.TanggalPinjam,
@@ -185,12 +200,14 @@ func (h *Handler) handleUpdateCirculation(w http.ResponseWriter, r *http.Request
 func (h *Handler) handleDeleteCirculation(w http.ResponseWriter, r *http.Request) {
 	circulationID := mux.Vars(r)["cID"]
 
+	ctx := r.Context()
+
 	if err := uuid.Validate(circulationID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	if err := h.store.DeleteCirculation(circulationID); err != nil {
+	if err := h.store.DeleteCirculation(ctx, circulationID); err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}

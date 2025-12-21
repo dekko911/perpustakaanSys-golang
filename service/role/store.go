@@ -1,24 +1,30 @@
 package role
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
-	"perpus_backend/helper"
-	"perpus_backend/types"
-	"perpus_backend/utils"
+	"time"
 
+	"github.com/perpus_backend/helper"
+	"github.com/perpus_backend/types"
+	"github.com/perpus_backend/utils"
+
+	"github.com/bytedance/sonic"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 )
 
 type Store struct {
-	db *sql.DB
+	db  *sql.DB
+	rdb *redis.Client
 }
 
-func NewStore(db *sql.DB) *Store {
-	return &Store{db: db}
+func NewStore(db *sql.DB, rdb *redis.Client) *Store {
+	return &Store{db: db, rdb: rdb}
 }
 
-func (s *Store) GetRoles() ([]*types.Role, error) {
+func (s *Store) GetRoles(ctx context.Context) ([]*types.Role, error) {
 	sortByColumn := "created_at"
 	sortOrder := "DESC"
 
@@ -39,7 +45,7 @@ func (s *Store) GetRoles() ([]*types.Role, error) {
 
 	defer stmt.Close()
 
-	rows, err := stmt.Query()
+	rows, err := stmt.QueryContext(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +66,22 @@ func (s *Store) GetRoles() ([]*types.Role, error) {
 	return r, nil
 }
 
-func (s *Store) GetRoleByID(id string) (*types.Role, error) {
+func (s *Store) GetRoleByID(ctx context.Context, id string) (*types.Role, error) {
+	roleKey := utils.Redis2Key("role", id)
+
+	res, err := s.rdb.Get(ctx, roleKey).Result()
+	if err == nil {
+		role := new(types.Role)
+
+		if err := sonic.Unmarshal([]byte(res), role); err == nil {
+			return role, nil
+		}
+
+		s.rdb.Del(ctx, roleKey)
+	} else if err != redis.Nil {
+		return nil, err
+	}
+
 	stmt, err := s.db.Prepare("SELECT r.id, r.name, r.created_at, r.updated_at FROM roles r WHERE r.id = ?")
 	if err != nil {
 		return nil, err
@@ -68,15 +89,19 @@ func (s *Store) GetRoleByID(id string) (*types.Role, error) {
 
 	defer stmt.Close()
 
-	r, err := helper.ScanAndRetRowRole(stmt, id)
+	r, err := helper.ScanAndRetRowRole(ctx, stmt, id)
 	if err != nil {
 		return nil, err
+	}
+
+	if data, err := sonic.Marshal(r); err == nil {
+		_ = s.rdb.SetEx(ctx, roleKey, data, 5*time.Minute).Err()
 	}
 
 	return r, nil
 }
 
-func (s *Store) GetRoleByName(name string) (*types.Role, error) {
+func (s *Store) GetRoleByName(ctx context.Context, name string) (*types.Role, error) {
 	stmt, err := s.db.Prepare("SELECT r.id, r.name, r.created_at, r.updated_at FROM roles r WHERE r.name = ?")
 	if err != nil {
 		return nil, err
@@ -84,7 +109,7 @@ func (s *Store) GetRoleByName(name string) (*types.Role, error) {
 
 	defer stmt.Close()
 
-	r, err := helper.ScanAndRetRowRole(stmt, name)
+	r, err := helper.ScanAndRetRowRole(ctx, stmt, name)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +121,7 @@ func (s *Store) GetRoleByName(name string) (*types.Role, error) {
 	return r, nil
 }
 
-func (s *Store) CreateRole(r types.Role) error {
+func (s *Store) CreateRole(ctx context.Context, r types.Role) error {
 	if r.ID == "" {
 		r.ID = uuid.NewString()
 	}
@@ -108,11 +133,13 @@ func (s *Store) CreateRole(r types.Role) error {
 
 	defer stmt.Close()
 
-	_, err = stmt.Exec(r.ID, r.Name)
+	_, err = stmt.ExecContext(ctx, r.ID, r.Name)
 	return err
 }
 
-func (s *Store) UpdateRole(id string, r types.Role) error {
+func (s *Store) UpdateRole(ctx context.Context, id string, r types.Role) error {
+	roleKey := utils.Redis2Key("role", id)
+
 	stmt, err := s.db.Prepare("UPDATE roles SET name = ? WHERE id = ?")
 	if err != nil {
 		return err
@@ -120,12 +147,15 @@ func (s *Store) UpdateRole(id string, r types.Role) error {
 
 	defer stmt.Close()
 
-	_, err = stmt.Exec(r.Name, id)
+	s.rdb.Del(ctx, roleKey)
+	_, err = stmt.ExecContext(ctx, r.Name, id)
 	return err
 }
 
-func (s *Store) DeleteRole(id string) error {
-	res, err := s.db.Exec("DELETE FROM roles WHERE id = ?", id)
+func (s *Store) DeleteRole(ctx context.Context, id string) error {
+	roleKey := utils.Redis2Key("role", id)
+
+	res, err := s.db.ExecContext(ctx, "DELETE FROM roles WHERE id = ?", id)
 	if err != nil {
 		return err
 	}
@@ -139,5 +169,6 @@ func (s *Store) DeleteRole(id string) error {
 		return fmt.Errorf("role not found")
 	}
 
+	s.rdb.Del(ctx, roleKey)
 	return nil
 }

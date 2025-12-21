@@ -5,16 +5,20 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
-	"perpus_backend/types"
 	"testing"
+
+	"github.com/perpus_backend/pkg/jwt"
+	"github.com/perpus_backend/types"
 
 	"github.com/gorilla/mux"
 )
 
 func TestHandlerBook(t *testing.T) {
+	jwt := &jwt.AuthJWT{}
 	mockBookStore := &types.MockBookStore{}
 	mockUserStore := &types.MockUserStore{}
-	h := NewHandler(mockBookStore, mockUserStore)
+
+	h := NewHandler(jwt, mockBookStore, mockUserStore)
 
 	t.Run("it should get books", func(t *testing.T) {
 		req, err := http.NewRequest(http.MethodGet, "/books", nil)

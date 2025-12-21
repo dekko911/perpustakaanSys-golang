@@ -1,6 +1,7 @@
 package types
 
 import (
+	"context"
 	"time"
 )
 
@@ -21,12 +22,12 @@ type Circulation struct {
 }
 
 type CirculationStore interface {
-	GetCirculations() ([]*Circulation, error)
-	GetCirculationByID(id string) (*Circulation, error)
-	GetCirculationByPeminjam(borrowerName string) (*Circulation, error)
-	CreateCirculation(*Circulation) error
-	UpdateCirculation(id string, c *Circulation) error
-	DeleteCirculation(id string) error
+	GetCirculations(ctx context.Context) ([]*Circulation, error)
+	GetCirculationByID(ctx context.Context, id string) (*Circulation, error)
+	GetCirculationByPeminjam(ctx context.Context, borrowerName string) (*Circulation, error)
+	CreateCirculation(ctx context.Context, c *Circulation) error
+	UpdateCirculation(ctx context.Context, id string, c *Circulation) error
+	DeleteCirculation(ctx context.Context, id string) error
 }
 
 type SetPayloadCirculation struct {

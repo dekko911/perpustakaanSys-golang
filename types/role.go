@@ -1,6 +1,9 @@
 package types
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 type Role struct {
 	CreatedAt time.Time `json:"created_at,omitzero"`
@@ -11,12 +14,12 @@ type Role struct {
 }
 
 type RoleStore interface {
-	GetRoles() ([]*Role, error)
-	GetRoleByID(id string) (*Role, error)
-	GetRoleByName(name string) (*Role, error)
-	CreateRole(Role) error
-	UpdateRole(id string, r Role) error
-	DeleteRole(id string) error
+	GetRoles(ctx context.Context) ([]*Role, error)
+	GetRoleByID(ctx context.Context, id string) (*Role, error)
+	GetRoleByName(ctx context.Context, name string) (*Role, error)
+	CreateRole(ctx context.Context, r Role) error
+	UpdateRole(ctx context.Context, id string, r Role) error
+	DeleteRole(ctx context.Context, id string) error
 }
 
 type SetPayloadRole struct {

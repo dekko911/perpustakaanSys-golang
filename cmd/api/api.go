@@ -3,32 +3,40 @@ package api
 import (
 	"database/sql"
 	"net/http"
-	"perpus_backend/config"
-	"perpus_backend/pkg/cookie"
-	"perpus_backend/pkg/cors"
-	"perpus_backend/pkg/jwt"
-	"perpus_backend/pkg/limiter"
-	"perpus_backend/service/auth"
-	"perpus_backend/service/book"
-	"perpus_backend/service/circulation"
-	"perpus_backend/service/member"
-	"perpus_backend/service/role"
-	roleuser "perpus_backend/service/role_user"
-	"perpus_backend/service/user"
-	"perpus_backend/service/websocket"
 	"time"
 
+	"github.com/perpus_backend/config"
+	"github.com/perpus_backend/pkg/cookie"
+	"github.com/perpus_backend/pkg/cors"
+	"github.com/perpus_backend/pkg/jwt"
+	"github.com/perpus_backend/pkg/limiter"
+	"github.com/perpus_backend/service/auth"
+	"github.com/perpus_backend/service/book"
+	"github.com/perpus_backend/service/circulation"
+	"github.com/perpus_backend/service/member"
+	"github.com/perpus_backend/service/role"
+	roleuser "github.com/perpus_backend/service/role_user"
+	"github.com/perpus_backend/service/user"
+	"github.com/perpus_backend/service/websocket"
+
 	"github.com/gorilla/mux"
+	"github.com/redis/go-redis/v9"
 	"golang.org/x/time/rate"
 )
 
 type APIServer struct {
 	addr string
-	db   *sql.DB
+
+	db  *sql.DB
+	rdb *redis.Client
 }
 
-func NewAPIServer(addr string, db *sql.DB) *APIServer {
-	return &APIServer{addr: addr, db: db}
+func NewAPIServer(addr string, db *sql.DB, rdb *redis.Client) *APIServer {
+	return &APIServer{
+		addr: addr,
+		db:   db,
+		rdb:  rdb,
+	}
 }
 
 var publicURLHandler = http.StripPrefix("/public/", http.FileServer(http.Dir("./assets/public")))
@@ -43,13 +51,12 @@ func (s *APIServer) Run() error {
 		w.WriteHeader(http.StatusNoContent)
 	})
 
-	r.PathPrefix("/public/").Methods(http.MethodGet).Handler(publicURLHandler) // set accessing files across public url.
-
 	subrouter := r.PathPrefix("/api").Subrouter()
 
 	// limiter for env production
 	if config.Env.AppENV == "production" {
-		subrouter.Use(limiter.SetRateLimitMiddleware(rate.Every(20*time.Second), 20))
+		r.Use(limiter.SetRateLimitMiddleware(rate.Every(1*time.Hour), 3000))
+		subrouter.Use(limiter.SetRateLimitMiddleware(rate.Every(1*time.Minute), 10))
 	}
 
 	// for ensures that OPTIONS "/api" is not thrown to 404 (which does not have a CORS header).
@@ -57,47 +64,55 @@ func (s *APIServer) Run() error {
 		w.WriteHeader(http.StatusNoContent)
 	})
 
+	userStore := user.NewStore(s.db, s.rdb)
+
+	jwt := jwt.NewAuthJWT(userStore, s.rdb)
+
 	// user routes
-	userStore := user.NewStore(s.db)
-	userHandler := user.NewHandler(userStore)
+	userHandler := user.NewHandler(jwt, userStore)
 	userHandler.RegisterRoutes(subrouter)
 
 	// role routes
-	roleStore := role.NewStore(s.db)
-	roleHandler := role.NewHandler(roleStore, userStore)
+	roleStore := role.NewStore(s.db, s.rdb)
+	roleHandler := role.NewHandler(jwt, roleStore, userStore)
 	roleHandler.RegisterRoutes(subrouter)
 
 	// role_user routes
-	roleUserStore := roleuser.NewStore(s.db)
-	roleUserHandler := roleuser.NewHandler(roleUserStore, userStore, roleStore)
+	roleUserStore := roleuser.NewStore(s.db, s.rdb)
+	roleUserHandler := roleuser.NewHandler(jwt, roleUserStore, userStore, roleStore)
 	roleUserHandler.RegisterRoutes(subrouter)
 
 	// book routes
-	bookStore := book.NewStore(s.db)
-	bookHandler := book.NewHandler(bookStore, userStore)
+	bookStore := book.NewStore(s.db, s.rdb)
+	bookHandler := book.NewHandler(jwt, bookStore, userStore)
 	bookHandler.RegisterRoutes(subrouter)
 
-	// member routes
-	memberStore := member.NewStore(s.db)
-	memberHandler := member.NewHandler(memberStore, userStore)
-	memberHandler.RegisterRoutes(subrouter)
-
 	// circulation routes
-	circulationStore := circulation.NewStore(s.db)
-	circulationHandler := circulation.NewHandler(circulationStore, userStore)
+	circulationStore := circulation.NewStore(s.db, s.rdb)
+	circulationHandler := circulation.NewHandler(jwt, circulationStore, userStore)
 	circulationHandler.RegisterRoutes(subrouter)
 
+	// member routes
+	memberStore := member.NewStore(s.db, s.rdb)
+	memberHandler := member.NewHandler(jwt, memberStore, userStore)
+	memberHandler.RegisterRoutes(subrouter)
+
 	// auth routes
-	authHandler := auth.NewHandler(userStore)
+	authHandler := auth.NewHandler(jwt, userStore)
 	authHandler.RegisterRoutes(subrouter)
 
 	// search routes
 	wsSubrouter := r.PathPrefix("/ws").Subrouter()
-	wsHandler := websocket.NewHandler(userStore, roleStore, memberStore, bookStore, circulationStore)
+	wsHandler := websocket.NewHandler(jwt, userStore, roleStore, memberStore, bookStore, circulationStore)
 	wsHandler.RegisterRoutes(wsSubrouter)
 
+	r.PathPrefix("/public/").Handler(publicURLHandler).Methods(http.MethodGet) // set accessing files across public url.
+
+	// get info logged profile
+	r.HandleFunc("/profile", jwt.AuthWithJWTToken(userHandler.HandleGetProfileUser)).Methods(http.MethodGet)
+
 	// set accessing files across private routes. Which means, it is need to login auth.
-	r.HandleFunc("/private/{filename:.+}", jwt.AuthWithJWTToken(jwt.RoleGate(userStore, "admin", "staff", "user")(authHandler.PrivateURLHandler), userStore)).Methods(http.MethodGet)
+	r.HandleFunc("/private/{filename:.+}", jwt.AuthWithJWTToken(jwt.RoleGate(authHandler.PrivateURLHandler, "admin", "staff", "user"))).Methods(http.MethodGet)
 
 	return http.ListenAndServe(s.addr, r)
 }

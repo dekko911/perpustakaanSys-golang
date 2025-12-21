@@ -1,29 +1,55 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
-	"perpus_backend/cmd/api"
-	"perpus_backend/config"
-	"perpus_backend/db"
 	"runtime"
 	"runtime/debug"
 
 	"github.com/go-sql-driver/mysql"
+	"github.com/perpus_backend/cmd/api"
+	"github.com/perpus_backend/config"
+	"github.com/perpus_backend/db"
+
+	"github.com/redis/go-redis/v9"
 )
 
-func initDBStorage(db *sql.DB) {
-	err := db.Ping()
-	if err != nil {
-		log.Fatal(err)
-	}
+// package variables (var) -> func init() -> func main()
+var (
+	mysqlDB *sql.DB
+	redisDB *redis.Client
+)
 
-	log.Println("Database Connected!")
+func init() {
+	log.Println("Setup databases connection...")
+
+	mysqlDB = db.NewMySQLStorage(&mysql.Config{
+		User:                 config.Env.DBUser,
+		Passwd:               config.Env.DBPassword,
+		Addr:                 config.Env.DBAddress,
+		DBName:               config.Env.DBName,
+		Loc:                  config.Env.DBLoc,
+		Net:                  "tcp",
+		ParseTime:            true,
+		AllowNativePasswords: true,
+	})
+
+	redisDB = redis.NewClient(&redis.Options{
+		Addr:       config.Env.RedisAddress,
+		ClientName: config.Env.RedisClient,
+		Password:   config.Env.RedisPassword,
+		DB:         0,
+	})
 }
 
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
+
+	defer mysqlDB.Close() // <- just set mysqlDB close func for safety reason.
+
+	defer redisDB.Close() // <- just set redisDB close func for safety reason.
 
 	switch config.Env.AppENV {
 	case "production":
@@ -34,24 +60,32 @@ func main() {
 		log.Fatalf("invalid app env: %s", config.Env.AppENV)
 	}
 
-	db, err := db.NewMySQLStorage(&mysql.Config{
-		User:                 config.Env.DBUser,
-		Passwd:               config.Env.DBPassword,
-		Addr:                 config.Env.DBAddress,
-		DBName:               config.Env.DBName,
-		Loc:                  config.Env.DBLoc,
-		Net:                  "tcp",
-		ParseTime:            true,
-		AllowNativePasswords: true,
-	})
+	ctx := context.Background()
+
+	pingMysqlDB(ctx, mysqlDB)
+
+	pingRedisDB(ctx, redisDB)
+
+	s := api.NewAPIServer(fmt.Sprintf(":%s", config.Env.Port), mysqlDB, redisDB)
+	if err := s.Run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func pingMysqlDB(ctx context.Context, db *sql.DB) {
+	err := db.PingContext(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	initDBStorage(db)
+	log.Println("Mysql Connected!")
+}
 
-	s := api.NewAPIServer(fmt.Sprintf(":%s", config.Env.Port), db)
-	if err := s.Run(); err != nil {
+func pingRedisDB(ctx context.Context, rdb *redis.Client) {
+	ping, err := rdb.Ping(ctx).Result()
+	if err != nil {
 		log.Fatal(err)
 	}
+
+	log.Printf("Redis Connected: %s", ping)
 }

@@ -3,7 +3,8 @@ package limiter
 import (
 	"errors"
 	"net/http"
-	"perpus_backend/utils"
+
+	"github.com/perpus_backend/utils"
 
 	"golang.org/x/time/rate"
 )
@@ -11,7 +12,7 @@ import (
 // Limiter request get into routes. Param timer for set when request has been limit.
 // Param attempts for how many attempts you want to. ex: 10, 20, 66, and etc.
 func SetRateLimitMiddleware(timer rate.Limit, attempts int) func(http.Handler) http.Handler {
-	limiter := rate.NewLimiter(timer, attempts) // initial limiter routes
+	limiter := rate.NewLimiter(timer, attempts) // initial limiter for routes
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

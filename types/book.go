@@ -1,6 +1,7 @@
 package types
 
 import (
+	"context"
 	"time"
 )
 
@@ -19,12 +20,12 @@ type Book struct {
 }
 
 type BookStore interface {
-	GetBooks() ([]*Book, error)
-	GetBookByID(id string) (*Book, error)
-	GetBookByJudulBuku(judulBuku string) (*Book, error)
-	CreateBook(*Book) error
-	UpdateBook(id string, b *Book) error
-	DeleteBook(id string) error
+	GetBooks(ctx context.Context) ([]*Book, error)
+	GetBookByID(ctx context.Context, id string) (*Book, error)
+	GetBookByJudulBuku(ctx context.Context, judulBuku string) (*Book, error)
+	CreateBook(ctx context.Context, b *Book) error
+	UpdateBook(ctx context.Context, id string, b *Book) error
+	DeleteBook(ctx context.Context, id string) error
 }
 
 type SetPayloadBook struct {

@@ -5,8 +5,9 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"perpus_backend/config"
-	"perpus_backend/db"
+
+	"github.com/perpus_backend/config"
+	"github.com/perpus_backend/db"
 
 	mysqlCfg "github.com/go-sql-driver/mysql"
 	"github.com/golang-migrate/migrate/v4"
@@ -15,7 +16,7 @@ import (
 )
 
 func main() {
-	db, err := db.NewMySQLStorage(&mysqlCfg.Config{
+	mysqlDB := db.NewMySQLStorage(&mysqlCfg.Config{
 		User:                 config.Env.DBUser,
 		Passwd:               config.Env.DBPassword,
 		Addr:                 config.Env.DBAddress,
@@ -25,13 +26,10 @@ func main() {
 		ParseTime:            true,
 		AllowNativePasswords: true,
 	})
-	if err != nil {
-		log.Fatal(err)
-	}
 
-	defer db.Close()
+	defer mysqlDB.Close()
 
-	driver, err := mysql.WithInstance(db, &mysql.Config{})
+	driver, err := mysql.WithInstance(mysqlDB, &mysql.Config{})
 	if err != nil {
 		log.Fatal(err)
 	}

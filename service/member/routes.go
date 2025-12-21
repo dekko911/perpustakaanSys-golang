@@ -6,9 +6,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"perpus_backend/pkg/jwt"
-	"perpus_backend/types"
-	"perpus_backend/utils"
+
+	"github.com/perpus_backend/pkg/jwt"
+	"github.com/perpus_backend/types"
+	"github.com/perpus_backend/utils"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
@@ -18,6 +19,16 @@ import (
 type Handler struct {
 	store     types.MemberStore
 	userStore types.UserStore
+
+	jwt *jwt.AuthJWT
+}
+
+func NewHandler(jwt *jwt.AuthJWT, s types.MemberStore, us types.UserStore) *Handler {
+	return &Handler{
+		store:     s,
+		userStore: us,
+		jwt:       jwt,
+	}
 }
 
 const (
@@ -28,24 +39,22 @@ const (
 	size1MB = 1 << 20
 )
 
-func NewHandler(s types.MemberStore, us types.UserStore) *Handler {
-	return &Handler{store: s, userStore: us}
-}
-
 func (h *Handler) RegisterRoutes(r *mux.Router) {
-	r.HandleFunc("/members", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin", "staff")(h.handleGetMembers), h.userStore)).Methods(http.MethodGet)
+	r.HandleFunc("/members", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetMembers, "admin", "staff"))).Methods(http.MethodGet)
 
-	r.HandleFunc("/members/{memberID}", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin", "staff")(h.handleGetMemberByID), h.userStore)).Methods(http.MethodGet)
+	r.HandleFunc("/members/{memberID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetMemberByID, "admin", "staff"))).Methods(http.MethodGet)
 
-	r.HandleFunc("/members", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin", "staff")(h.handleCreateMember), h.userStore)).Methods(http.MethodPost)
+	r.HandleFunc("/members", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleCreateMember, "admin", "staff"))).Methods(http.MethodPost)
 
-	r.HandleFunc("/members/{memberID}", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin", "staff")(h.handleUpdateMember), h.userStore)).Methods(http.MethodPut)
+	r.HandleFunc("/members/{memberID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleUpdateMember, "admin", "staff"))).Methods(http.MethodPut)
 
-	r.HandleFunc("/members/{memberID}", jwt.AuthWithJWTToken(jwt.RoleGate(h.userStore, "admin", "staff")(h.handleDeleteMember), h.userStore)).Methods(http.MethodDelete)
+	r.HandleFunc("/members/{memberID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleDeleteMember, "admin", "staff"))).Methods(http.MethodDelete)
 }
 
 func (h *Handler) handleGetMembers(w http.ResponseWriter, r *http.Request) {
-	members, err := h.store.GetMembers()
+	ctx := r.Context()
+
+	members, err := h.store.GetMembers(ctx)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
@@ -61,12 +70,14 @@ func (h *Handler) handleGetMembers(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleGetMemberByID(w http.ResponseWriter, r *http.Request) {
 	memberID := mux.Vars(r)["memberID"]
 
+	ctx := r.Context()
+
 	if err := uuid.Validate(memberID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	member, err := h.store.GetMemberByID(memberID)
+	member, err := h.store.GetMemberByID(ctx, memberID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
@@ -81,6 +92,8 @@ func (h *Handler) handleGetMemberByID(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleCreateMember(w http.ResponseWriter, r *http.Request) {
 	var (
+		ctx = r.Context()
+
 		fileName, avatarPath, extFile string
 		sizeFile                      int64
 	)
@@ -105,12 +118,12 @@ func (h *Handler) handleCreateMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := h.store.GetMemberByNama(payload.Nama); err == nil {
+	if _, err := h.store.GetMemberByNama(ctx, payload.Nama); err == nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("nama: %v has already exist", payload.Nama))
 		return
 	}
 
-	if _, err := h.store.GetMemberByNoTelepon(payload.NoTelepon); err == nil {
+	if _, err := h.store.GetMemberByNoTelepon(ctx, payload.NoTelepon); err == nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("no_telepon: %v has already exist", payload.NoTelepon))
 		return
 	}
@@ -145,7 +158,7 @@ func (h *Handler) handleCreateMember(w http.ResponseWriter, r *http.Request) {
 		io.Copy(dst, file)
 	}
 
-	err = h.store.CreateMember(&types.Member{
+	err = h.store.CreateMember(ctx, &types.Member{
 		Nama:          payload.Nama,
 		JenisKelamin:  payload.JenisKelamin,
 		Kelas:         payload.Kelas,
@@ -168,6 +181,8 @@ func (h *Handler) handleUpdateMember(w http.ResponseWriter, r *http.Request) {
 	memberID := mux.Vars(r)["memberID"]
 
 	var (
+		ctx = r.Context()
+
 		fileName, avatarPath, extFile string
 		sizeFile                      int64
 	)
@@ -202,7 +217,7 @@ func (h *Handler) handleUpdateMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	m, err := h.store.GetMemberByID(memberID)
+	m, err := h.store.GetMemberByID(ctx, memberID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
@@ -260,7 +275,7 @@ func (h *Handler) handleUpdateMember(w http.ResponseWriter, r *http.Request) {
 		io.Copy(dst, file)
 	}
 
-	err = h.store.UpdateMember(memberID, &types.Member{
+	err = h.store.UpdateMember(ctx, memberID, &types.Member{
 		Nama:          m.Nama,
 		JenisKelamin:  m.JenisKelamin,
 		Kelas:         m.Kelas,
@@ -282,12 +297,14 @@ func (h *Handler) handleUpdateMember(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleDeleteMember(w http.ResponseWriter, r *http.Request) {
 	memberID := mux.Vars(r)["memberID"]
 
+	ctx := r.Context()
+
 	if err := uuid.Validate(memberID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	m, err := h.store.GetMemberByID(memberID)
+	m, err := h.store.GetMemberByID(ctx, memberID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusNotFound, err)
 		return
@@ -302,7 +319,7 @@ func (h *Handler) handleDeleteMember(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if err := h.store.DeleteMember(memberID); err != nil {
+	if err := h.store.DeleteMember(ctx, memberID); err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}

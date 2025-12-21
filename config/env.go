@@ -10,7 +10,7 @@ import (
 )
 
 type Config struct {
-	AppENV, AppURL, ClientPort, CookieName, CookieValue, DBUser, DBPassword, DBName, DBAddress, MeilisearchURL, MSApiKey, Port, JWTSecret, SessionDomain string
+	AppENV, AppURL, ClientPort, CookieName, CookieValue, DBUser, DBPassword, DBName, DBAddress, LocalAddress, MeilisearchURL, MSApiKey, Port, RedisAddress, RedisClient, RedisPassword, JWTSecret, SessionDomain string
 
 	DBLoc *time.Location
 }
@@ -36,19 +36,24 @@ func initConfig() *Config {
 		DBName:         getENVConfigValue("DB_DATABASE"),
 		DBAddress:      fmt.Sprintf("%s:%s", getENVConfigValue("DB_HOST"), getENVConfigValue("DB_PORT")),
 		DBLoc:          loc,
+		LocalAddress:   fmt.Sprintf("%s:%s", getENVConfigValue("APP_URL"), getENVConfigValue("CLIENT_PORT")),
 		MeilisearchURL: getENVConfigValue("MEILISEARCH_URL"),
 		MSApiKey:       getENVConfigValue("MS_API_KEY"),
 		Port:           getENVConfigValue("PORT"),
+		RedisAddress:   fmt.Sprintf("%s:%s", getENVConfigValue("REDIS_HOST"), getENVConfigValue("REDIS_PORT")),
+		RedisClient:    getENVConfigValue("REDIS_CLIENT"),
+		RedisPassword:  getENVConfigValue("REDIS_PASSWORD"),
 		JWTSecret:      getENVConfigValue("JWT_SECRET"),
 		SessionDomain:  getENVConfigValue("SESSION_DOMAIN"),
 	}
 }
 
-func getENVConfigValue(value string) string {
-	v, ok := os.LookupEnv(value)
-	if ok {
-		return v
+// get value on file env, and check one by one variable at param to get the value.
+func getENVConfigValue(variable string) string {
+	v, ok := os.LookupEnv(variable)
+	if !ok {
+		return ""
 	}
 
-	return ""
+	return v
 }
