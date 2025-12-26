@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/perpus_backend/helper"
@@ -24,56 +25,132 @@ func NewStore(db *sql.DB, rdb *redis.Client) *Store {
 	return &Store{db: db, rdb: rdb}
 }
 
-func (s *Store) GetUsers(ctx context.Context) ([]*types.User, error) {
+func (s *Store) GetUsersWithPagination(ctx context.Context, page int) ([]*types.User, int64, error) {
+	if page < 1 {
+		page = 1 // set default page
+	}
+
 	sortByColumn := "created_at"
 	sortOrder := "DESC"
 
 	// prevent SQL INJECTION
 	if !utils.IsValidSortColumn(sortByColumn) {
-		return nil, fmt.Errorf("invalid sort column: %s", sortByColumn)
+		return nil, 0, fmt.Errorf("invalid sort column: %s", sortByColumn)
 	}
 
 	// prevent SQL INJECTION
 	if !utils.IsValidSortOrder(sortOrder) {
-		return nil, fmt.Errorf("invalid sort order: %s", sortOrder)
+		return nil, 0, fmt.Errorf("invalid sort order: %s", sortOrder)
 	}
+
+	// set the rows limit, hardcoded
+	limit := 10
 
 	query := fmt.Sprintf(`SELECT 
 	u.id AS user_id, 
 	u.name AS user_name, 
 	u.email AS user_email, 
-	u.password AS user_password,
-	u.avatar AS user_avatar,
-	u.token_version AS user_token_version,
-	u.created_at,
-	u.updated_at,
-	r.id AS role_id,
-	r.name AS role_name
-	FROM users u
-	LEFT JOIN role_user ru ON u.id = ru.user_id
-	LEFT JOIN roles r ON ru.role_id = r.id
-	ORDER BY %s %s`, sortByColumn, sortOrder)
+	u.password AS user_password, 
+	u.avatar AS user_avatar, 
+	u.token_version AS user_token_version, 
+	u.created_at, 
+	u.updated_at, 
+	r.id AS role_id, 
+	r.name AS role_name, 
+	COUNT(*) OVER() AS num_rows 
+	FROM users u 
+	LEFT JOIN role_user ru ON u.id = ru.user_id 
+	LEFT JOIN roles r ON ru.role_id = r.id 
+	GROUP BY u.id, r.id 
+	ORDER BY %s %s 
+	LIMIT %d OFFSET %d`, sortByColumn, sortOrder, limit, (page-1)*limit)
 
 	stmt, err := s.db.Prepare(query)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	defer stmt.Close()
 
 	rows, err := stmt.QueryContext(ctx)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	defer rows.Close()
 
 	usersMap := make(map[string]*types.User)
 
-	for rows.Next() { // <- like while
-		user, role, err := helper.ScanEachRowUserAndRoleIntoUser(rows)
+	// init variable lastPage the rows users
+	var lastPage int64
+
+	for rows.Next() { // <- while loop
+		user, role, total, err := helper.ScanAndCountRowsUserAndRole(rows)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
+		}
+
+		// count all the users and sum & divide to get the lastPage
+		lastPage = int64(math.Ceil(float64(total) / float64(limit)))
+
+		// (total + int64(limit) - 1) / int64(limit) another formula/rumus
+
+		u, exists := usersMap[user.ID]
+		if !exists {
+			u = user              // assign user scan to usersMap
+			usersMap[user.ID] = u // and last, assign final user scan to usersMap
+		}
+
+		if role != nil {
+			u.Roles = append(u.Roles, *role) // add roles data to usersMap
+		}
+	}
+
+	users := make([]*types.User, 0, len(usersMap))
+
+	for _, u := range usersMap {
+		users = append(users, u)
+	}
+
+	return users, lastPage, nil
+}
+
+func (s *Store) GetUsersForSearch(ctx context.Context) []*types.User {
+	query := `SELECT 
+	u.id AS user_id, 
+	u.name AS user_name, 
+	u.email AS user_email, 
+	u.password AS user_password, 
+	u.avatar AS user_avatar, 
+	u.token_version AS user_token_version, 
+	u.created_at, 
+	u.updated_at, 
+	r.id AS role_id, 
+	r.name AS role_name
+	FROM users u 
+	LEFT JOIN role_user ru ON u.id = ru.user_id 
+	LEFT JOIN roles r ON ru.role_id = r.id`
+
+	stmt, err := s.db.Prepare(query)
+	if err != nil {
+		return nil
+	}
+
+	defer stmt.Close()
+
+	rows, err := stmt.QueryContext(ctx)
+	if err != nil {
+		return nil
+	}
+
+	defer rows.Close()
+
+	usersMap := make(map[string]*types.User)
+
+	for rows.Next() { // <- while loop
+		user, role, err := helper.ScanRowsUserAndRole(rows)
+		if err != nil {
+			return nil
 		}
 
 		u, exists := usersMap[user.ID]
@@ -93,12 +170,15 @@ func (s *Store) GetUsers(ctx context.Context) ([]*types.User, error) {
 		users = append(users, u)
 	}
 
-	return users, nil
+	return users
 }
 
 func (s *Store) GetUserWithRolesByID(ctx context.Context, id string) (*types.User, error) {
 	// init redis db
-	userKey := utils.Redis2Key("user", id)
+	userKey, err := utils.Redis2Key("user", id)
+	if err != nil {
+		return nil, err
+	}
 
 	// get from cache
 	res, err := s.rdb.Get(ctx, userKey).Result()
@@ -201,7 +281,10 @@ func (s *Store) CreateUser(ctx context.Context, u *types.User) error {
 }
 
 func (s *Store) UpdateUser(ctx context.Context, id string, u *types.User) error {
-	userKey := utils.Redis2Key("user", id)
+	userKey, err := utils.Redis2Key("user", id)
+	if err != nil {
+		return err
+	}
 
 	stmt, err := s.db.Prepare("UPDATE users SET name = ?, email = ?, password = ?, avatar = ? WHERE id = ?")
 	if err != nil {
@@ -217,14 +300,17 @@ func (s *Store) UpdateUser(ctx context.Context, id string, u *types.User) error 
 }
 
 func (s *Store) DeleteUser(ctx context.Context, id string) error {
-	userKey := utils.Redis2Key("user", id)
-
-	result, err := s.db.ExecContext(ctx, "DELETE FROM users WHERE id = ?", id)
+	userKey, err := utils.Redis2Key("user", id)
 	if err != nil {
 		return err
 	}
 
-	rows, err := result.RowsAffected()
+	res, err := s.db.ExecContext(ctx, "DELETE FROM users WHERE id = ?", id)
+	if err != nil {
+		return err
+	}
+
+	rows, err := res.RowsAffected()
 	if err != nil {
 		return err
 	}
@@ -238,13 +324,17 @@ func (s *Store) DeleteUser(ctx context.Context, id string) error {
 }
 
 func (s *Store) IncrementTokenVersion(ctx context.Context, id, token string) error {
-	userKey := utils.Redis2Key("user", id)
+	userKey, err := utils.Redis2Key("user", id)
+	if err != nil {
+		return err
+	}
 
 	if err := uuid.Validate(id); err != nil {
 		return fmt.Errorf("invalid uuid format")
 	}
 
-	_, err := s.db.ExecContext(ctx, "UPDATE users SET token_version = token_version + 1 WHERE id = ?", id)
+	// token_version + 1 == 0 + 1 = 1
+	_, err = s.db.ExecContext(ctx, "UPDATE users SET token_version = token_version + 1 WHERE id = ?", id)
 	if err != nil {
 		return err
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/perpus_backend/helper"
@@ -24,30 +25,72 @@ func NewStore(db *sql.DB, rdb *redis.Client) *Store {
 	return &Store{db: db, rdb: rdb}
 }
 
-func (s *Store) GetCirculations(ctx context.Context) ([]*types.Circulation, error) {
+func (s *Store) GetCirculationsWithPagination(ctx context.Context, page int) ([]*types.Circulation, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+
 	sortByColumn := "id_skl"
 	sortOrder := "DESC"
 
 	if !utils.IsValidSortColumn(sortByColumn) {
-		return nil, fmt.Errorf("invalid sort column: %s", sortByColumn)
+		return nil, 0, fmt.Errorf("invalid sort column: %s", sortByColumn)
 	}
 
 	if !utils.IsValidSortOrder(sortOrder) {
-		return nil, fmt.Errorf("invalid sort order: %s", sortOrder)
+		return nil, 0, fmt.Errorf("invalid sort order: %s", sortOrder)
 	}
 
-	query := fmt.Sprintf(`SELECT c.id, c.buku_id, c.id_skl, c.peminjam, c.tanggal_pinjam, c.jatuh_tempo, c.denda, c.created_at, c.updated_at, b.id, b.judul_buku FROM circulations c INNER JOIN books b ON c.buku_id = b.id ORDER BY %s %s`, sortByColumn, sortOrder)
+	limit := 10 // set the limit perPage
+
+	query := fmt.Sprintf(`SELECT c.id, c.buku_id, c.id_skl, c.peminjam, c.tanggal_pinjam, c.jatuh_tempo, c.denda, c.created_at, c.updated_at, b.id, b.judul_buku, COUNT(*) OVER() AS num_rows FROM circulations c INNER JOIN books b ON c.buku_id = b.id GROUP BY c.id, b.id ORDER BY %s %s LIMIT %d OFFSET %d`, sortByColumn, sortOrder, limit, (page-1)*limit)
 
 	stmt, err := s.db.Prepare(query)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	defer stmt.Close()
 
 	rows, err := stmt.QueryContext(ctx)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
+	}
+
+	defer rows.Close()
+
+	c := make([]*types.Circulation, 0)
+
+	var lastPage int64
+
+	for rows.Next() {
+		circulation, book, total, err := helper.ScanAndCountRowsCirculation(rows)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		lastPage = int64(math.Ceil(float64(total) / float64(limit)))
+
+		circulation.Book = book
+		c = append(c, circulation)
+	}
+
+	return c, lastPage, nil
+}
+
+func (s *Store) GetCirculationsForSearch(ctx context.Context) []*types.Circulation {
+	query := "SELECT c.id, c.buku_id, c.id_skl, c.peminjam, c.tanggal_pinjam, c.jatuh_tempo, c.denda, c.created_at, c.updated_at, b.id, b.judul_buku FROM circulations c INNER JOIN books b ON c.buku_id = b.id"
+
+	stmt, err := s.db.Prepare(query)
+	if err != nil {
+		return nil
+	}
+
+	defer stmt.Close()
+
+	rows, err := stmt.QueryContext(ctx)
+	if err != nil {
+		return nil
 	}
 
 	defer rows.Close()
@@ -55,20 +98,23 @@ func (s *Store) GetCirculations(ctx context.Context) ([]*types.Circulation, erro
 	c := make([]*types.Circulation, 0)
 
 	for rows.Next() {
-		circulation, book, err := helper.ScanEachRowIntoCirculation(rows)
+		circulation, book, err := helper.ScanRowsCirculation(rows)
 		if err != nil {
-			return nil, err
+			return nil
 		}
 
 		circulation.Book = book
 		c = append(c, circulation)
 	}
 
-	return c, nil
+	return c
 }
 
 func (s *Store) GetCirculationByID(ctx context.Context, id string) (*types.Circulation, error) {
-	circKey := utils.Redis2Key("circulation", id)
+	circKey, err := utils.Redis2Key("circulation", id)
+	if err != nil {
+		return nil, err
+	}
 
 	res, err := s.rdb.Get(ctx, circKey).Result()
 	if err == nil {
@@ -181,12 +227,21 @@ func (s *Store) CreateCirculation(ctx context.Context, c *types.Circulation) err
 		return err
 	}
 
-	IDSKL := new(string)
+	// init prefix SKL001 circulation
+	var IDSKL string
 
 	if lastNum > 999 {
-		*IDSKL = utils.GenerateSpecificID("SKL", lastNum, 4)
+		IDSKL, err = utils.GenerateSpecificID("SKL", lastNum, 4)
+		if err != nil {
+			return err
+		}
+
 	} else {
-		*IDSKL = utils.GenerateSpecificID("SKL", lastNum, 3)
+		IDSKL, err = utils.GenerateSpecificID("SKL", lastNum, 3)
+		if err != nil {
+			return err
+		}
+
 	}
 
 	if c.ID == "" {
@@ -194,7 +249,7 @@ func (s *Store) CreateCirculation(ctx context.Context, c *types.Circulation) err
 	}
 
 	if c.IdSKL == "" {
-		c.IdSKL = *IDSKL
+		c.IdSKL = IDSKL
 	}
 
 	stmtInsert, err := tx.Prepare("INSERT INTO circulations (id, buku_id, id_skl, peminjam, tanggal_pinjam, jatuh_tempo, denda) VALUES (?,?,?,?,?,?,?)")
@@ -217,7 +272,10 @@ func (s *Store) CreateCirculation(ctx context.Context, c *types.Circulation) err
 }
 
 func (s *Store) UpdateCirculation(ctx context.Context, id string, c *types.Circulation) error {
-	circKey := utils.Redis2Key("circulation", id)
+	circKey, err := utils.Redis2Key("circulation", id)
+	if err != nil {
+		return err
+	}
 
 	stmt, err := s.db.Prepare("UPDATE circulations SET buku_id = ?, peminjam = ?, tanggal_pinjam = ?, jatuh_tempo = ?, denda = ? WHERE id = ?")
 	if err != nil {
@@ -230,7 +288,10 @@ func (s *Store) UpdateCirculation(ctx context.Context, id string, c *types.Circu
 }
 
 func (s *Store) DeleteCirculation(ctx context.Context, id string) error {
-	circKey := utils.Redis2Key("circulation", id)
+	circKey, err := utils.Redis2Key("circulation", id)
+	if err != nil {
+		return err
+	}
 
 	res, err := s.db.ExecContext(ctx, "DELETE FROM circulations WHERE id = ?", id)
 	if err != nil {

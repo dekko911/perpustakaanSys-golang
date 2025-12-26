@@ -19,10 +19,13 @@ type Member struct {
 }
 
 type MemberStore interface {
-	GetMembers(ctx context.Context) ([]*Member, error)
+	GetMembersWithPagination(ctx context.Context, page int) ([]*Member, int64, error)
+	GetMembersForSearch(ctx context.Context) []*Member
+
 	GetMemberByID(ctx context.Context, id string) (*Member, error)
 	GetMemberByNama(ctx context.Context, nama string) (*Member, error)
 	GetMemberByNoTelepon(ctx context.Context, no_phone string) (*Member, error)
+
 	CreateMember(ctx context.Context, m *Member) error
 	UpdateMember(ctx context.Context, id string, m *Member) error
 	DeleteMember(ctx context.Context, id string) error

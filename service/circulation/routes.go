@@ -45,16 +45,20 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 func (h *Handler) handleGetCirculations(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	c, err := h.store.GetCirculations(ctx)
+	page := utils.ParseStringToInt(r.URL.Query().Get("page"))
+
+	c, lastPage, err := h.store.GetCirculationsWithPagination(ctx, page)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
 	utils.WriteJSON(w, cok, utils.JsonData{
-		Code:   cok,
-		Data:   c,
-		Status: http.StatusText(cok),
+		Code:     cok,
+		Data:     c,
+		Page:     page,
+		LastPage: lastPage,
+		Status:   http.StatusText(cok),
 	})
 }
 

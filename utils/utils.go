@@ -48,8 +48,10 @@ type JsonData struct {
 	Message string `json:"message,omitempty"`
 	Status  string `json:"status,omitempty"`
 
-	Line int `json:"line,omitempty"`
-	Code int `json:"code,omitempty"`
+	Page     int   `json:"page,omitempty"`
+	LastPage int64 `json:"last_page,omitempty"`
+	Line     int   `json:"line,omitempty"`
+	Code     int   `json:"code,omitempty"`
 }
 
 // check if there had do some "go test", it will return true.
@@ -67,7 +69,7 @@ func WriteJSON(w http.ResponseWriter, statusCode int, d JsonData) error {
 		CaseSensitive:         true,
 	}
 
-	return cfg.Froze().NewEncoder(w).Encode(d)
+	return cfg.Froze().NewEncoder(w).Encode(&d)
 }
 
 // returned information into json error type.
@@ -104,13 +106,12 @@ func WriteJSONError(w http.ResponseWriter, statusCode int, err error) {
 }
 
 // make custom key in redis db. {object|table|struct:value|id}
-func Redis2Key(keyName, keyValue string) string {
-	return fmt.Sprintf("%s:%s", keyName, keyValue)
-}
+func Redis2Key(keyName, keyValue string) (string, error) {
+	if keyName == "" || keyValue == "" {
+		return "", fmt.Errorf("keyName AND keyValue must have value")
+	}
 
-// make custom key in redis db. {object|table|struct:field|column:value|id}
-func Redis3Key(keyName, keyField, keyValue string) string {
-	return fmt.Sprintf("%s:%s:%s", keyName, keyField, keyValue)
+	return fmt.Sprintf("%s:%s", keyName, keyValue), nil
 }
 
 // get the token from headers.
@@ -214,6 +215,11 @@ func CompareRole(roles, targetRoles []string) bool {
 	return false
 }
 
-func GenerateSpecificID(prefix string, number int, width int) string {
-	return fmt.Sprintf("%s%0*d", prefix, width, number+1) // prefix itu adalah awalan kata
+// example: prefix -> ID, number -> 0 + 1 = 1, width -> 3 = 001 || 4 = 0001
+func GenerateSpecificID(prefix string, number int, width int) (string, error) {
+	if prefix == "" || width == 0 {
+		return "", fmt.Errorf("input valid prefix AND width")
+	}
+
+	return fmt.Sprintf("%s%0*d", prefix, width, number+1), nil // prefix itu adalah awalan kata
 }

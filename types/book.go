@@ -16,13 +16,17 @@ type Book struct {
 	BukuPDF   string `json:"buku_pdf,omitempty"`   // pdf
 	Penulis   string `json:"penulis,omitempty"`
 	Pengarang string `json:"pengarang,omitempty"`
-	Tahun     int    `json:"tahun,omitempty"`
+
+	Tahun int `json:"tahun,omitempty"`
 }
 
 type BookStore interface {
-	GetBooks(ctx context.Context) ([]*Book, error)
+	GetBooksWithPagination(ctx context.Context, page int) ([]*Book, int64, error)
+	GetBooksForSearch(ctx context.Context) []*Book
+
 	GetBookByID(ctx context.Context, id string) (*Book, error)
 	GetBookByJudulBuku(ctx context.Context, judulBuku string) (*Book, error)
+
 	CreateBook(ctx context.Context, b *Book) error
 	UpdateBook(ctx context.Context, id string, b *Book) error
 	DeleteBook(ctx context.Context, id string) error

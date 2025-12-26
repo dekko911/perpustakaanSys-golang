@@ -20,12 +20,16 @@ type User struct {
 }
 
 type UserStore interface {
-	GetUsers(ctx context.Context) ([]*User, error)
+	GetUsersWithPagination(ctx context.Context, page int) ([]*User, int64, error)
+	GetUsersForSearch(ctx context.Context) []*User
+
 	GetUserWithRolesByID(ctx context.Context, id string) (*User, error)
 	GetUserWithRolesByEmail(ctx context.Context, email string) (*User, error)
+
 	CreateUser(ctx context.Context, u *User) error
 	UpdateUser(ctx context.Context, id string, u *User) error
 	DeleteUser(ctx context.Context, id string) error
+
 	IncrementTokenVersion(ctx context.Context, id, token string) error
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/perpus_backend/helper"
@@ -24,30 +25,73 @@ func NewStore(db *sql.DB, rdb *redis.Client) *Store {
 	return &Store{db: db, rdb: rdb}
 }
 
-func (s *Store) GetMembers(ctx context.Context) ([]*types.Member, error) {
+func (s *Store) GetMembersWithPagination(ctx context.Context, page int) ([]*types.Member, int64, error) {
+	if page < 1 {
+		page = 1 // set default page
+	}
+
 	sortByColumn := "id_anggota"
 	sortOrder := "DESC"
 
+	// tanda ! == data yang false akan menjadi true
 	if !utils.IsValidSortColumn(sortByColumn) {
-		return nil, fmt.Errorf("invalid sort column: %s", sortByColumn)
+		return nil, 0, fmt.Errorf("invalid sort column: %s", sortByColumn)
 	}
 
 	if !utils.IsValidSortOrder(sortOrder) {
-		return nil, fmt.Errorf("invalid sort order: %s", sortOrder)
+		return nil, 0, fmt.Errorf("invalid sort order: %s", sortOrder)
 	}
 
-	query := fmt.Sprintf("SELECT m.id, m.id_anggota, m.nama, m.jenis_kelamin, m.kelas, m.no_telepon, m.profil_anggota, m.created_at, m.updated_at FROM members m ORDER BY %s %s", sortByColumn, sortOrder)
+	limitPage := 10 // set the limit perPage
+
+	query := fmt.Sprintf("SELECT m.id, m.id_anggota, m.nama, m.jenis_kelamin, m.kelas, m.no_telepon, m.profil_anggota, m.created_at, m.updated_at, COUNT(*) OVER() AS num_rows FROM members m GROUP BY m.id ORDER BY %s %s LIMIT %d OFFSET %d", sortByColumn, sortOrder, limitPage, (page-1)*limitPage)
 
 	stmt, err := s.db.Prepare(query)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	defer stmt.Close()
 
 	rows, err := stmt.QueryContext(ctx)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
+	}
+
+	defer rows.Close()
+
+	members := make([]*types.Member, 0)
+
+	// init lastPage
+	var lastPage int64
+
+	for rows.Next() {
+		m, count, err := helper.ScanAndCountRowsMember(rows)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		lastPage = int64(math.Ceil(float64(count) / float64(limitPage)))
+
+		members = append(members, m)
+	}
+
+	return members, lastPage, nil
+}
+
+func (s *Store) GetMembersForSearch(ctx context.Context) []*types.Member {
+	query := "SELECT m.id, m.id_anggota, m.nama, m.jenis_kelamin, m.kelas, m.no_telepon, m.profil_anggota, m.created_at, m.updated_at FROM members m"
+
+	stmt, err := s.db.Prepare(query)
+	if err != nil {
+		return nil
+	}
+
+	defer stmt.Close()
+
+	rows, err := stmt.QueryContext(ctx)
+	if err != nil {
+		return nil
 	}
 
 	defer rows.Close()
@@ -55,19 +99,22 @@ func (s *Store) GetMembers(ctx context.Context) ([]*types.Member, error) {
 	members := make([]*types.Member, 0)
 
 	for rows.Next() {
-		m, err := helper.ScanEachRowIntoMember(rows)
+		m, err := helper.ScanRowsMember(rows)
 		if err != nil {
-			return nil, err
+			return nil
 		}
 
 		members = append(members, m)
 	}
 
-	return members, nil
+	return members
 }
 
 func (s *Store) GetMemberByID(ctx context.Context, id string) (*types.Member, error) {
-	memberKey := utils.Redis2Key("member", id)
+	memberKey, err := utils.Redis2Key("member", id)
+	if err != nil {
+		return nil, err
+	}
 
 	res, err := s.rdb.Get(ctx, memberKey).Result()
 	if err == nil {
@@ -163,12 +210,21 @@ func (s *Store) CreateMember(ctx context.Context, m *types.Member) error {
 		return err
 	}
 
-	IDMember := new(string)
+	// init prefix ID001 member
+	var IDMember string
 
 	if lastNum > 999 {
-		*IDMember = utils.GenerateSpecificID("ID", lastNum, 4)
+		IDMember, err = utils.GenerateSpecificID("ID", lastNum, 4)
+		if err != nil {
+			return err
+		}
+
 	} else {
-		*IDMember = utils.GenerateSpecificID("ID", lastNum, 3)
+		IDMember, err = utils.GenerateSpecificID("ID", lastNum, 3)
+		if err != nil {
+			return err
+		}
+
 	}
 
 	if m.ID == "" {
@@ -176,7 +232,7 @@ func (s *Store) CreateMember(ctx context.Context, m *types.Member) error {
 	}
 
 	if m.IdAnggota == "" {
-		m.IdAnggota = *IDMember
+		m.IdAnggota = IDMember
 	}
 
 	stmtInsert, err := tx.Prepare("INSERT INTO members (id, id_anggota, nama, jenis_kelamin, kelas, no_telepon, profil_anggota) VALUES (?,?,?,?,?,?,?)")
@@ -199,7 +255,10 @@ func (s *Store) CreateMember(ctx context.Context, m *types.Member) error {
 }
 
 func (s *Store) UpdateMember(ctx context.Context, id string, m *types.Member) error {
-	memberKey := utils.Redis2Key("member", id)
+	memberKey, err := utils.Redis2Key("member", id)
+	if err != nil {
+		return err
+	}
 
 	stmt, err := s.db.Prepare("UPDATE members SET nama = ?, jenis_kelamin = ?, kelas = ?, no_telepon = ?, profil_anggota = ? WHERE id = ?")
 	if err != nil {
@@ -214,7 +273,10 @@ func (s *Store) UpdateMember(ctx context.Context, id string, m *types.Member) er
 }
 
 func (s *Store) DeleteMember(ctx context.Context, id string) error {
-	memberKey := utils.Redis2Key("member", id)
+	memberKey, err := utils.Redis2Key("member", id)
+	if err != nil {
+		return err
+	}
 
 	res, err := s.db.ExecContext(ctx, "DELETE FROM members WHERE id = ?", id)
 	if err != nil {

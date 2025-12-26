@@ -67,7 +67,10 @@ func (s *Store) GetRoles(ctx context.Context) ([]*types.Role, error) {
 }
 
 func (s *Store) GetRoleByID(ctx context.Context, id string) (*types.Role, error) {
-	roleKey := utils.Redis2Key("role", id)
+	roleKey, err := utils.Redis2Key("role", id)
+	if err != nil {
+		return nil, err
+	}
 
 	res, err := s.rdb.Get(ctx, roleKey).Result()
 	if err == nil {
@@ -138,7 +141,10 @@ func (s *Store) CreateRole(ctx context.Context, r types.Role) error {
 }
 
 func (s *Store) UpdateRole(ctx context.Context, id string, r types.Role) error {
-	roleKey := utils.Redis2Key("role", id)
+	roleKey, err := utils.Redis2Key("role", id)
+	if err != nil {
+		return err
+	}
 
 	stmt, err := s.db.Prepare("UPDATE roles SET name = ? WHERE id = ?")
 	if err != nil {
@@ -153,7 +159,10 @@ func (s *Store) UpdateRole(ctx context.Context, id string, r types.Role) error {
 }
 
 func (s *Store) DeleteRole(ctx context.Context, id string) error {
-	roleKey := utils.Redis2Key("role", id)
+	roleKey, err := utils.Redis2Key("role", id)
+	if err != nil {
+		return err
+	}
 
 	res, err := s.db.ExecContext(ctx, "DELETE FROM roles WHERE id = ?", id)
 	if err != nil {

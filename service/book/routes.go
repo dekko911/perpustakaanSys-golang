@@ -59,16 +59,20 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 func (h *Handler) handleGetBooks(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	books, err := h.store.GetBooks(ctx)
+	page := utils.ParseStringToInt(r.URL.Query().Get("page"))
+
+	books, lastPage, err := h.store.GetBooksWithPagination(ctx, page)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
 	utils.WriteJSON(w, cok, utils.JsonData{
-		Code:   cok,
-		Data:   books,
-		Status: http.StatusText(cok),
+		Code:     cok,
+		Data:     books,
+		Page:     page,
+		LastPage: lastPage,
+		Status:   http.StatusText(cok),
 	})
 }
 

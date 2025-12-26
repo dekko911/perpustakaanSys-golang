@@ -59,7 +59,7 @@ func (h *Handler) handleGetSearchForUsers(w http.ResponseWriter, r *http.Request
 	clientUser := utils.MSClient
 
 	// assert value users to records meili
-	users, _ := h.us.GetUsers(context.Background())
+	users := h.us.GetUsersForSearch(context.Background())
 
 	err = helper.AddDocumentsWithWait(clientUser, "users", "id", users)
 	if err != nil {
@@ -147,7 +147,7 @@ func (h *Handler) handleGetSearchForMembers(w http.ResponseWriter, r *http.Reque
 	clientMember := utils.MSClient
 
 	// assert value members to records meili
-	members, _ := h.ms.GetMembers(context.Background())
+	members := h.ms.GetMembersForSearch(context.Background())
 
 	err = helper.AddDocumentsWithWait(clientMember, "members", "id", members)
 	if err != nil {
@@ -191,7 +191,7 @@ func (h *Handler) handleGetSearchForBooks(w http.ResponseWriter, r *http.Request
 	clientBook := utils.MSClient
 
 	// assert value books to records meili
-	books, _ := h.bs.GetBooks(context.Background())
+	books := h.bs.GetBooksForSearch(context.Background())
 
 	err = helper.AddDocumentsWithWait(clientBook, "books", "id", books)
 	if err != nil {
@@ -235,7 +235,7 @@ func (h *Handler) handleGetSearchForCirculations(w http.ResponseWriter, r *http.
 	clientCirc := utils.MSClient
 
 	// assert value circulations to records meili
-	circulations, _ := h.cs.GetCirculations(context.Background())
+	circulations := h.cs.GetCirculationsForSearch(context.Background())
 
 	err = helper.AddDocumentsWithWait(clientCirc, "circulations", "id", circulations)
 	if err != nil {

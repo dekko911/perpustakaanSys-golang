@@ -25,7 +25,10 @@ func NewStore(db *sql.DB, rdb *redis.Client) *Store {
 
 // for relations many to many.
 func (s *Store) GetUserWithRoleByUserID(ctx context.Context, userID string) (*types.User, error) {
-	userKey := utils.Redis2Key("user", userID)
+	userKey, err := utils.Redis2Key("user", userID)
+	if err != nil {
+		return nil, err
+	}
 
 	res, err := s.rdb.Get(ctx, userKey).Result()
 	if err == nil {
@@ -89,7 +92,10 @@ func (s *Store) AssignRoleIntoUser(ctx context.Context, userID, roleID string) e
 }
 
 func (s *Store) DeleteRoleFromUser(ctx context.Context, userID, roleID string) error {
-	userKey := utils.Redis2Key("user", userID)
+	userKey, err := utils.Redis2Key("user", userID)
+	if err != nil {
+		return err
+	}
 
 	res, err := s.db.ExecContext(ctx, "DELETE FROM role_user WHERE user_id = ? AND role_id = ?", userID, roleID)
 	if err != nil {

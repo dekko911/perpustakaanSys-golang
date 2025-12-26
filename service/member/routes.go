@@ -54,16 +54,20 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 func (h *Handler) handleGetMembers(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	members, err := h.store.GetMembers(ctx)
+	page := utils.ParseStringToInt(r.URL.Query().Get("page"))
+
+	members, lastPage, err := h.store.GetMembersWithPagination(ctx, page)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
 	utils.WriteJSON(w, cok, utils.JsonData{
-		Code:   cok,
-		Data:   members,
-		Status: http.StatusText(cok),
+		Code:     cok,
+		Data:     members,
+		LastPage: lastPage,
+		Page:     page,
+		Status:   http.StatusText(cok),
 	})
 }
 

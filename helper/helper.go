@@ -15,7 +15,43 @@ type stringAndNumberOnly interface {
 	~string | ~int | ~int64 | ~float64
 }
 
-func ScanEachRowUserAndRoleIntoUser(rows *sql.Rows) (*types.User, *types.Role, error) {
+func ScanAndCountRowsUserAndRole(rows *sql.Rows) (*types.User, *types.Role, int64, error) {
+	u := new(types.User)
+	r := new(types.Role)
+
+	var (
+		count int64
+
+		roleID, roleName sql.NullString
+	)
+
+	err := rows.Scan(
+		&u.ID,
+		&u.Name,
+		&u.Email,
+		&u.Password,
+		&u.Avatar,
+		&u.TokenVersion,
+		&u.CreatedAt,
+		&u.UpdatedAt,
+		&roleID,
+		&roleName,
+		&count,
+	)
+	if err != nil {
+		return nil, nil, 0, err
+	}
+
+	if roleID.Valid && roleName.Valid {
+		r.ID = roleID.String
+		r.Name = roleName.String
+		return u, r, count, nil
+	}
+
+	return u, nil, count, nil
+}
+
+func ScanRowsUserAndRole(rows *sql.Rows) (*types.User, *types.Role, error) {
 	u := new(types.User)
 	r := new(types.Role)
 
@@ -63,7 +99,32 @@ func ScanEachRowIntoRole(rows *sql.Rows) (*types.Role, error) {
 	return r, nil
 }
 
-func ScanEachRowIntoBook(rows *sql.Rows) (*types.Book, error) {
+func ScanAndCountRowsBook(rows *sql.Rows) (*types.Book, int64, error) {
+	b := new(types.Book)
+
+	var count int64
+
+	err := rows.Scan(
+		&b.ID,
+		&b.IdBuku,
+		&b.JudulBuku,
+		&b.CoverBuku,
+		&b.BukuPDF,
+		&b.Penulis,
+		&b.Pengarang,
+		&b.Tahun,
+		&b.CreatedAt,
+		&b.UpdatedAt,
+		&count,
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return b, count, nil
+}
+
+func ScanRowsBook(rows *sql.Rows) (*types.Book, error) {
 	b := new(types.Book)
 
 	err := rows.Scan(
@@ -85,7 +146,31 @@ func ScanEachRowIntoBook(rows *sql.Rows) (*types.Book, error) {
 	return b, nil
 }
 
-func ScanEachRowIntoMember(rows *sql.Rows) (*types.Member, error) {
+func ScanAndCountRowsMember(rows *sql.Rows) (*types.Member, int64, error) {
+	m := new(types.Member)
+
+	var count int64
+
+	err := rows.Scan(
+		&m.ID,
+		&m.IdAnggota,
+		&m.Nama,
+		&m.JenisKelamin,
+		&m.Kelas,
+		&m.NoTelepon,
+		&m.ProfilAnggota,
+		&m.CreatedAt,
+		&m.UpdatedAt,
+		&count,
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return m, count, nil
+}
+
+func ScanRowsMember(rows *sql.Rows) (*types.Member, error) {
 	m := new(types.Member)
 
 	err := rows.Scan(
@@ -106,7 +191,34 @@ func ScanEachRowIntoMember(rows *sql.Rows) (*types.Member, error) {
 	return m, nil
 }
 
-func ScanEachRowIntoCirculation(rows *sql.Rows) (*types.Circulation, *types.Book, error) {
+func ScanAndCountRowsCirculation(rows *sql.Rows) (*types.Circulation, *types.Book, int64, error) {
+	c := new(types.Circulation)
+	b := new(types.Book)
+
+	var count int64
+
+	err := rows.Scan(
+		&c.ID,
+		&c.BukuID,
+		&c.IdSKL,
+		&c.Peminjam,
+		&c.TanggalPinjam,
+		&c.JatuhTempo,
+		&c.Denda,
+		&c.CreatedAt,
+		&c.UpdatedAt,
+		&b.ID,
+		&b.JudulBuku,
+		&count,
+	)
+	if err != nil {
+		return nil, nil, 0, err
+	}
+
+	return c, b, count, nil
+}
+
+func ScanRowsCirculation(rows *sql.Rows) (*types.Circulation, *types.Book, error) {
 	c := new(types.Circulation)
 	b := new(types.Book)
 

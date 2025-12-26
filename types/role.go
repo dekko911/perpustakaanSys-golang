@@ -15,8 +15,10 @@ type Role struct {
 
 type RoleStore interface {
 	GetRoles(ctx context.Context) ([]*Role, error)
+
 	GetRoleByID(ctx context.Context, id string) (*Role, error)
 	GetRoleByName(ctx context.Context, name string) (*Role, error)
+
 	CreateRole(ctx context.Context, r Role) error
 	UpdateRole(ctx context.Context, id string, r Role) error
 	DeleteRole(ctx context.Context, id string) error

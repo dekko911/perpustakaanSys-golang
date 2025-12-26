@@ -51,18 +51,22 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 }
 
 func (h *Handler) handleGetUsers(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	ctx := r.Context() // init context
 
-	users, err := h.store.GetUsers(ctx)
+	page := utils.ParseStringToInt(r.URL.Query().Get("page"))
+
+	users, lastPage, err := h.store.GetUsersWithPagination(ctx, page)
 	if err != nil {
-		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
 	utils.WriteJSON(w, cok, utils.JsonData{
-		Code:   cok,
-		Data:   users,
-		Status: http.StatusText(cok),
+		Code:     cok,
+		Data:     users,
+		LastPage: lastPage,
+		Page:     page,
+		Status:   http.StatusText(cok),
 	})
 }
 
@@ -77,7 +81,7 @@ func (h *Handler) handleGetUserWithRolesByID(w http.ResponseWriter, r *http.Requ
 
 	user, err := h.store.GetUserWithRolesByID(ctx, userID)
 	if err != nil {
-		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
@@ -94,7 +98,7 @@ func (h *Handler) HandleGetProfileUser(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.store.GetUserWithRolesByID(ctx, userID)
 	if err != nil {
-		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
@@ -132,8 +136,9 @@ func (h *Handler) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// gak perlu pakai redis key email, karena dia dipakai untuk checking aja, bukan di pakai secara di simpan gitu
 	if _, err := h.store.GetUserWithRolesByEmail(ctx, payload.Email); err == nil {
-		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("user with email %s already exists", payload.Email))
+		utils.WriteJSONError(w, http.StatusInternalServerError, fmt.Errorf("user with email %s already exists", payload.Email))
 		return
 	}
 
@@ -172,7 +177,7 @@ func (h *Handler) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 
 	hashPass, err := hash.HashPassword(payload.Password)
 	if err != nil {
-		utils.WriteJSONError(w, http.StatusInternalServerError, err)
+		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
@@ -238,7 +243,7 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 
 	u, err := h.store.GetUserWithRolesByID(ctx, userID)
 	if err != nil {
-		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
@@ -253,7 +258,7 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 
 	hashPass, err := hash.HashPassword(payload.Password)
 	if err != nil {
-		utils.WriteJSONError(w, http.StatusInternalServerError, err)
+		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
@@ -339,7 +344,7 @@ func (h *Handler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 
 	u, err := h.store.GetUserWithRolesByID(ctx, userID)
 	if err != nil {
-		utils.WriteJSONError(w, http.StatusNotFound, err)
+		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
@@ -362,7 +367,7 @@ func (h *Handler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.store.DeleteUser(ctx, userID); err != nil {
-		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 

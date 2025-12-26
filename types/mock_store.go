@@ -8,8 +8,12 @@ import (
 // mock user store for test purpose
 type MockUserStore struct{}
 
-func (m MockUserStore) GetUsers(ctx context.Context) ([]*User, error) {
-	return nil, nil
+func (m MockUserStore) GetUsersWithPagination(ctx context.Context, page int) ([]*User, int64, error) {
+	return nil, 0, nil
+}
+
+func (m MockUserStore) GetUsersForSearch(ctx context.Context) []*User {
+	return nil
 }
 
 func (m MockUserStore) GetUserWithRolesByID(ctx context.Context, id string) (*User, error) {
@@ -80,8 +84,11 @@ func (m MockRoleStore) DeleteRole(ctx context.Context, id string) error {
 
 type MockMemberStore struct{}
 
-func (m MockMemberStore) GetMembers(ctx context.Context) ([]*Member, error) {
-	return nil, nil
+func (m MockMemberStore) GetMembersWithPagination(ctx context.Context, page int) ([]*Member, int64, error) {
+	return nil, 0, nil
+}
+func (m MockMemberStore) GetMembersForSearch(ctx context.Context) []*Member {
+	return nil
 }
 
 func (m MockMemberStore) GetMemberByID(ctx context.Context, id string) (*Member, error) {
@@ -110,8 +117,12 @@ func (m MockMemberStore) DeleteMember(ctx context.Context, id string) error {
 
 type MockCirculationStore struct{}
 
-func (m MockCirculationStore) GetCirculations(ctx context.Context) ([]*Circulation, error) {
-	return nil, nil
+func (m MockCirculationStore) GetCirculationsWithPagination(ctx context.Context, page int) ([]*Circulation, int64, error) {
+	return nil, 0, nil
+}
+
+func (m MockCirculationStore) GetCirculationsForSearch(ctx context.Context) []*Circulation {
+	return nil
 }
 
 func (m MockCirculationStore) GetCirculationByID(ctx context.Context, id string) (*Circulation, error) {
@@ -136,8 +147,12 @@ func (m MockCirculationStore) DeleteCirculation(ctx context.Context, id string) 
 
 type MockBookStore struct{}
 
-func (m MockBookStore) GetBooks(ctx context.Context) ([]*Book, error) {
-	return nil, nil
+func (m MockBookStore) GetBooksWithPagination(ctx context.Context, page int) ([]*Book, int64, error) {
+	return nil, 0, nil
+}
+
+func (m MockBookStore) GetBooksForSearch(ctx context.Context) []*Book {
+	return nil
 }
 
 func (m MockBookStore) GetBookByID(ctx context.Context, id string) (*Book, error) {

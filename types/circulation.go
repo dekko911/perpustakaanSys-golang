@@ -22,9 +22,12 @@ type Circulation struct {
 }
 
 type CirculationStore interface {
-	GetCirculations(ctx context.Context) ([]*Circulation, error)
+	GetCirculationsWithPagination(ctx context.Context, page int) ([]*Circulation, int64, error)
+	GetCirculationsForSearch(ctx context.Context) []*Circulation
+
 	GetCirculationByID(ctx context.Context, id string) (*Circulation, error)
 	GetCirculationByPeminjam(ctx context.Context, borrowerName string) (*Circulation, error)
+
 	CreateCirculation(ctx context.Context, c *Circulation) error
 	UpdateCirculation(ctx context.Context, id string, c *Circulation) error
 	DeleteCirculation(ctx context.Context, id string) error
