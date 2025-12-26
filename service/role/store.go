@@ -124,7 +124,7 @@ func (s *Store) GetRoleByName(ctx context.Context, name string) (*types.Role, er
 	return r, nil
 }
 
-func (s *Store) CreateRole(ctx context.Context, r types.Role) error {
+func (s *Store) CreateRole(ctx context.Context, r *types.Role) error {
 	if r.ID == "" {
 		r.ID = uuid.NewString()
 	}
@@ -140,7 +140,7 @@ func (s *Store) CreateRole(ctx context.Context, r types.Role) error {
 	return err
 }
 
-func (s *Store) UpdateRole(ctx context.Context, id string, r types.Role) error {
+func (s *Store) UpdateRole(ctx context.Context, id string, r *types.Role) error {
 	roleKey, err := utils.Redis2Key("role", id)
 	if err != nil {
 		return err

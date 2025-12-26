@@ -125,7 +125,7 @@ func (h *Handler) handleGetSearchForRoles(w http.ResponseWriter, r *http.Request
 		}
 
 		res, err := clientRole.Index("roles").Search(req.QueryRole, &meilisearch.SearchRequest{
-			Limit: 20,
+			Limit: 10,
 		})
 		if err != nil {
 			conn.WriteJSON(err.Error())
@@ -169,7 +169,7 @@ func (h *Handler) handleGetSearchForMembers(w http.ResponseWriter, r *http.Reque
 		}
 
 		res, err := clientMember.Index("members").Search(req.QueryMember, &meilisearch.SearchRequest{
-			Limit: 20,
+			Limit: 10,
 		})
 		if err != nil {
 			conn.WriteJSON(err.Error())
@@ -213,7 +213,7 @@ func (h *Handler) handleGetSearchForBooks(w http.ResponseWriter, r *http.Request
 		}
 
 		res, err := clientBook.Index("books").Search(req.QueryBook, &meilisearch.SearchRequest{
-			Limit: 20,
+			Limit: 10,
 		})
 		if err != nil {
 			conn.WriteJSON(err.Error())
@@ -257,7 +257,7 @@ func (h *Handler) handleGetSearchForCirculations(w http.ResponseWriter, r *http.
 		}
 
 		res, err := clientCirc.Index("circulations").Search(req.QueryCirculation, &meilisearch.SearchRequest{
-			Limit: 20,
+			Limit: 10,
 		})
 		if err != nil {
 			conn.WriteJSON(err.Error())

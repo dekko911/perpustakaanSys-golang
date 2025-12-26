@@ -110,7 +110,7 @@ func (h *Handler) handleCreateRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.store.CreateRole(ctx, types.Role{
+	err := h.store.CreateRole(ctx, &types.Role{
 		Name: payload.Name,
 	})
 	if err != nil {
@@ -165,7 +165,7 @@ func (h *Handler) handleUpdateRole(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	err = h.store.UpdateRole(ctx, roleID, types.Role{
+	err = h.store.UpdateRole(ctx, roleID, &types.Role{
 		Name: r.Name,
 	})
 	if err != nil {

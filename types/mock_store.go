@@ -70,11 +70,11 @@ func (m MockRoleStore) GetRoleByName(ctx context.Context, name string) (*Role, e
 	return nil, fmt.Errorf("role not found")
 }
 
-func (m MockRoleStore) CreateRole(ctx context.Context, r Role) error {
+func (m MockRoleStore) CreateRole(ctx context.Context, r *Role) error {
 	return nil
 }
 
-func (m MockRoleStore) UpdateRole(ctx context.Context, id string, r Role) error {
+func (m MockRoleStore) UpdateRole(ctx context.Context, id string, r *Role) error {
 	return nil
 }
 
