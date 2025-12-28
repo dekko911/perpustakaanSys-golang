@@ -40,12 +40,12 @@ type SetPayloadLogin struct {
 
 type SetPayloadUser struct {
 	Name     string `form:"name" validate:"required,min=3"`
-	Email    string `form:"email" validate:"required,email"`
+	Email    string `form:"email" validate:"required,lowercase,email"`
 	Password string `form:"password" validate:"required,min=6"`
 }
 
 type SetPayloadUpdateUser struct {
 	Name     string `form:"name" validate:"omitempty,required,min=3"`
-	Email    string `form:"email" validate:"omitempty,required,email"`
+	Email    string `form:"email" validate:"omitempty,required,lowercase,email"`
 	Password string `form:"password" validate:"omitempty,required,min=6"`
 }

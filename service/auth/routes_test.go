@@ -77,13 +77,6 @@ func TestAuthHandler(t *testing.T) {
 		writer.WriteField("password", payload.Password)
 		writer.WriteField("avatar", "-")
 
-		// file, err := writer.CreateFormFile("avatar", "alah.png")
-		// if err != nil {
-		// 	t.Fatal(err)
-		// }
-
-		// file.Write([]byte("fake img content"))
-
 		writer.Close()
 
 		req, err := http.NewRequest(http.MethodPost, "/register", body)

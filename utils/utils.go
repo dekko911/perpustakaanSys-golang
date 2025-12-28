@@ -15,10 +15,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-playground/locales/id"
+	ut "github.com/go-playground/universal-translator"
+	"github.com/go-playground/validator/v10"
 	"github.com/perpus_backend/config"
 
 	"github.com/bytedance/sonic"
-	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/websocket"
 	"github.com/meilisearch/meilisearch-go"
 )
@@ -30,20 +32,24 @@ var (
 		meilisearch.WithCustomJsonUnmarshaler(sonic.Unmarshal),
 		meilisearch.WithContentEncoding(meilisearch.GzipEncoding, meilisearch.BestCompression))
 
+	idLocale     = id.New()
+	uniTrans     = ut.New(idLocale, idLocale)
+	Translate, _ = uniTrans.GetTranslator("id")
+
+	Validate = validator.New(validator.WithRequiredStructEnabled()) // validate the request input.
+
 	WSUpgrader = websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
 			return true
 		},
 	}
-
-	Validate = validator.New(validator.WithRequiredStructEnabled()) // validate the request input.
 )
 
 type JsonData struct {
-	Data any `json:"data,omitempty"`
+	Data  any `json:"data,omitempty"`
+	Error any `json:"error,omitempty"`
 
 	Token   string `json:"token,omitempty"`
-	Error   string `json:"error,omitempty"`
 	File    string `json:"file,omitempty"`
 	Message string `json:"message,omitempty"`
 	Status  string `json:"status,omitempty"`
@@ -65,43 +71,82 @@ func WriteJSON(w http.ResponseWriter, statusCode int, d JsonData) error {
 	w.WriteHeader(statusCode)
 
 	cfg := sonic.Config{
-		DisallowUnknownFields: true,
 		CaseSensitive:         true,
+		DisallowUnknownFields: true,
+		SortMapKeys:           true,
 	}
 
 	return cfg.Froze().NewEncoder(w).Encode(&d)
 }
 
 // returned information into json error type.
-func WriteJSONError(w http.ResponseWriter, statusCode int, err error) {
+func WriteJSONError(w http.ResponseWriter, statusCode int, err any) {
 	_, file, line, _ := runtime.Caller(1)
 
-	switch config.Env.AppENV {
-	case "production":
-		WriteJSON(w, statusCode, JsonData{
-			Code:   statusCode,
-			Status: http.StatusText(statusCode),
-		})
-	case "debug":
-		WriteJSON(w, statusCode, JsonData{
-			Code:   statusCode,
-			Error:  err.Error(),
-			File:   file,
-			Line:   line,
-			Status: http.StatusText(statusCode),
-		})
-	default:
-		if IsTesting() {
+	switch v := err.(type) {
+
+	case error:
+		// error type
+		switch config.Env.AppENV {
+		case "production":
 			WriteJSON(w, statusCode, JsonData{
 				Code:   statusCode,
-				Error:  err.Error(),
+				Status: http.StatusText(statusCode),
+			})
+		case "debug":
+			WriteJSON(w, statusCode, JsonData{
+				Code:   statusCode,
+				Error:  v.Error(),
 				File:   file,
 				Line:   line,
 				Status: http.StatusText(statusCode),
 			})
-		} else {
-			log.Fatalf("invalid value app_env: %s", config.Env.AppENV)
+		default:
+			if IsTesting() {
+				WriteJSON(w, statusCode, JsonData{
+					Code:   statusCode,
+					Error:  v.Error(),
+					File:   file,
+					Line:   line,
+					Status: http.StatusText(statusCode),
+				})
+			} else {
+				log.Fatalf("invalid value app_env: %s", config.Env.AppENV)
+			}
 		}
+
+	case map[string]string:
+		// case map[string]string
+		switch config.Env.AppENV {
+		case "production":
+			WriteJSON(w, statusCode, JsonData{
+				Code:   statusCode,
+				Status: http.StatusText(statusCode),
+			})
+		case "debug":
+			WriteJSON(w, statusCode, JsonData{
+				Code:   statusCode,
+				Error:  v,
+				File:   file,
+				Line:   line,
+				Status: http.StatusText(statusCode),
+			})
+		default:
+			if IsTesting() {
+				WriteJSON(w, statusCode, JsonData{
+					Code:   statusCode,
+					Error:  v,
+					File:   file,
+					Line:   line,
+					Status: http.StatusText(statusCode),
+				})
+			} else {
+				log.Fatalf("invalid value app_env: %s", config.Env.AppENV)
+			}
+		}
+
+	default:
+		log.Printf("invalid error type: %v", v)
 	}
 }
 
@@ -222,4 +267,21 @@ func GenerateSpecificID(prefix string, number int, width int) (string, error) {
 	}
 
 	return fmt.Sprintf("%s%0*d", prefix, width, number+1), nil // prefix itu adalah awalan kata
+}
+
+func CustomValidateRequestTranslateID(vErrors validator.ValidationErrors) map[string]string {
+	newVErrors := make(map[string]string)
+
+	for _, e := range vErrors {
+		key := e.Field()
+		value := e.Translate(Translate)
+
+		// for lowercase strings/chars
+		lowerKey := strings.ToLower(key)
+		lowerValue := strings.ToLower(value)
+
+		newVErrors[lowerKey] = lowerValue
+	}
+
+	return newVErrors
 }

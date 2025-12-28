@@ -73,7 +73,7 @@ func (j *AuthJWT) AuthWithJWTToken(h http.HandlerFunc) http.HandlerFunc {
 		// check once again to make sure the token is available in redis storage
 		if resInt64 == 0 {
 			utils.WriteJSONError(w, unauth, ua)
-			log.Println("token is deleted in redis storage")
+			log.Println("token was deleted in redis storage")
 			return
 		}
 

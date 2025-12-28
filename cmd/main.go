@@ -12,8 +12,11 @@ import (
 	"github.com/perpus_backend/cmd/api"
 	"github.com/perpus_backend/config"
 	"github.com/perpus_backend/db"
+	"github.com/perpus_backend/utils"
 
 	"github.com/redis/go-redis/v9"
+
+	"github.com/go-playground/validator/v10/translations/id"
 )
 
 // package variables (var) -> func init() -> func main()
@@ -42,6 +45,8 @@ func init() {
 		Password:   config.Env.RedisPassword,
 		DB:         0,
 	})
+
+	id.RegisterDefaultTranslations(utils.Validate, utils.Translate)
 }
 
 func main() {

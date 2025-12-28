@@ -103,7 +103,9 @@ func (h *Handler) handleCreateCirculation(w http.ResponseWriter, r *http.Request
 
 	if err := utils.Validate.Struct(payload); err != nil {
 		errors := err.(validator.ValidationErrors)
-		utils.WriteJSONError(w, http.StatusUnprocessableEntity, errors)
+		vErrors := utils.CustomValidateRequestTranslateID(errors)
+
+		utils.WriteJSONError(w, http.StatusUnprocessableEntity, vErrors)
 		return
 	}
 
@@ -146,7 +148,7 @@ func (h *Handler) handleUpdateCirculation(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	p := types.SetPayloadUpdateCirculation{
+	payload := types.SetPayloadUpdateCirculation{
 		BukuID:        r.FormValue("buku_id"),
 		Peminjam:      r.FormValue("peminjam"),
 		TanggalPinjam: r.FormValue("tanggal_pinjam"),
@@ -154,9 +156,11 @@ func (h *Handler) handleUpdateCirculation(w http.ResponseWriter, r *http.Request
 		Denda:         r.FormValue("denda"),
 	}
 
-	if err := utils.Validate.Struct(p); err != nil {
+	if err := utils.Validate.Struct(payload); err != nil {
 		errors := err.(validator.ValidationErrors)
-		utils.WriteJSONError(w, http.StatusUnprocessableEntity, errors)
+		vErrors := utils.CustomValidateRequestTranslateID(errors)
+
+		utils.WriteJSONError(w, http.StatusUnprocessableEntity, vErrors)
 		return
 	}
 
@@ -166,20 +170,20 @@ func (h *Handler) handleUpdateCirculation(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if p.BukuID != "" {
-		c.BukuID = p.BukuID
+	if payload.BukuID != "" {
+		c.BukuID = payload.BukuID
 	}
-	if p.Peminjam != "" {
-		c.Peminjam = p.Peminjam
+	if payload.Peminjam != "" {
+		c.Peminjam = payload.Peminjam
 	}
-	if p.TanggalPinjam != "" {
-		c.TanggalPinjam = utils.ParseStringToFormatDate(p.TanggalPinjam)
+	if payload.TanggalPinjam != "" {
+		c.TanggalPinjam = utils.ParseStringToFormatDate(payload.TanggalPinjam)
 	}
-	if p.JatuhTempo != "" {
-		c.JatuhTempo = utils.ParseStringToFormatDate(p.JatuhTempo)
+	if payload.JatuhTempo != "" {
+		c.JatuhTempo = utils.ParseStringToFormatDate(payload.JatuhTempo)
 	}
-	if p.Denda != "" {
-		c.Denda = utils.ParseStringToFloat(p.Denda)
+	if payload.Denda != "" {
+		c.Denda = utils.ParseStringToFloat(payload.Denda)
 	}
 
 	err = h.store.UpdateCirculation(ctx, circulationID, &types.Circulation{
