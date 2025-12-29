@@ -125,7 +125,7 @@ func (h *Handler) handleCreateBook(w http.ResponseWriter, r *http.Request) {
 
 	if err := utils.Validate.Struct(payload); err != nil {
 		errors := err.(validator.ValidationErrors)
-		vErrors := utils.CustomValidateRequestTranslateID(errors)
+		vErrors := utils.CustomValidateRequestWithLangID(errors)
 
 		utils.WriteJSONError(w, http.StatusUnprocessableEntity, vErrors)
 		return
@@ -270,7 +270,7 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 
 	if err := utils.Validate.Struct(payload); err != nil {
 		errors := err.(validator.ValidationErrors)
-		vErrors := utils.CustomValidateRequestTranslateID(errors)
+		vErrors := utils.CustomValidateRequestWithLangID(errors)
 
 		utils.WriteJSONError(w, http.StatusUnprocessableEntity, vErrors)
 		return

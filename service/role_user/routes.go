@@ -36,6 +36,8 @@ const cok = http.StatusOK
 func (h *Handler) RegisterRoutes(r *mux.Router) {
 	r.HandleFunc("/role_user/{userID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetUserWithRoleByUserID, "admin"))).Methods(http.MethodGet)
 
+	r.HandleFunc("/role/user/{userID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetUserAndRoleNames, "admin"))).Methods(http.MethodGet)
+
 	r.HandleFunc("/role_user", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleAssignRoleIntoUser, "admin"))).Methods(http.MethodPost)
 
 	r.HandleFunc("/user/{userID}/role/{roleID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleDeleteRoleFromUser, "admin"))).Methods(http.MethodDelete)
@@ -64,6 +66,34 @@ func (h *Handler) handleGetUserWithRoleByUserID(w http.ResponseWriter, r *http.R
 	})
 }
 
+func (h *Handler) handleGetUserAndRoleNames(w http.ResponseWriter, req *http.Request) {
+	userID := mux.Vars(req)["userID"]
+
+	ctx := req.Context()
+
+	if err := uuid.Validate(userID); err != nil {
+		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	u, r, err := h.store.GetUserAndRoleNames(ctx, userID)
+	if err != nil {
+		utils.WriteJSONError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	assembleMap := map[string]any{
+		"user": u,
+		"role": r,
+	}
+
+	utils.WriteJSON(w, cok, utils.JsonData{
+		Code:   cok,
+		Data:   assembleMap,
+		Status: http.StatusText(cok),
+	})
+}
+
 func (h *Handler) handleAssignRoleIntoUser(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
@@ -79,7 +109,9 @@ func (h *Handler) handleAssignRoleIntoUser(w http.ResponseWriter, req *http.Requ
 
 	if err := utils.Validate.Struct(payload); err != nil {
 		errors := err.(validator.ValidationErrors)
-		utils.WriteJSONError(w, http.StatusUnprocessableEntity, errors)
+		vErrors := utils.CustomValidateRequestWithLangID(errors)
+
+		utils.WriteJSONError(w, http.StatusUnprocessableEntity, vErrors)
 		return
 	}
 

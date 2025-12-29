@@ -126,6 +126,8 @@ func (s *Store) GetCirculationByID(ctx context.Context, id string) (*types.Circu
 
 		s.rdb.Del(ctx, circKey)
 	} else if err != redis.Nil {
+
+		s.rdb.Del(ctx, circKey)
 		return nil, err
 	}
 
@@ -274,11 +276,13 @@ func (s *Store) CreateCirculation(ctx context.Context, c *types.Circulation) err
 func (s *Store) UpdateCirculation(ctx context.Context, id string, c *types.Circulation) error {
 	circKey, err := utils.Redis2Key("circulation", id)
 	if err != nil {
+		s.rdb.Del(ctx, circKey)
 		return err
 	}
 
 	stmt, err := s.db.Prepare("UPDATE circulations SET buku_id = ?, peminjam = ?, tanggal_pinjam = ?, jatuh_tempo = ?, denda = ? WHERE id = ?")
 	if err != nil {
+		s.rdb.Del(ctx, circKey)
 		return err
 	}
 
@@ -290,20 +294,24 @@ func (s *Store) UpdateCirculation(ctx context.Context, id string, c *types.Circu
 func (s *Store) DeleteCirculation(ctx context.Context, id string) error {
 	circKey, err := utils.Redis2Key("circulation", id)
 	if err != nil {
+		s.rdb.Del(ctx, circKey)
 		return err
 	}
 
 	res, err := s.db.ExecContext(ctx, "DELETE FROM circulations WHERE id = ?", id)
 	if err != nil {
+		s.rdb.Del(ctx, circKey)
 		return err
 	}
 
 	row, err := res.RowsAffected()
 	if err != nil {
+		s.rdb.Del(ctx, circKey)
 		return err
 	}
 
 	if row == 0 {
+		s.rdb.Del(ctx, circKey)
 		return fmt.Errorf("circulation not found")
 	}
 

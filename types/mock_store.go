@@ -47,6 +47,10 @@ func (m MockRoleUserStore) GetUserWithRoleByUserID(ctx context.Context, userID s
 	return nil, nil
 }
 
+func (m MockRoleUserStore) GetUserAndRoleNames(ctx context.Context, userID string) (*User, map[string][]string, error) {
+	return nil, nil, nil
+}
+
 func (m MockRoleUserStore) AssignRoleIntoUser(ctx context.Context, userID, roleID string) error {
 	return nil
 }

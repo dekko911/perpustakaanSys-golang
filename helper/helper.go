@@ -268,6 +268,31 @@ func ScanAndRetRowUserAndRole[T stringAndNumberOnly](ctx context.Context, stmt *
 	return &u, nil
 }
 
+func ScanAndRetRowUserAndRoleNames[T stringAndNumberOnly](ctx context.Context, stmt *sql.Stmt, param T) (*types.User, error) {
+	var u types.User
+	r := new(types.Role)
+
+	var roleID, roleName sql.NullString
+
+	err := stmt.QueryRowContext(ctx, param).Scan(&u.ID, &u.Name, &roleID, &roleName)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("user not found")
+		}
+
+		return nil, err
+	}
+
+	if roleID.Valid && roleName.Valid {
+		r.ID = roleID.String
+		r.Name = roleName.String
+
+		u.Roles = append(u.Roles, *r)
+	}
+
+	return &u, nil
+}
+
 // scan and return role row query has given before.
 func ScanAndRetRowRole[T stringAndNumberOnly](ctx context.Context, stmt *sql.Stmt, param T) (*types.Role, error) {
 	var r types.Role

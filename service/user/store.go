@@ -191,6 +191,8 @@ func (s *Store) GetUserWithRolesByID(ctx context.Context, id string) (*types.Use
 
 		s.rdb.Del(ctx, userKey)
 	} else if err != redis.Nil {
+
+		s.rdb.Del(ctx, userKey)
 		return nil, err
 	}
 
@@ -283,39 +285,44 @@ func (s *Store) CreateUser(ctx context.Context, u *types.User) error {
 func (s *Store) UpdateUser(ctx context.Context, id string, u *types.User) error {
 	userKey, err := utils.Redis2Key("user", id)
 	if err != nil {
+		s.rdb.Del(ctx, userKey)
 		return err
 	}
 
 	stmt, err := s.db.Prepare("UPDATE users SET name = ?, email = ?, password = ?, avatar = ? WHERE id = ?")
 	if err != nil {
+		s.rdb.Del(ctx, userKey)
 		return err
 	}
 
 	defer stmt.Close()
 
-	_, err = stmt.ExecContext(ctx, u.Name, u.Email, u.Password, u.Avatar, id)
-
 	s.rdb.Del(ctx, userKey)
+	_, err = stmt.ExecContext(ctx, u.Name, u.Email, u.Password, u.Avatar, id)
 	return err
 }
 
 func (s *Store) DeleteUser(ctx context.Context, id string) error {
 	userKey, err := utils.Redis2Key("user", id)
 	if err != nil {
+		s.rdb.Del(ctx, userKey)
 		return err
 	}
 
 	res, err := s.db.ExecContext(ctx, "DELETE FROM users WHERE id = ?", id)
 	if err != nil {
+		s.rdb.Del(ctx, userKey)
 		return err
 	}
 
 	rows, err := res.RowsAffected()
 	if err != nil {
+		s.rdb.Del(ctx, userKey)
 		return err
 	}
 
 	if rows == 0 {
+		s.rdb.Del(ctx, userKey)
 		return fmt.Errorf("user not found")
 	}
 
@@ -326,16 +333,19 @@ func (s *Store) DeleteUser(ctx context.Context, id string) error {
 func (s *Store) IncrementTokenVersion(ctx context.Context, id, token string) error {
 	userKey, err := utils.Redis2Key("user", id)
 	if err != nil {
+		s.rdb.Del(ctx, userKey, token)
 		return err
 	}
 
 	if err := uuid.Validate(id); err != nil {
+		s.rdb.Del(ctx, userKey, token)
 		return fmt.Errorf("invalid uuid format")
 	}
 
 	// token_version + 1 == 0 + 1 = 1
 	_, err = s.db.ExecContext(ctx, "UPDATE users SET token_version = token_version + 1 WHERE id = ?", id)
 	if err != nil {
+		s.rdb.Del(ctx, userKey, token)
 		return err
 	}
 

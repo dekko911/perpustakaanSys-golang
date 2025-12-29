@@ -124,6 +124,8 @@ func (s *Store) GetBookByID(ctx context.Context, id string) (*types.Book, error)
 
 		s.rdb.Del(ctx, bookKey)
 	} else if err != redis.Nil {
+
+		s.rdb.Del(ctx, bookKey)
 		return nil, err
 	}
 
@@ -193,6 +195,7 @@ func (s *Store) CreateBook(ctx context.Context, b *types.Book) error {
 		return err
 	}
 
+	// initial for column id_buku
 	var IDBook string
 
 	if lastNum > 999 {
@@ -239,11 +242,13 @@ func (s *Store) CreateBook(ctx context.Context, b *types.Book) error {
 func (s *Store) UpdateBook(ctx context.Context, id string, b *types.Book) error {
 	bookKey, err := utils.Redis2Key("book", id)
 	if err != nil {
+		s.rdb.Del(ctx, bookKey)
 		return err
 	}
 
 	stmt, err := s.db.Prepare("UPDATE books SET judul_buku = ?, cover_buku = ?, buku_pdf = ?, penulis = ?, pengarang = ?, tahun = ? WHERE id = ?")
 	if err != nil {
+		s.rdb.Del(ctx, bookKey)
 		return err
 	}
 
@@ -257,20 +262,24 @@ func (s *Store) UpdateBook(ctx context.Context, id string, b *types.Book) error 
 func (s *Store) DeleteBook(ctx context.Context, id string) error {
 	bookKey, err := utils.Redis2Key("book", id)
 	if err != nil {
+		s.rdb.Del(ctx, bookKey)
 		return err
 	}
 
 	res, err := s.db.ExecContext(ctx, "DELETE FROM books WHERE id = ?", id)
 	if err != nil {
+		s.rdb.Del(ctx, bookKey)
 		return err
 	}
 
 	row, err := res.RowsAffected()
 	if err != nil {
+		s.rdb.Del(ctx, bookKey)
 		return err
 	}
 
 	if row == 0 {
+		s.rdb.Del(ctx, bookKey)
 		return fmt.Errorf("book not found")
 	}
 

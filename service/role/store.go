@@ -82,6 +82,8 @@ func (s *Store) GetRoleByID(ctx context.Context, id string) (*types.Role, error)
 
 		s.rdb.Del(ctx, roleKey)
 	} else if err != redis.Nil {
+
+		s.rdb.Del(ctx, roleKey)
 		return nil, err
 	}
 
@@ -143,11 +145,13 @@ func (s *Store) CreateRole(ctx context.Context, r *types.Role) error {
 func (s *Store) UpdateRole(ctx context.Context, id string, r *types.Role) error {
 	roleKey, err := utils.Redis2Key("role", id)
 	if err != nil {
+		s.rdb.Del(ctx, roleKey)
 		return err
 	}
 
 	stmt, err := s.db.Prepare("UPDATE roles SET name = ? WHERE id = ?")
 	if err != nil {
+		s.rdb.Del(ctx, roleKey)
 		return err
 	}
 
@@ -161,20 +165,24 @@ func (s *Store) UpdateRole(ctx context.Context, id string, r *types.Role) error 
 func (s *Store) DeleteRole(ctx context.Context, id string) error {
 	roleKey, err := utils.Redis2Key("role", id)
 	if err != nil {
+		s.rdb.Del(ctx, roleKey)
 		return err
 	}
 
 	res, err := s.db.ExecContext(ctx, "DELETE FROM roles WHERE id = ?", id)
 	if err != nil {
+		s.rdb.Del(ctx, roleKey)
 		return err
 	}
 
 	rows, err := res.RowsAffected()
 	if err != nil {
+		s.rdb.Del(ctx, roleKey)
 		return err
 	}
 
 	if rows == 0 {
+		s.rdb.Del(ctx, roleKey)
 		return fmt.Errorf("role not found")
 	}
 

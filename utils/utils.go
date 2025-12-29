@@ -34,7 +34,7 @@ var (
 
 	idLocale     = id.New()
 	uniTrans     = ut.New(idLocale, idLocale)
-	Translate, _ = uniTrans.GetTranslator("id")
+	Translate, _ = uniTrans.GetTranslator("id_ID")
 
 	Validate = validator.New(validator.WithRequiredStructEnabled()) // validate the request input.
 
@@ -76,6 +76,9 @@ func WriteJSON(w http.ResponseWriter, statusCode int, d JsonData) error {
 		SortMapKeys:           true,
 	}
 
+	// encoder = Go -> change format -> JSON
+	// decoder = JSON -> change format -> Go
+
 	return cfg.Froze().NewEncoder(w).Encode(&d)
 }
 
@@ -85,8 +88,9 @@ func WriteJSONError(w http.ResponseWriter, statusCode int, err any) {
 
 	switch v := err.(type) {
 
+	// case type error
 	case error:
-		// error type
+
 		switch config.Env.AppENV {
 		case "production":
 			WriteJSON(w, statusCode, JsonData{
@@ -115,8 +119,9 @@ func WriteJSONError(w http.ResponseWriter, statusCode int, err any) {
 			}
 		}
 
+	// case type map[string]string
 	case map[string]string:
-		// case map[string]string
+
 		switch config.Env.AppENV {
 		case "production":
 			WriteJSON(w, statusCode, JsonData{
@@ -269,7 +274,7 @@ func GenerateSpecificID(prefix string, number int, width int) (string, error) {
 	return fmt.Sprintf("%s%0*d", prefix, width, number+1), nil // prefix itu adalah awalan kata
 }
 
-func CustomValidateRequestTranslateID(vErrors validator.ValidationErrors) map[string]string {
+func CustomValidateRequestWithLangID(vErrors validator.ValidationErrors) map[string]string {
 	newVErrors := make(map[string]string)
 
 	for _, e := range vErrors {
