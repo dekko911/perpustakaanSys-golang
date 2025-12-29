@@ -333,19 +333,19 @@ func (s *Store) DeleteUser(ctx context.Context, id string) error {
 func (s *Store) IncrementTokenVersion(ctx context.Context, id, token string) error {
 	userKey, err := utils.Redis2Key("user", id)
 	if err != nil {
-		s.rdb.Del(ctx, userKey, token)
+		s.rdb.Del(ctx, userKey)
 		return err
 	}
 
 	if err := uuid.Validate(id); err != nil {
-		s.rdb.Del(ctx, userKey, token)
+		s.rdb.Del(ctx, userKey)
 		return fmt.Errorf("invalid uuid format")
 	}
 
 	// token_version + 1 == 0 + 1 = 1
 	_, err = s.db.ExecContext(ctx, "UPDATE users SET token_version = token_version + 1 WHERE id = ?", id)
 	if err != nil {
-		s.rdb.Del(ctx, userKey, token)
+		s.rdb.Del(ctx, userKey)
 		return err
 	}
 
