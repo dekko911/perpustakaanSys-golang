@@ -39,10 +39,10 @@ func (s *Store) GetUserWithRoleByUserID(ctx context.Context, userID string) (*ty
 			return user, nil
 		}
 
-		s.rdb.Del(ctx, userKey)
+		_ = s.rdb.Del(ctx, userKey).Err()
 	} else if err != redis.Nil {
 
-		s.rdb.Del(ctx, userKey)
+		_ = s.rdb.Del(ctx, userKey).Err()
 		return nil, err
 	}
 
@@ -117,10 +117,10 @@ func (s *Store) GetUserAndRoleNames(ctx context.Context, userID string) (*types.
 			return user, roles, nil
 		}
 
-		s.rdb.Del(ctx, userKey)
+		_ = s.rdb.Del(ctx, userKey).Err()
 	} else if err != redis.Nil {
 
-		s.rdb.Del(ctx, userKey)
+		_ = s.rdb.Del(ctx, userKey).Err()
 		return nil, nil, err
 	}
 
@@ -180,32 +180,32 @@ func (s *Store) DeleteRoleFromUser(ctx context.Context, userID, roleID string) e
 	roleKey, errRole := utils.Redis2Key("role", roleID)
 
 	if errUser != nil {
-		s.rdb.Del(ctx, userKey, roleKey)
+		_ = s.rdb.Del(ctx, userKey, roleKey).Err()
 		return errUser
 	}
 
 	if errRole != nil {
-		s.rdb.Del(ctx, userKey, roleKey)
+		_ = s.rdb.Del(ctx, userKey, roleKey).Err()
 		return errRole
 	}
 
 	res, err := s.db.ExecContext(ctx, "DELETE FROM role_user WHERE user_id = ? AND role_id = ?", userID, roleID)
 	if err != nil {
-		s.rdb.Del(ctx, userKey, roleKey)
+		_ = s.rdb.Del(ctx, userKey, roleKey).Err()
 		return err
 	}
 
 	rows, err := res.RowsAffected()
 	if err != nil {
-		s.rdb.Del(ctx, userKey, roleKey)
+		_ = s.rdb.Del(ctx, userKey, roleKey).Err()
 		return err
 	}
 
 	if rows == 0 {
-		s.rdb.Del(ctx, userKey, roleKey)
+		_ = s.rdb.Del(ctx, userKey, roleKey).Err()
 		return fmt.Errorf("user or role not found")
 	}
 
-	s.rdb.Del(ctx, userKey, roleKey)
+	_ = s.rdb.Del(ctx, userKey, roleKey).Err()
 	return nil
 }

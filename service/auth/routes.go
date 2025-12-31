@@ -37,9 +37,9 @@ const (
 )
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
-	r.HandleFunc("/login", h.handleLogin).Methods(http.MethodPost)
-	r.HandleFunc("/register", h.handleRegister).Methods(http.MethodPost)
-	r.HandleFunc("/logout", h.jwt.AuthWithJWTToken(h.handleLogout)).Methods(http.MethodPost)
+	_ = r.HandleFunc("/login", h.handleLogin).Methods(http.MethodPost).GetError()
+	_ = r.HandleFunc("/register", h.handleRegister).Methods(http.MethodPost).GetError()
+	_ = r.HandleFunc("/logout", h.jwt.AuthWithJWTToken(h.handleLogout)).Methods(http.MethodPost).GetError()
 }
 
 // Handler auth login using JWT.

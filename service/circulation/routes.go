@@ -31,15 +31,15 @@ func NewHandler(jwt *jwt.AuthJWT, s types.CirculationStore, us types.UserStore) 
 const cok = http.StatusOK
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
-	r.HandleFunc("/circulations", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetCirculations, "admin", "staff"))).Methods(http.MethodGet)
+	_ = r.HandleFunc("/circulations", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetCirculations, "admin", "staff"))).Methods(http.MethodGet).GetError()
 
-	r.HandleFunc("/circulations/{cID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetCirculationByID, "admin", "staff"))).Methods(http.MethodGet)
+	_ = r.HandleFunc("/circulations/{cID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetCirculationByID, "admin", "staff"))).Methods(http.MethodGet).GetError()
 
-	r.HandleFunc("/circulations", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleCreateCirculation, "admin", "staff"))).Methods(http.MethodPost)
+	_ = r.HandleFunc("/circulations", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleCreateCirculation, "admin", "staff"))).Methods(http.MethodPost).GetError()
 
-	r.HandleFunc("/circulations/{cID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleUpdateCirculation, "admin", "staff"))).Methods(http.MethodPatch)
+	_ = r.HandleFunc("/circulations/{cID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleUpdateCirculation, "admin", "staff"))).Methods(http.MethodPatch).GetError()
 
-	r.HandleFunc("/circulations/{cID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleDeleteCirculation, "admin", "staff"))).Methods(http.MethodDelete)
+	_ = r.HandleFunc("/circulations/{cID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleDeleteCirculation, "admin", "staff"))).Methods(http.MethodDelete).GetError()
 }
 
 func (h *Handler) handleGetCirculations(w http.ResponseWriter, r *http.Request) {

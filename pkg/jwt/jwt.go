@@ -32,7 +32,7 @@ type contextKey string // 16 byte string
 const (
 	userKey contextKey = "userID"
 
-	unauth int = http.StatusUnauthorized
+	unauth = http.StatusUnauthorized
 )
 
 var (
@@ -120,18 +120,17 @@ func (j *AuthJWT) CreateTokenJWT(ctx context.Context, userID string) (string, er
 		return "", err
 	}
 
-	var roles string // initial first
-	for _, role := range u.Roles {
-		roles = role.Name // get the all role from user
-	}
+	token := new(jwt.Token)
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"userID":        u.ID,
-		"roles":         roles,
-		"token_version": u.TokenVersion,
-		"iat":           time.Now().Unix(),
-		"exp":           time.Now().Add(4 * time.Hour).Unix(),
-	})
+	for _, role := range u.Roles {
+		token = jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+			"userID":        u.ID,
+			"roles":         role.Name,
+			"token_version": u.TokenVersion,
+			"iat":           time.Now().Unix(),
+			"exp":           time.Now().Add(4 * time.Hour).Unix(),
+		})
+	}
 
 	tokenString, err := token.SignedString([]byte(config.Env.JWTSecret))
 	if err != nil {
@@ -146,11 +145,13 @@ func (j *AuthJWT) CreateTokenJWT(ctx context.Context, userID string) (string, er
 
 func (j *AuthJWT) validateTokenJWT(tokenString string) (*jwt.Token, error) {
 	return jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
+
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 
 		return []byte(config.Env.JWTSecret), nil
+
 	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
 }
 

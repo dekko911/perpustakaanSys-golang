@@ -122,10 +122,10 @@ func (s *Store) GetBookByID(ctx context.Context, id string) (*types.Book, error)
 			return book, nil
 		}
 
-		s.rdb.Del(ctx, bookKey)
+		_ = s.rdb.Del(ctx, bookKey).Err()
 	} else if err != redis.Nil {
 
-		s.rdb.Del(ctx, bookKey)
+		_ = s.rdb.Del(ctx, bookKey).Err()
 		return nil, err
 	}
 
@@ -242,19 +242,19 @@ func (s *Store) CreateBook(ctx context.Context, b *types.Book) error {
 func (s *Store) UpdateBook(ctx context.Context, id string, b *types.Book) error {
 	bookKey, err := utils.Redis2Key("book", id)
 	if err != nil {
-		s.rdb.Del(ctx, bookKey)
+		_ = s.rdb.Del(ctx, bookKey).Err()
 		return err
 	}
 
 	stmt, err := s.db.Prepare("UPDATE books SET judul_buku = ?, cover_buku = ?, buku_pdf = ?, penulis = ?, pengarang = ?, tahun = ? WHERE id = ?")
 	if err != nil {
-		s.rdb.Del(ctx, bookKey)
+		_ = s.rdb.Del(ctx, bookKey).Err()
 		return err
 	}
 
 	defer stmt.Close()
 
-	s.rdb.Del(ctx, bookKey)
+	_ = s.rdb.Del(ctx, bookKey).Err()
 	_, err = stmt.ExecContext(ctx, b.JudulBuku, b.CoverBuku, b.BukuPDF, b.Penulis, b.Pengarang, b.Tahun, id)
 	return err
 }
@@ -262,27 +262,27 @@ func (s *Store) UpdateBook(ctx context.Context, id string, b *types.Book) error 
 func (s *Store) DeleteBook(ctx context.Context, id string) error {
 	bookKey, err := utils.Redis2Key("book", id)
 	if err != nil {
-		s.rdb.Del(ctx, bookKey)
+		_ = s.rdb.Del(ctx, bookKey).Err()
 		return err
 	}
 
 	res, err := s.db.ExecContext(ctx, "DELETE FROM books WHERE id = ?", id)
 	if err != nil {
-		s.rdb.Del(ctx, bookKey)
+		_ = s.rdb.Del(ctx, bookKey).Err()
 		return err
 	}
 
 	row, err := res.RowsAffected()
 	if err != nil {
-		s.rdb.Del(ctx, bookKey)
+		_ = s.rdb.Del(ctx, bookKey).Err()
 		return err
 	}
 
 	if row == 0 {
-		s.rdb.Del(ctx, bookKey)
+		_ = s.rdb.Del(ctx, bookKey).Err()
 		return fmt.Errorf("book not found")
 	}
 
-	s.rdb.Del(ctx, bookKey)
+	_ = s.rdb.Del(ctx, bookKey).Err()
 	return nil
 }

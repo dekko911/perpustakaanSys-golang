@@ -124,10 +124,10 @@ func (s *Store) GetMemberByID(ctx context.Context, id string) (*types.Member, er
 			return member, nil
 		}
 
-		s.rdb.Del(ctx, memberKey)
+		_ = s.rdb.Del(ctx, memberKey).Err()
 	} else if err != redis.Nil {
 
-		s.rdb.Del(ctx, memberKey)
+		_ = s.rdb.Del(ctx, memberKey).Err()
 		return nil, err
 	}
 
@@ -259,19 +259,19 @@ func (s *Store) CreateMember(ctx context.Context, m *types.Member) error {
 func (s *Store) UpdateMember(ctx context.Context, id string, m *types.Member) error {
 	memberKey, err := utils.Redis2Key("member", id)
 	if err != nil {
-		s.rdb.Del(ctx, memberKey)
+		_ = s.rdb.Del(ctx, memberKey).Err()
 		return err
 	}
 
 	stmt, err := s.db.Prepare("UPDATE members SET nama = ?, jenis_kelamin = ?, kelas = ?, no_telepon = ?, profil_anggota = ? WHERE id = ?")
 	if err != nil {
-		s.rdb.Del(ctx, memberKey)
+		_ = s.rdb.Del(ctx, memberKey).Err()
 		return err
 	}
 
 	defer stmt.Close()
 
-	s.rdb.Del(ctx, memberKey)
+	_ = s.rdb.Del(ctx, memberKey).Err()
 	_, err = stmt.ExecContext(ctx, m.Nama, m.JenisKelamin, m.Kelas, m.NoTelepon, m.ProfilAnggota, id)
 	return err
 }
@@ -279,27 +279,27 @@ func (s *Store) UpdateMember(ctx context.Context, id string, m *types.Member) er
 func (s *Store) DeleteMember(ctx context.Context, id string) error {
 	memberKey, err := utils.Redis2Key("member", id)
 	if err != nil {
-		s.rdb.Del(ctx, memberKey)
+		_ = s.rdb.Del(ctx, memberKey).Err()
 		return err
 	}
 
 	res, err := s.db.ExecContext(ctx, "DELETE FROM members WHERE id = ?", id)
 	if err != nil {
-		s.rdb.Del(ctx, memberKey)
+		_ = s.rdb.Del(ctx, memberKey).Err()
 		return err
 	}
 
 	rows, err := res.RowsAffected()
 	if err != nil {
-		s.rdb.Del(ctx, memberKey)
+		_ = s.rdb.Del(ctx, memberKey).Err()
 		return err
 	}
 
 	if rows == 0 {
-		s.rdb.Del(ctx, memberKey)
+		_ = s.rdb.Del(ctx, memberKey).Err()
 		return fmt.Errorf("member not found")
 	}
 
-	s.rdb.Del(ctx, memberKey)
+	_ = s.rdb.Del(ctx, memberKey).Err()
 	return nil
 }

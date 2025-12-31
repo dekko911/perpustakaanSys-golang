@@ -31,15 +31,15 @@ func NewHandler(jwt *jwt.AuthJWT, store types.RoleStore, userStore types.UserSto
 const cok = http.StatusOK
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
-	r.HandleFunc("/roles", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetRoles, "admin"))).Methods(http.MethodGet)
+	_ = r.HandleFunc("/roles", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetRoles, "admin"))).Methods(http.MethodGet).GetError()
 
-	r.HandleFunc("/roles/{roleID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetRoleByID, "admin"))).Methods(http.MethodGet)
+	_ = r.HandleFunc("/roles/{roleID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetRoleByID, "admin"))).Methods(http.MethodGet).GetError()
 
-	r.HandleFunc("/roles", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleCreateRole, "admin"))).Methods(http.MethodPost)
+	_ = r.HandleFunc("/roles", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleCreateRole, "admin"))).Methods(http.MethodPost).GetError()
 
-	r.HandleFunc("/roles/{roleID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleUpdateRole, "admin"))).Methods(http.MethodPatch)
+	_ = r.HandleFunc("/roles/{roleID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleUpdateRole, "admin"))).Methods(http.MethodPatch).GetError()
 
-	r.HandleFunc("/roles/{roleID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleDeleteRole, "admin"))).Methods(http.MethodDelete)
+	_ = r.HandleFunc("/roles/{roleID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleDeleteRole, "admin"))).Methods(http.MethodDelete).GetError()
 }
 
 func (h *Handler) handleGetRoles(w http.ResponseWriter, r *http.Request) {
@@ -101,14 +101,14 @@ func (h *Handler) handleCreateRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := h.store.GetRoleByName(ctx, payload.Name); err == nil {
-		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("role with name: %s is already exists", payload.Name))
-		return
-	}
-
 	// if the role name was out of the box, it should be triggered
 	if !utils.IsInputRoleNameWasValid(payload.Name) {
 		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("invalid role name; only admin, staff, and user can be valid"))
+		return
+	}
+
+	if _, err := h.store.GetRoleByName(ctx, payload.Name); err == nil {
+		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("role with name: %s is already exists", payload.Name))
 		return
 	}
 

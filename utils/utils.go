@@ -86,7 +86,7 @@ func WriteJSON(w http.ResponseWriter, statusCode int, d JsonData) error {
 func WriteJSONError(w http.ResponseWriter, statusCode int, err any) {
 	_, file, line, _ := runtime.Caller(1)
 
-	switch v := err.(type) {
+	switch randType := err.(type) {
 
 	// case type error
 	case error:
@@ -100,7 +100,7 @@ func WriteJSONError(w http.ResponseWriter, statusCode int, err any) {
 		case "debug":
 			WriteJSON(w, statusCode, JsonData{
 				Code:   statusCode,
-				Error:  v.Error(),
+				Error:  randType.Error(),
 				File:   file,
 				Line:   line,
 				Status: http.StatusText(statusCode),
@@ -109,7 +109,7 @@ func WriteJSONError(w http.ResponseWriter, statusCode int, err any) {
 			if IsTesting() {
 				WriteJSON(w, statusCode, JsonData{
 					Code:   statusCode,
-					Error:  v.Error(),
+					Error:  randType.Error(),
 					File:   file,
 					Line:   line,
 					Status: http.StatusText(statusCode),
@@ -131,7 +131,7 @@ func WriteJSONError(w http.ResponseWriter, statusCode int, err any) {
 		case "debug":
 			WriteJSON(w, statusCode, JsonData{
 				Code:   statusCode,
-				Error:  v,
+				Error:  randType,
 				File:   file,
 				Line:   line,
 				Status: http.StatusText(statusCode),
@@ -140,7 +140,7 @@ func WriteJSONError(w http.ResponseWriter, statusCode int, err any) {
 			if IsTesting() {
 				WriteJSON(w, statusCode, JsonData{
 					Code:   statusCode,
-					Error:  v,
+					Error:  randType,
 					File:   file,
 					Line:   line,
 					Status: http.StatusText(statusCode),
@@ -151,7 +151,7 @@ func WriteJSONError(w http.ResponseWriter, statusCode int, err any) {
 		}
 
 	default:
-		log.Printf("invalid error type: %v", v)
+		log.Printf("invalid error type: %v", randType)
 	}
 }
 

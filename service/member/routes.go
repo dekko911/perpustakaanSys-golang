@@ -40,15 +40,15 @@ const (
 )
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
-	r.HandleFunc("/members", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetMembers, "admin", "staff"))).Methods(http.MethodGet)
+	_ = r.HandleFunc("/members", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetMembers, "admin", "staff"))).Methods(http.MethodGet).GetError()
 
-	r.HandleFunc("/members/{memberID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetMemberByID, "admin", "staff"))).Methods(http.MethodGet)
+	_ = r.HandleFunc("/members/{memberID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetMemberByID, "admin", "staff"))).Methods(http.MethodGet).GetError()
 
-	r.HandleFunc("/members", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleCreateMember, "admin", "staff"))).Methods(http.MethodPost)
+	_ = r.HandleFunc("/members", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleCreateMember, "admin", "staff"))).Methods(http.MethodPost).GetError()
 
-	r.HandleFunc("/members/{memberID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleUpdateMember, "admin", "staff"))).Methods(http.MethodPut)
+	_ = r.HandleFunc("/members/{memberID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleUpdateMember, "admin", "staff"))).Methods(http.MethodPut).GetError()
 
-	r.HandleFunc("/members/{memberID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleDeleteMember, "admin", "staff"))).Methods(http.MethodDelete)
+	_ = r.HandleFunc("/members/{memberID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleDeleteMember, "admin", "staff"))).Methods(http.MethodDelete).GetError()
 }
 
 func (h *Handler) handleGetMembers(w http.ResponseWriter, r *http.Request) {

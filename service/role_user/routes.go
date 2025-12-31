@@ -34,13 +34,13 @@ func NewHandler(jwt *jwt.AuthJWT, store types.RoleUserStore, userStore types.Use
 const cok = http.StatusOK
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
-	r.HandleFunc("/role_user/{userID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetUserWithRoleByUserID, "admin"))).Methods(http.MethodGet)
+	_ = r.HandleFunc("/role_user/{userID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetUserWithRoleByUserID, "admin"))).Methods(http.MethodGet).GetError()
 
-	r.HandleFunc("/role/user/{userID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetUserAndRoleNames, "admin"))).Methods(http.MethodGet)
+	_ = r.HandleFunc("/role/user/{userID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetUserAndRoleNames, "admin"))).Methods(http.MethodGet).GetError()
 
-	r.HandleFunc("/role_user", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleAssignRoleIntoUser, "admin"))).Methods(http.MethodPost)
+	_ = r.HandleFunc("/role_user", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleAssignRoleIntoUser, "admin"))).Methods(http.MethodPost).GetError()
 
-	r.HandleFunc("/user/{userID}/role/{roleID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleDeleteRoleFromUser, "admin"))).Methods(http.MethodDelete)
+	_ = r.HandleFunc("/user/{userID}/role/{roleID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleDeleteRoleFromUser, "admin"))).Methods(http.MethodDelete).GetError()
 }
 
 func (h *Handler) handleGetUserWithRoleByUserID(w http.ResponseWriter, r *http.Request) {
@@ -107,14 +107,6 @@ func (h *Handler) handleAssignRoleIntoUser(w http.ResponseWriter, req *http.Requ
 		RoleID: req.FormValue("role_id"),
 	}
 
-	if err := utils.Validate.Struct(payload); err != nil {
-		errors := err.(validator.ValidationErrors)
-		vErrors := utils.CustomValidateRequestWithLangID(errors)
-
-		utils.WriteJSONError(w, http.StatusUnprocessableEntity, vErrors)
-		return
-	}
-
 	// validate id user
 	if err := uuid.Validate(payload.UserID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
@@ -124,6 +116,14 @@ func (h *Handler) handleAssignRoleIntoUser(w http.ResponseWriter, req *http.Requ
 	// validate id role
 	if err := uuid.Validate(payload.RoleID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	if err := utils.Validate.Struct(payload); err != nil {
+		errors := err.(validator.ValidationErrors)
+		vErrors := utils.CustomValidateRequestWithLangID(errors)
+
+		utils.WriteJSONError(w, http.StatusUnprocessableEntity, vErrors)
 		return
 	}
 

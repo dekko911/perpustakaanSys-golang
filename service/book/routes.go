@@ -45,15 +45,15 @@ const (
 )
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
-	r.HandleFunc("/books", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetBooks, "admin", "staff", "user"))).Methods(http.MethodGet)
+	_ = r.HandleFunc("/books", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetBooks, "admin", "staff", "user"))).Methods(http.MethodGet).GetError()
 
-	r.HandleFunc("/books/{bookID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetBookByID, "admin", "staff", "user"))).Methods(http.MethodGet)
+	_ = r.HandleFunc("/books/{bookID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetBookByID, "admin", "staff", "user"))).Methods(http.MethodGet).GetError()
 
-	r.HandleFunc("/books", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleCreateBook, "admin", "staff"))).Methods(http.MethodPost)
+	_ = r.HandleFunc("/books", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleCreateBook, "admin", "staff"))).Methods(http.MethodPost).GetError()
 
-	r.HandleFunc("/books/{bookID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleUpdateBook, "admin", "staff"))).Methods(http.MethodPut)
+	_ = r.HandleFunc("/books/{bookID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleUpdateBook, "admin", "staff"))).Methods(http.MethodPut).GetError()
 
-	r.HandleFunc("/books/{bookID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleDeleteBook, "admin", "staff"))).Methods(http.MethodDelete)
+	_ = r.HandleFunc("/books/{bookID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleDeleteBook, "admin", "staff"))).Methods(http.MethodDelete).GetError()
 }
 
 func (h *Handler) handleGetBooks(w http.ResponseWriter, r *http.Request) {

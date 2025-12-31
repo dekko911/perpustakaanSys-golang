@@ -39,15 +39,15 @@ const (
 )
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
-	r.HandleFunc("/users", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetUsers, "admin"))).Methods(http.MethodGet)
+	_ = r.HandleFunc("/users", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetUsers, "admin"))).Methods(http.MethodGet).GetError()
 
-	r.HandleFunc("/users/{userID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetUserWithRolesByID, "admin"))).Methods(http.MethodGet)
+	_ = r.HandleFunc("/users/{userID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetUserWithRolesByID, "admin"))).Methods(http.MethodGet).GetError()
 
-	r.HandleFunc("/users", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleCreateUser, "admin"))).Methods(http.MethodPost)
+	_ = r.HandleFunc("/users", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleCreateUser, "admin"))).Methods(http.MethodPost).GetError()
 
-	r.HandleFunc("/users/{userID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleUpdateUser, "admin"))).Methods(http.MethodPut)
+	_ = r.HandleFunc("/users/{userID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleUpdateUser, "admin"))).Methods(http.MethodPut).GetError()
 
-	r.HandleFunc("/users/{userID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleDeleteUser, "admin"))).Methods(http.MethodDelete)
+	_ = r.HandleFunc("/users/{userID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleDeleteUser, "admin"))).Methods(http.MethodDelete).GetError()
 }
 
 func (h *Handler) handleGetUsers(w http.ResponseWriter, r *http.Request) {
