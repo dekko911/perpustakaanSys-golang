@@ -15,32 +15,32 @@ import (
 )
 
 type Handler struct {
-	store     types.RoleUserStore
-	userStore types.UserStore
-	roleStore types.RoleStore
+	roleUserStore types.RoleUserStore
+	userStore     types.UserStore
+	roleStore     types.RoleStore
 
 	jwt *jwt.AuthJWT
 }
 
-func NewHandler(jwt *jwt.AuthJWT, store types.RoleUserStore, userStore types.UserStore, roleStore types.RoleStore) *Handler {
+func NewHandler(jwt *jwt.AuthJWT, rus types.RoleUserStore, us types.UserStore, rs types.RoleStore) *Handler {
 	return &Handler{
-		store:     store,
-		userStore: userStore,
-		roleStore: roleStore,
-		jwt:       jwt,
+		roleUserStore: rus,
+		userStore:     us,
+		roleStore:     rs,
+		jwt:           jwt,
 	}
 }
 
 const cok = http.StatusOK
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
-	_ = r.HandleFunc("/role_user/{userID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetUserWithRoleByUserID, "admin"))).Methods(http.MethodGet).GetError()
+	r.HandleFunc("/role_user/{userID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetUserWithRoleByUserID, "admin"))).Methods(http.MethodGet)
 
-	_ = r.HandleFunc("/role/user/{userID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetUserAndRoleNames, "admin"))).Methods(http.MethodGet).GetError()
+	r.HandleFunc("/role/user/{userID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetUserAndRoleNames, "admin"))).Methods(http.MethodGet)
 
-	_ = r.HandleFunc("/role_user", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleAssignRoleIntoUser, "admin"))).Methods(http.MethodPost).GetError()
+	r.HandleFunc("/role_user", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleAssignRoleIntoUser, "admin"))).Methods(http.MethodPost)
 
-	_ = r.HandleFunc("/user/{userID}/role/{roleID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleDeleteRoleFromUser, "admin"))).Methods(http.MethodDelete).GetError()
+	r.HandleFunc("/user/{userID}/role/{roleID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleDeleteRoleFromUser, "admin"))).Methods(http.MethodDelete)
 }
 
 func (h *Handler) handleGetUserWithRoleByUserID(w http.ResponseWriter, r *http.Request) {
@@ -53,13 +53,13 @@ func (h *Handler) handleGetUserWithRoleByUserID(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	roleUser, err := h.store.GetUserWithRoleByUserID(ctx, userID)
+	roleUser, err := h.roleUserStore.GetUserWithRoleByUserID(ctx, userID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	utils.WriteJSON(w, cok, utils.JsonData{
+	utils.WriteJSON(w, cok, utils.JsonResponse{
 		Code:   cok,
 		Data:   roleUser,
 		Status: http.StatusText(cok),
@@ -76,20 +76,20 @@ func (h *Handler) handleGetUserAndRoleNames(w http.ResponseWriter, req *http.Req
 		return
 	}
 
-	u, r, err := h.store.GetUserAndRoleNames(ctx, userID)
+	u, r, err := h.roleUserStore.GetUserAndRoleNames(ctx, userID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	assembleMap := map[string]any{
+	userRoleMap := map[string]any{
 		"user": u,
 		"role": r,
 	}
 
-	utils.WriteJSON(w, cok, utils.JsonData{
+	utils.WriteJSON(w, cok, utils.JsonResponse{
 		Code:   cok,
-		Data:   assembleMap,
+		Data:   userRoleMap,
 		Status: http.StatusText(cok),
 	})
 }
@@ -119,9 +119,9 @@ func (h *Handler) handleAssignRoleIntoUser(w http.ResponseWriter, req *http.Requ
 		return
 	}
 
-	if err := utils.Validate.Struct(payload); err != nil {
+	if err := utils.NewValidate.Struct(payload); err != nil {
 		errors := err.(validator.ValidationErrors)
-		vErrors := utils.CustomValidateRequestWithLangID(errors)
+		vErrors := utils.TransformValidationErrorsWithLangIndonesia(errors)
 
 		utils.WriteJSONError(w, http.StatusUnprocessableEntity, vErrors)
 		return
@@ -140,18 +140,18 @@ func (h *Handler) handleAssignRoleIntoUser(w http.ResponseWriter, req *http.Requ
 	}
 
 	if r.Name == "admin" {
-		if jwt.GetUserIDFromContext(req.Context()) != payload.UserID {
+		if jwt.GetUserIDFromContext(ctx) != payload.UserID {
 			utils.WriteJSONError(w, http.StatusForbidden, fmt.Errorf("you can't add admin"))
 			return
 		}
 	}
 
-	if err := h.store.AssignRoleIntoUser(ctx, payload.UserID, payload.RoleID); err != nil {
+	if err := h.roleUserStore.AssignRoleIntoUser(ctx, payload.UserID, payload.RoleID); err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.WriteJSON(w, cok, utils.JsonData{
+	utils.WriteJSON(w, cok, utils.JsonResponse{
 		Code:    cok,
 		Message: "User and Role has Connected.",
 		Status:  http.StatusText(cok),
@@ -193,12 +193,12 @@ func (h *Handler) handleDeleteRoleFromUser(w http.ResponseWriter, req *http.Requ
 		}
 	}
 
-	if err := h.store.DeleteRoleFromUser(ctx, userID, roleID); err != nil {
+	if err := h.roleUserStore.DeleteRoleFromUser(ctx, userID, roleID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, utils.JsonData{
+	utils.WriteJSON(w, http.StatusOK, utils.JsonResponse{
 		Code:    cok,
 		Message: "User and Role has Disconnected.",
 		Status:  http.StatusText(cok),

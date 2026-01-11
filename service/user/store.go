@@ -33,18 +33,28 @@ func (s *Store) GetUsersWithPagination(ctx context.Context, page int) ([]*types.
 	sortByColumn := "created_at"
 	sortOrder := "DESC"
 
-	// prevent SQL INJECTION
-	if !utils.IsValidSortColumn(sortByColumn) {
-		return nil, 0, fmt.Errorf("invalid sort column: %s", sortByColumn)
-	}
-
-	// prevent SQL INJECTION
-	if !utils.IsValidSortOrder(sortOrder) {
-		return nil, 0, fmt.Errorf("invalid sort order: %s", sortOrder)
-	}
-
 	// set the rows limit, hardcoded
 	limit := 10
+
+	usersKey, err := utils.SetRedisKeyForPagination("users", page, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	res, err := s.rdb.Get(ctx, usersKey).Result()
+	if err == nil {
+		data := &types.UsersCachePage{}
+
+		if err := sonic.Unmarshal([]byte(res), data); err == nil {
+			return data.Users, data.LastPage, err
+		}
+
+		s.rdb.Del(ctx, usersKey)
+	} else if err != redis.Nil {
+
+		s.rdb.Del(ctx, usersKey)
+		return nil, 0, err
+	}
 
 	query := fmt.Sprintf(`SELECT 
 	u.id AS user_id, 
@@ -112,6 +122,16 @@ func (s *Store) GetUsersWithPagination(ctx context.Context, page int) ([]*types.
 		users = append(users, u)
 	}
 
+	payloadUsers := types.UsersCachePage{
+		Users:    users,
+		LastPage: lastPage,
+	}
+
+	// set redis db
+	if data, err := sonic.Marshal(payloadUsers); err == nil {
+		s.rdb.SetEx(ctx, usersKey, data, 2*time.Minute)
+	}
+
 	return users, lastPage, nil
 }
 
@@ -175,12 +195,11 @@ func (s *Store) GetUsersForSearch(ctx context.Context) []*types.User {
 
 func (s *Store) GetUserWithRolesByID(ctx context.Context, id string) (*types.User, error) {
 	// init redis db
-	userKey, err := utils.Redis2Key("user", id)
+	userKey, err := utils.SetRedisKey("user", id)
 	if err != nil {
 		return nil, err
 	}
 
-	// get from cache
 	res, err := s.rdb.Get(ctx, userKey).Result()
 	if err == nil {
 		user := new(types.User)
@@ -189,10 +208,10 @@ func (s *Store) GetUserWithRolesByID(ctx context.Context, id string) (*types.Use
 			return user, nil
 		}
 
-		_ = s.rdb.Del(ctx, userKey).Err()
+		s.rdb.Del(ctx, userKey)
 	} else if err != redis.Nil {
 
-		_ = s.rdb.Del(ctx, userKey).Err()
+		s.rdb.Del(ctx, userKey)
 		return nil, err
 	}
 
@@ -227,7 +246,7 @@ func (s *Store) GetUserWithRolesByID(ctx context.Context, id string) (*types.Use
 
 	// set cache user
 	if data, err := sonic.Marshal(u); err == nil {
-		_ = s.rdb.SetEx(ctx, userKey, data, 5*time.Minute).Err()
+		s.rdb.SetEx(ctx, userKey, data, 5*time.Minute)
 	}
 
 	return u, nil
@@ -278,77 +297,69 @@ func (s *Store) CreateUser(ctx context.Context, u *types.User) error {
 
 	defer stmt.Close()
 
+	if err := utils.InvalidateAllKeysInCache(s.rdb, ctx); err != nil {
+		return err
+	}
+
 	_, err = stmt.ExecContext(ctx, u.ID, u.Name, u.Email, u.Password, u.Avatar)
 	return err
 }
 
 func (s *Store) UpdateUser(ctx context.Context, id string, u *types.User) error {
-	userKey, err := utils.Redis2Key("user", id)
-	if err != nil {
-		_ = s.rdb.Del(ctx, userKey).Err()
-		return err
-	}
-
 	stmt, err := s.db.Prepare("UPDATE users SET name = ?, email = ?, password = ?, avatar = ? WHERE id = ?")
 	if err != nil {
-		_ = s.rdb.Del(ctx, userKey).Err()
 		return err
 	}
 
 	defer stmt.Close()
 
-	_ = s.rdb.Del(ctx, userKey).Err()
+	if err := utils.InvalidateAllKeysInCache(s.rdb, ctx); err != nil {
+		return err
+	}
+
 	_, err = stmt.ExecContext(ctx, u.Name, u.Email, u.Password, u.Avatar, id)
 	return err
 }
 
 func (s *Store) DeleteUser(ctx context.Context, id string) error {
-	userKey, err := utils.Redis2Key("user", id)
-	if err != nil {
-		_ = s.rdb.Del(ctx, userKey).Err()
+	if err := utils.InvalidateAllKeysInCache(s.rdb, ctx); err != nil {
 		return err
 	}
 
 	res, err := s.db.ExecContext(ctx, "DELETE FROM users WHERE id = ?", id)
 	if err != nil {
-		_ = s.rdb.Del(ctx, userKey).Err()
 		return err
 	}
 
 	rows, err := res.RowsAffected()
 	if err != nil {
-		_ = s.rdb.Del(ctx, userKey).Err()
 		return err
 	}
 
 	if rows == 0 {
-		_ = s.rdb.Del(ctx, userKey).Err()
 		return fmt.Errorf("user not found")
 	}
 
-	_ = s.rdb.Del(ctx, userKey).Err()
 	return nil
 }
 
 func (s *Store) IncrementTokenVersion(ctx context.Context, id, token string) error {
-	userKey, err := utils.Redis2Key("user", id)
-	if err != nil {
-		_ = s.rdb.Del(ctx, userKey).Err()
-		return err
-	}
-
 	if err := uuid.Validate(id); err != nil {
-		_ = s.rdb.Del(ctx, userKey).Err()
+
 		return fmt.Errorf("invalid uuid format")
 	}
 
-	// token_version + 1 == 0 + 1 = 1
-	_, err = s.db.ExecContext(ctx, "UPDATE users SET token_version = token_version + 1 WHERE id = ?", id)
-	if err != nil {
-		_ = s.rdb.Del(ctx, userKey).Err()
+	if err := utils.InvalidateAllKeysInCache(s.rdb, ctx); err != nil {
 		return err
 	}
 
-	_ = s.rdb.Del(ctx, userKey, token).Err()
+	s.rdb.Del(ctx, token) // hapus token di cache jika terjadi error di bagian s.db.ExecContext()
+
+	// token_version + 1 (==) 0 + 1 = 1
+	_, err := s.db.ExecContext(ctx, "UPDATE users SET token_version = token_version + 1 WHERE id = ?", id)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }

@@ -3,9 +3,7 @@ package user
 import (
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -17,37 +15,36 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	"github.com/rs/xid"
 )
 
 type Handler struct {
-	store types.UserStore
+	userStore types.UserStore
 
 	jwt *jwt.AuthJWT
 }
 
-func NewHandler(jwt *jwt.AuthJWT, store types.UserStore) *Handler {
-	return &Handler{store: store, jwt: jwt}
+func NewHandler(jwt *jwt.AuthJWT, us types.UserStore) *Handler {
+	return &Handler{userStore: us, jwt: jwt}
 }
 
 const (
 	cok = http.StatusOK
 
-	filePublicPath = "./assets/public/images/profile/"
+	userProfileFileInPublicPath = "./assets/public/images/profile/"
 
 	size1MB = 1 << 20
 )
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
-	_ = r.HandleFunc("/users", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetUsers, "admin"))).Methods(http.MethodGet).GetError()
+	r.HandleFunc("/users", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetUsers, "admin"))).Methods(http.MethodGet)
 
-	_ = r.HandleFunc("/users/{userID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetUserWithRolesByID, "admin"))).Methods(http.MethodGet).GetError()
+	r.HandleFunc("/users/{userID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetUserWithRolesByID, "admin"))).Methods(http.MethodGet)
 
-	_ = r.HandleFunc("/users", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleCreateUser, "admin"))).Methods(http.MethodPost).GetError()
+	r.HandleFunc("/users", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleCreateUser, "admin"))).Methods(http.MethodPost)
 
-	_ = r.HandleFunc("/users/{userID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleUpdateUser, "admin"))).Methods(http.MethodPut).GetError()
+	r.HandleFunc("/users/{userID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleUpdateUser, "admin"))).Methods(http.MethodPut)
 
-	_ = r.HandleFunc("/users/{userID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleDeleteUser, "admin"))).Methods(http.MethodDelete).GetError()
+	r.HandleFunc("/users/{userID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleDeleteUser, "admin"))).Methods(http.MethodDelete)
 }
 
 func (h *Handler) handleGetUsers(w http.ResponseWriter, r *http.Request) {
@@ -55,13 +52,13 @@ func (h *Handler) handleGetUsers(w http.ResponseWriter, r *http.Request) {
 
 	page := utils.ParseStringToInt(r.URL.Query().Get("page"))
 
-	users, lastPage, err := h.store.GetUsersWithPagination(ctx, page)
+	users, lastPage, err := h.userStore.GetUsersWithPagination(ctx, page)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.WriteJSON(w, cok, utils.JsonData{
+	utils.WriteJSON(w, cok, utils.JsonResponse{
 		Code:     cok,
 		Data:     users,
 		LastPage: lastPage,
@@ -79,13 +76,13 @@ func (h *Handler) handleGetUserWithRolesByID(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	user, err := h.store.GetUserWithRolesByID(ctx, userID)
+	user, err := h.userStore.GetUserWithRolesByID(ctx, userID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.WriteJSON(w, cok, utils.JsonData{
+	utils.WriteJSON(w, cok, utils.JsonResponse{
 		Code:   cok,
 		Data:   user,
 		Status: http.StatusText(cok),
@@ -93,16 +90,16 @@ func (h *Handler) handleGetUserWithRolesByID(w http.ResponseWriter, r *http.Requ
 }
 
 func (h *Handler) HandleGetProfileUser(w http.ResponseWriter, r *http.Request) {
-	userID := jwt.GetUserIDFromContext(r.Context())
 	ctx := r.Context()
+	userID := jwt.GetUserIDFromContext(ctx)
 
-	user, err := h.store.GetUserWithRolesByID(ctx, userID)
+	user, err := h.userStore.GetUserWithRolesByID(ctx, userID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.WriteJSON(w, cok, utils.JsonData{
+	utils.WriteJSON(w, cok, utils.JsonResponse{
 		Code:   cok,
 		Data:   user,
 		Status: http.StatusText(cok),
@@ -110,12 +107,9 @@ func (h *Handler) HandleGetProfileUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleCreateUser(w http.ResponseWriter, r *http.Request) {
-	var (
-		ctx = r.Context()
+	ctx := r.Context()
 
-		fileName, filePath string
-		sizeFile           int64
-	)
+	var filename string
 
 	r.Body = http.MaxBytesReader(w, r.Body, size1MB)
 
@@ -130,16 +124,16 @@ func (h *Handler) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		Password: r.FormValue("password"),
 	}
 
-	if err := utils.Validate.Struct(payload); err != nil {
+	if err := utils.NewValidate.Struct(payload); err != nil {
 		errors := err.(validator.ValidationErrors)
-		vErrors := utils.CustomValidateRequestWithLangID(errors)
+		vErrors := utils.TransformValidationErrorsWithLangIndonesia(errors)
 
 		utils.WriteJSONError(w, http.StatusUnprocessableEntity, vErrors)
 		return
 	}
 
-	// gak perlu pakai redis key email, karena dia dipakai untuk checking aja, bukan di pakai secara di simpan gitu
-	if _, err := h.store.GetUserWithRolesByEmail(ctx, payload.Email); err == nil {
+	// gak perlu pakai redis key email, karena dia dipakai untuk checking aja, bukan di pakai secara di simpan lama gitu
+	if _, err := h.userStore.GetUserWithRolesByEmail(ctx, payload.Email); err == nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, fmt.Errorf("user with email %s already exists", payload.Email))
 		return
 	}
@@ -147,54 +141,38 @@ func (h *Handler) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	file, header, err := r.FormFile("avatar")
 
 	if err == http.ErrMissingFile {
-		fileName = "-"
+		filename = "-"
 	}
 
 	if err == nil {
 		defer file.Close()
 
-		randomString := xid.New().String()
+		filename, err = utils.SetNewFilenameImg("random", file, userProfileFileInPublicPath, header.Filename, header.Size)
 
-		ext := filepath.Ext(header.Filename)
-		sizeFile = header.Size
-
-		if sizeFile <= size1MB {
-			if ext == ".png" || ext == ".jpg" || ext == ".jpeg" {
-				fileName = randomString + ext
-				filePath = filePublicPath + fileName
-
-				dst, _ := os.Create(filePath)
-				defer dst.Close()
-
-				io.Copy(dst, file)
-			} else {
-				utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("only support jpg, jpeg, and png"))
-				return
-			}
-		} else {
-			utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("only serve file under 1mb"))
+		if err != nil {
+			utils.WriteJSONError(w, http.StatusInternalServerError, err)
 			return
 		}
 	}
 
-	hashPass, err := hash.HashPassword(payload.Password)
+	hashPass, err := hash.MakePasswordHash(payload.Password)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	err = h.store.CreateUser(ctx, &types.User{
+	err = h.userStore.CreateUser(ctx, &types.User{
 		Name:     payload.Name,
 		Email:    payload.Email,
 		Password: hashPass,
-		Avatar:   fileName,
+		Avatar:   filename,
 	})
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusCreated, utils.JsonData{
+	utils.WriteJSON(w, http.StatusCreated, utils.JsonResponse{
 		Code:    http.StatusCreated,
 		Message: "User Created!",
 		Status:  http.StatusText(http.StatusCreated),
@@ -202,17 +180,12 @@ func (h *Handler) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
-	var (
-		ctx = r.Context()
+	ctx := r.Context()
 
-		authID = jwt.GetUserIDFromContext(r.Context())
-		userID = mux.Vars(r)["userID"]
-	)
+	authID := jwt.GetUserIDFromContext(ctx)
+	userID := mux.Vars(r)["userID"]
 
-	var (
-		fileName, filePath string
-		sizeFile           int64
-	)
+	var filename string
 
 	if r.Method != http.MethodPut {
 		utils.WriteJSONError(w, http.StatusMethodNotAllowed, errors.New("method doesn't allowed"))
@@ -237,15 +210,15 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		Password: r.FormValue("password"),
 	}
 
-	if err := utils.Validate.Struct(payload); err != nil {
+	if err := utils.NewValidate.Struct(payload); err != nil {
 		errors := err.(validator.ValidationErrors)
-		vErrors := utils.CustomValidateRequestWithLangID(errors)
+		vErrors := utils.TransformValidationErrorsWithLangIndonesia(errors)
 
 		utils.WriteJSONError(w, http.StatusUnprocessableEntity, vErrors)
 		return
 	}
 
-	u, err := h.store.GetUserWithRolesByID(ctx, userID)
+	u, err := h.userStore.GetUserWithRolesByID(ctx, userID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
@@ -260,7 +233,7 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	hashPass, err := hash.HashPassword(payload.Password)
+	hashPass, err := hash.MakePasswordHash(payload.Password)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
@@ -279,58 +252,32 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	file, header, err := r.FormFile("avatar")
 
 	if err == http.ErrMissingFile {
-		fileName = u.Avatar
+		filename = u.Avatar
 	}
 
 	if err == nil {
 		defer file.Close()
 
-		randomString := xid.New().String()
+		filename, err = utils.UpdateTheFilenameImg("random", file, userProfileFileInPublicPath, u.Avatar, header.Filename, header.Size)
 
-		ext := filepath.Ext(header.Filename)
-		sizeFile = header.Size
-
-		if sizeFile <= size1MB {
-			if ext == ".png" || ext == ".jpg" || ext == ".jpeg" {
-
-				fileImgOld := filePublicPath + u.Avatar
-
-				info, err := os.Stat(fileImgOld)
-				if err == nil {
-					if !info.IsDir() {
-						os.Remove(fileImgOld) // for reason, to not delete the folder when file doesn't exist inside the dir
-					}
-				}
-
-				fileName = randomString + ext
-				filePath = filePublicPath + fileName
-
-				dst, _ := os.Create(filePath)
-				defer dst.Close()
-
-				io.Copy(dst, file)
-			} else {
-				utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("only support jpg, jpeg, and png"))
-				return
-			}
-		} else {
-			utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("only serve file under 1mb"))
+		if err != nil {
+			utils.WriteJSONError(w, http.StatusInternalServerError, err)
 			return
 		}
 	}
 
-	err = h.store.UpdateUser(ctx, userID, &types.User{
+	err = h.userStore.UpdateUser(ctx, userID, &types.User{
 		Name:     u.Name,
 		Email:    u.Email,
 		Password: u.Password,
-		Avatar:   fileName,
+		Avatar:   filename,
 	})
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.WriteJSON(w, cok, utils.JsonData{
+	utils.WriteJSON(w, cok, utils.JsonResponse{
 		Code:    cok,
 		Message: "User Updated!",
 		Status:  http.StatusText(cok),
@@ -346,7 +293,7 @@ func (h *Handler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	u, err := h.store.GetUserWithRolesByID(ctx, userID)
+	u, err := h.userStore.GetUserWithRolesByID(ctx, userID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
@@ -361,21 +308,19 @@ func (h *Handler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	fileName := filePublicPath + u.Avatar
-	info, err := os.Stat(fileName)
+	filePathAndFileName := filepath.Join(userProfileFileInPublicPath, u.Avatar)
 
-	if err == nil {
-		if !info.IsDir() {
-			os.Remove(fileName)
-		}
-	}
-
-	if err := h.store.DeleteUser(ctx, userID); err != nil {
+	if err := utils.DeleteFilepathWithFilename(filePathAndFileName); err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.WriteJSON(w, cok, utils.JsonData{
+	if err := h.userStore.DeleteUser(ctx, userID); err != nil {
+		utils.WriteJSONError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.WriteJSON(w, cok, utils.JsonResponse{
 		Code:    cok,
 		Message: "User Deleted!",
 		Status:  http.StatusText(cok),

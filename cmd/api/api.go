@@ -5,7 +5,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/dotse/go-health"
 	"github.com/perpus_backend/config"
+	"github.com/perpus_backend/db"
 	"github.com/perpus_backend/pkg/cookie"
 	"github.com/perpus_backend/pkg/cors"
 	"github.com/perpus_backend/pkg/jwt"
@@ -18,6 +20,7 @@ import (
 	roleuser "github.com/perpus_backend/service/role_user"
 	"github.com/perpus_backend/service/user"
 	"github.com/perpus_backend/service/websocket"
+	"github.com/perpus_backend/utils"
 
 	"github.com/gorilla/mux"
 	"github.com/redis/go-redis/v9"
@@ -105,6 +108,27 @@ func (s *APIServer) Run() error {
 	wsSubrouter := r.PathPrefix("/ws").Subrouter()
 	wsHandler := websocket.NewHandler(jwt, userStore, roleStore, memberStore, bookStore, circulationStore)
 	wsHandler.RegisterRoutes(wsSubrouter)
+
+	// get health
+	subrouter.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		healthResp, err := health.CheckNow(r.Context())
+		if err != nil {
+			utils.WriteJSONError(w, http.StatusInternalServerError, err)
+			return
+		}
+
+		utils.WriteJSON(w, http.StatusOK, utils.JsonResponse{
+			Code: http.StatusOK,
+
+			Data: map[string]any{
+				"dbStatus":     db.HealthDBMySQL(s.db),
+				"healthStatus": healthResp.Status.String(),
+			},
+
+			Status: http.StatusText(http.StatusOK),
+		})
+	}).Methods(http.MethodGet)
+	// end here health
 
 	r.PathPrefix("/public/").Handler(publicURLHandler).Methods(http.MethodGet) // set accessing files across public url.
 

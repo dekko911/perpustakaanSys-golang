@@ -30,12 +30,14 @@ func NewAuthJWT(us types.UserStore, rdb *redis.Client) *AuthJWT {
 type contextKey string // 16 byte string
 
 const (
-	userKey contextKey = "userID"
+	userKey contextKey = "user_id"
 
 	unauth = http.StatusUnauthorized
 )
 
 var (
+	jwtSecret = []byte(config.Env.JWTSecret)
+
 	shortTimeoutDuration = time.Duration(3 * time.Second)
 
 	ua = errors.New("Unauthorized")
@@ -45,7 +47,7 @@ var (
 func (j *AuthJWT) AuthWithJWTToken(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// initial context for http.request start from here
-		ctx := r.Context()
+		ctx := r.Context() // cuman isi token aja
 
 		tokenString := utils.GetTokenFromRequest(r)
 
@@ -78,7 +80,7 @@ func (j *AuthJWT) AuthWithJWTToken(h http.HandlerFunc) http.HandlerFunc {
 		}
 
 		claims := token.Claims.(jwt.MapClaims)
-		userID, ok := claims["userID"].(string)
+		userID, ok := claims["user_id"].(string)
 		if !ok {
 			utils.WriteJSONError(w, unauth, ua)
 			log.Println("type assertion failed")
@@ -124,15 +126,15 @@ func (j *AuthJWT) CreateTokenJWT(ctx context.Context, userID string) (string, er
 
 	for _, role := range u.Roles {
 		token = jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-			"userID":        u.ID,
-			"roles":         role.Name,
+			"user_id":       u.ID,
+			"role":          role.Name,
 			"token_version": u.TokenVersion,
 			"iat":           time.Now().Unix(),
 			"exp":           time.Now().Add(4 * time.Hour).Unix(),
 		})
 	}
 
-	tokenString, err := token.SignedString([]byte(config.Env.JWTSecret))
+	tokenString, err := token.SignedString(jwtSecret)
 	if err != nil {
 		return "", err
 	}
@@ -150,7 +152,7 @@ func (j *AuthJWT) validateTokenJWT(tokenString string) (*jwt.Token, error) {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 
-		return []byte(config.Env.JWTSecret), nil
+		return jwtSecret, nil
 
 	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
 }
@@ -179,6 +181,7 @@ func (j *AuthJWT) RoleGate(h http.HandlerFunc, roles ...string) http.HandlerFunc
 		u, err := j.us.GetUserWithRolesByID(ctx, userID)
 		if err != nil {
 			utils.WriteJSONError(w, unauth, ua)
+			log.Println(err)
 			return
 		}
 
@@ -192,5 +195,6 @@ func (j *AuthJWT) RoleGate(h http.HandlerFunc, roles ...string) http.HandlerFunc
 		}
 
 		utils.WriteJSONError(w, unauth, ua)
+		log.Printf("user %s doesn't have roles %v", u.Name, roles)
 	}
 }

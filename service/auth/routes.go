@@ -2,9 +2,7 @@ package auth
 
 import (
 	"fmt"
-	"io"
 	"net/http"
-	"os"
 	"path/filepath"
 
 	"github.com/perpus_backend/pkg/hash"
@@ -14,7 +12,6 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
-	"github.com/rs/xid"
 )
 
 type Handler struct {
@@ -31,15 +28,14 @@ const (
 	cok = http.StatusOK
 
 	profilePath = "./assets/public/images/profile/"
-	privateDir  = "./assets/private"
 
 	size1MB = 1 << 20
 )
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
-	_ = r.HandleFunc("/login", h.handleLogin).Methods(http.MethodPost).GetError()
-	_ = r.HandleFunc("/register", h.handleRegister).Methods(http.MethodPost).GetError()
-	_ = r.HandleFunc("/logout", h.jwt.AuthWithJWTToken(h.handleLogout)).Methods(http.MethodPost).GetError()
+	r.HandleFunc("/login", h.handleLogin).Methods(http.MethodPost)
+	r.HandleFunc("/register", h.handleRegister).Methods(http.MethodPost)
+	r.HandleFunc("/logout", h.jwt.AuthWithJWTToken(h.handleLogout)).Methods(http.MethodPost)
 }
 
 // Handler auth login using JWT.
@@ -61,9 +57,9 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		Password: r.FormValue("password"),
 	}
 
-	if err := utils.Validate.Struct(payload); err != nil {
+	if err := utils.NewValidate.Struct(payload); err != nil {
 		errors := err.(validator.ValidationErrors)
-		vErrors := utils.CustomValidateRequestWithLangID(errors)
+		vErrors := utils.TransformValidationErrorsWithLangIndonesia(errors)
 
 		utils.WriteJSONError(w, http.StatusUnprocessableEntity, vErrors)
 		return
@@ -75,7 +71,13 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !hash.CompareHashedPassword(u.Password, []byte(payload.Password)) {
+	checkPassword, err := hash.CompareHashedPassword(u.Password, payload.Password)
+	if err != nil {
+		utils.WriteJSONError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	if !checkPassword {
 		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("wrong password"))
 		return
 	}
@@ -86,7 +88,7 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteJSON(w, cok, utils.JsonData{
+	utils.WriteJSON(w, cok, utils.JsonResponse{
 		Code:   cok,
 		Status: http.StatusText(cok),
 		Token:  token,
@@ -107,7 +109,7 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteJSON(w, cok, utils.JsonData{
+	utils.WriteJSON(w, cok, utils.JsonResponse{
 		Code:    cok,
 		Message: "You've been Logout!",
 		Status:  http.StatusText(cok),
@@ -119,7 +121,7 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 	var (
 		ctx = r.Context()
 
-		fileName string
+		filename string
 	)
 
 	if r.Method != http.MethodPost {
@@ -143,12 +145,12 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 	file, header, errFile := r.FormFile("avatar")
 
 	if errFile == http.ErrMissingFile {
-		fileName = "-"
+		filename = "-"
 	}
 
-	if err := utils.Validate.Struct(payload); err != nil {
+	if err := utils.NewValidate.Struct(payload); err != nil {
 		errors := err.(validator.ValidationErrors)
-		vErrors := utils.CustomValidateRequestWithLangID(errors)
+		vErrors := utils.TransformValidationErrorsWithLangIndonesia(errors)
 
 		utils.WriteJSONError(w, http.StatusUnprocessableEntity, vErrors)
 		return
@@ -159,7 +161,7 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hashPass, err := hash.HashPassword(payload.Password)
+	hashPass, err := hash.MakePasswordHash(payload.Password)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
@@ -168,23 +170,9 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 	if errFile == nil {
 		defer file.Close()
 
-		randomString := xid.New().String()
-		ext := filepath.Ext(header.Filename)
-
-		fileName = randomString + ext
-
-		if size1MB <= header.Size {
-			if ext == ".png" || ext == ".jpg" || ext == ".jpeg" {
-				dst, _ := os.Create(profilePath + fileName)
-				defer dst.Close()
-
-				io.Copy(dst, file)
-			} else {
-				utils.WriteJSONError(w, http.StatusForbidden, fmt.Errorf("only serve png, jpg, and jpeg file"))
-				return
-			}
-		} else {
-			utils.WriteJSONError(w, http.StatusForbidden, fmt.Errorf("only serve file under 1 mb"))
+		filename, err = utils.SetNewFilenameImg("random", file, profilePath, header.Filename, header.Size)
+		if err != nil {
+			utils.WriteJSONError(w, http.StatusInternalServerError, err)
 			return
 		}
 	}
@@ -193,13 +181,13 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 		Name:     payload.Name,
 		Email:    payload.Email,
 		Password: hashPass,
-		Avatar:   fileName,
+		Avatar:   filename,
 	}); err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusCreated, utils.JsonData{
+	utils.WriteJSON(w, http.StatusCreated, utils.JsonResponse{
 		Code:    http.StatusCreated,
 		Message: "User Registered!",
 		Status:  http.StatusText(http.StatusCreated),
@@ -209,13 +197,16 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) PrivateURLHandler(w http.ResponseWriter, r *http.Request) {
 	filename := mux.Vars(r)["filename"]
 
-	joined := filepath.Join(privateDir, filename)
-	cleaned := filepath.Clean(joined)
+	privateDir := "./assets/private"
 
-	if !utils.IsItInBaseDir(cleaned, privateDir) {
+	combined := filepath.Join(privateDir, filename)
+
+	cleanPath := filepath.Clean(combined)
+
+	if !utils.IsItInBaseDir(cleanPath, privateDir) {
 		utils.WriteJSONError(w, http.StatusNotFound, fmt.Errorf("file not found"))
 		return
 	}
 
-	http.ServeFile(w, r, cleaned)
+	http.ServeFile(w, r, cleanPath)
 }

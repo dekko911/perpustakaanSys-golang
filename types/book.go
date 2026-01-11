@@ -20,6 +20,12 @@ type Book struct {
 	Tahun int `json:"tahun,omitempty"`
 }
 
+type BooksCachePage struct {
+	Books []*Book `json:"books"`
+
+	LastPage int64 `json:"last_page"`
+}
+
 type BookStore interface {
 	GetBooksWithPagination(ctx context.Context, page int) ([]*Book, int64, error)
 	GetBooksForSearch(ctx context.Context) []*Book

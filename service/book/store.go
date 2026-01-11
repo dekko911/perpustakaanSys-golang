@@ -33,15 +33,27 @@ func (s *Store) GetBooksWithPagination(ctx context.Context, page int) ([]*types.
 	sortByColumn := "id_buku"
 	sortOrder := "DESC"
 
-	if !utils.IsValidSortColumn(sortByColumn) {
-		return nil, 0, fmt.Errorf("invalid sort column: %s", sortByColumn)
-	}
-
-	if !utils.IsValidSortOrder(sortOrder) {
-		return nil, 0, fmt.Errorf("invalid sort order: %s", sortOrder)
-	}
-
 	limit := 10
+
+	booksKey, err := utils.SetRedisKeyForPagination("books", page, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	res, err := s.rdb.Get(ctx, booksKey).Result()
+	if err == nil {
+		data := &types.BooksCachePage{}
+
+		if err := sonic.Unmarshal([]byte(res), data); err == nil {
+			return data.Books, data.LastPage, nil
+		}
+
+		s.rdb.Del(ctx, booksKey)
+	} else if err != redis.Nil {
+
+		s.rdb.Del(ctx, booksKey)
+		return nil, 0, err
+	}
 
 	query := fmt.Sprintf("SELECT b.id, b.id_buku, b.judul_buku, b.cover_buku, b.buku_pdf, b.penulis, b.pengarang, b.tahun, b.created_at, b.updated_at, COUNT(*) OVER() AS num_rows FROM books b GROUP BY b.id ORDER BY %s %s LIMIT %d OFFSET %d", sortByColumn, sortOrder, limit, (page-1)*limit)
 
@@ -72,6 +84,15 @@ func (s *Store) GetBooksWithPagination(ctx context.Context, page int) ([]*types.
 		lastPage = int64(math.Ceil(float64(total) / float64(limit)))
 
 		books = append(books, b)
+	}
+
+	payloadBooks := types.BooksCachePage{
+		Books:    books,
+		LastPage: lastPage,
+	}
+
+	if data, err := sonic.Marshal(payloadBooks); err == nil {
+		s.rdb.SetEx(ctx, booksKey, data, 2*time.Minute)
 	}
 
 	return books, lastPage, nil
@@ -109,7 +130,7 @@ func (s *Store) GetBooksForSearch(ctx context.Context) []*types.Book {
 }
 
 func (s *Store) GetBookByID(ctx context.Context, id string) (*types.Book, error) {
-	bookKey, err := utils.Redis2Key("book", id)
+	bookKey, err := utils.SetRedisKey("book", id)
 	if err != nil {
 		return nil, err
 	}
@@ -122,10 +143,10 @@ func (s *Store) GetBookByID(ctx context.Context, id string) (*types.Book, error)
 			return book, nil
 		}
 
-		_ = s.rdb.Del(ctx, bookKey).Err()
+		s.rdb.Del(ctx, bookKey)
 	} else if err != redis.Nil {
 
-		_ = s.rdb.Del(ctx, bookKey).Err()
+		s.rdb.Del(ctx, bookKey)
 		return nil, err
 	}
 
@@ -136,16 +157,16 @@ func (s *Store) GetBookByID(ctx context.Context, id string) (*types.Book, error)
 
 	defer stmt.Close()
 
-	b, err := helper.ScanAndRetRowBook(ctx, stmt, id)
+	book, err := helper.ScanAndRetRowBook(ctx, stmt, id)
 	if err != nil {
 		return nil, err
 	}
 
-	if data, err := sonic.Marshal(b); err == nil {
-		_ = s.rdb.SetEx(ctx, bookKey, data, 5*time.Minute)
+	if data, err := sonic.Marshal(book); err == nil {
+		s.rdb.SetEx(ctx, bookKey, data, 5*time.Minute)
 	}
 
-	return b, nil
+	return book, nil
 }
 
 func (s *Store) GetBookByJudulBuku(ctx context.Context, judulBuku string) (*types.Book, error) {
@@ -156,12 +177,12 @@ func (s *Store) GetBookByJudulBuku(ctx context.Context, judulBuku string) (*type
 
 	defer stmt.Close()
 
-	b, err := helper.ScanAndRetRowBook(ctx, stmt, judulBuku)
+	book, err := helper.ScanAndRetRowBook(ctx, stmt, judulBuku)
 	if err != nil {
 		return nil, err
 	}
 
-	return b, nil
+	return book, nil
 }
 
 func (s *Store) CreateBook(ctx context.Context, b *types.Book) error {
@@ -227,6 +248,10 @@ func (s *Store) CreateBook(ctx context.Context, b *types.Book) error {
 
 	defer stmtInsert.Close()
 
+	if err := utils.InvalidateAllKeysInCache(s.rdb, ctx); err != nil {
+		return err
+	}
+
 	_, err = stmtInsert.ExecContext(ctx, b.ID, b.IdBuku, b.JudulBuku, b.CoverBuku, b.BukuPDF, b.Penulis, b.Pengarang, b.Tahun)
 	if err != nil {
 		return err
@@ -240,49 +265,39 @@ func (s *Store) CreateBook(ctx context.Context, b *types.Book) error {
 }
 
 func (s *Store) UpdateBook(ctx context.Context, id string, b *types.Book) error {
-	bookKey, err := utils.Redis2Key("book", id)
-	if err != nil {
-		_ = s.rdb.Del(ctx, bookKey).Err()
-		return err
-	}
-
 	stmt, err := s.db.Prepare("UPDATE books SET judul_buku = ?, cover_buku = ?, buku_pdf = ?, penulis = ?, pengarang = ?, tahun = ? WHERE id = ?")
 	if err != nil {
-		_ = s.rdb.Del(ctx, bookKey).Err()
 		return err
 	}
 
 	defer stmt.Close()
 
-	_ = s.rdb.Del(ctx, bookKey).Err()
+	if err := utils.InvalidateAllKeysInCache(s.rdb, ctx); err != nil {
+		return err
+	}
+
 	_, err = stmt.ExecContext(ctx, b.JudulBuku, b.CoverBuku, b.BukuPDF, b.Penulis, b.Pengarang, b.Tahun, id)
 	return err
 }
 
 func (s *Store) DeleteBook(ctx context.Context, id string) error {
-	bookKey, err := utils.Redis2Key("book", id)
-	if err != nil {
-		_ = s.rdb.Del(ctx, bookKey).Err()
+	if err := utils.InvalidateAllKeysInCache(s.rdb, ctx); err != nil {
 		return err
 	}
 
 	res, err := s.db.ExecContext(ctx, "DELETE FROM books WHERE id = ?", id)
 	if err != nil {
-		_ = s.rdb.Del(ctx, bookKey).Err()
 		return err
 	}
 
 	row, err := res.RowsAffected()
 	if err != nil {
-		_ = s.rdb.Del(ctx, bookKey).Err()
 		return err
 	}
 
 	if row == 0 {
-		_ = s.rdb.Del(ctx, bookKey).Err()
 		return fmt.Errorf("book not found")
 	}
 
-	_ = s.rdb.Del(ctx, bookKey).Err()
 	return nil
 }

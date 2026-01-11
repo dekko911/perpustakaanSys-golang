@@ -2,9 +2,7 @@ package member
 
 import (
 	"fmt"
-	"io"
 	"net/http"
-	"os"
 	"path/filepath"
 
 	"github.com/perpus_backend/pkg/jwt"
@@ -17,38 +15,38 @@ import (
 )
 
 type Handler struct {
-	store     types.MemberStore
-	userStore types.UserStore
+	memberStore types.MemberStore
+	userStore   types.UserStore
 
 	jwt *jwt.AuthJWT
 }
 
-func NewHandler(jwt *jwt.AuthJWT, s types.MemberStore, us types.UserStore) *Handler {
+func NewHandler(jwt *jwt.AuthJWT, ms types.MemberStore, us types.UserStore) *Handler {
 	return &Handler{
-		store:     s,
-		userStore: us,
-		jwt:       jwt,
+		memberStore: ms,
+		userStore:   us,
+		jwt:         jwt,
 	}
 }
 
 const (
 	cok = http.StatusOK // for alias http.StatusOK
 
-	dirAvatarPath = "./assets/public/images/avatar/"
+	publicAvatarMembersPath = "./assets/public/images/avatar/"
 
 	size1MB = 1 << 20
 )
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
-	_ = r.HandleFunc("/members", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetMembers, "admin", "staff"))).Methods(http.MethodGet).GetError()
+	r.HandleFunc("/members", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetMembers, "admin", "staff"))).Methods(http.MethodGet)
 
-	_ = r.HandleFunc("/members/{memberID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetMemberByID, "admin", "staff"))).Methods(http.MethodGet).GetError()
+	r.HandleFunc("/members/{memberID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetMemberByID, "admin", "staff"))).Methods(http.MethodGet)
 
-	_ = r.HandleFunc("/members", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleCreateMember, "admin", "staff"))).Methods(http.MethodPost).GetError()
+	r.HandleFunc("/members", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleCreateMember, "admin", "staff"))).Methods(http.MethodPost)
 
-	_ = r.HandleFunc("/members/{memberID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleUpdateMember, "admin", "staff"))).Methods(http.MethodPut).GetError()
+	r.HandleFunc("/members/{memberID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleUpdateMember, "admin", "staff"))).Methods(http.MethodPut)
 
-	_ = r.HandleFunc("/members/{memberID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleDeleteMember, "admin", "staff"))).Methods(http.MethodDelete).GetError()
+	r.HandleFunc("/members/{memberID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleDeleteMember, "admin", "staff"))).Methods(http.MethodDelete)
 }
 
 func (h *Handler) handleGetMembers(w http.ResponseWriter, r *http.Request) {
@@ -56,13 +54,13 @@ func (h *Handler) handleGetMembers(w http.ResponseWriter, r *http.Request) {
 
 	page := utils.ParseStringToInt(r.URL.Query().Get("page"))
 
-	members, lastPage, err := h.store.GetMembersWithPagination(ctx, page)
+	members, lastPage, err := h.memberStore.GetMembersWithPagination(ctx, page)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.WriteJSON(w, cok, utils.JsonData{
+	utils.WriteJSON(w, cok, utils.JsonResponse{
 		Code:     cok,
 		Data:     members,
 		LastPage: lastPage,
@@ -81,13 +79,13 @@ func (h *Handler) handleGetMemberByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	member, err := h.store.GetMemberByID(ctx, memberID)
+	member, err := h.memberStore.GetMemberByID(ctx, memberID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	utils.WriteJSON(w, cok, utils.JsonData{
+	utils.WriteJSON(w, cok, utils.JsonResponse{
 		Code:   cok,
 		Data:   member,
 		Status: http.StatusText(cok),
@@ -95,12 +93,9 @@ func (h *Handler) handleGetMemberByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleCreateMember(w http.ResponseWriter, r *http.Request) {
-	var (
-		ctx = r.Context()
+	ctx := r.Context()
 
-		fileName, avatarPath, extFile string
-		sizeFile                      int64
-	)
+	var filename string
 
 	r.Body = http.MaxBytesReader(w, r.Body, size1MB)
 
@@ -116,67 +111,53 @@ func (h *Handler) handleCreateMember(w http.ResponseWriter, r *http.Request) {
 		NoTelepon:    r.FormValue("no_telepon"),
 	}
 
-	if err := utils.Validate.Struct(payload); err != nil {
+	if err := utils.NewValidate.Struct(payload); err != nil {
 		errors := err.(validator.ValidationErrors)
-		vErrors := utils.CustomValidateRequestWithLangID(errors)
+		vErrors := utils.TransformValidationErrorsWithLangIndonesia(errors)
 
 		utils.WriteJSONError(w, http.StatusUnprocessableEntity, vErrors)
 		return
 	}
 
-	if _, err := h.store.GetMemberByNama(ctx, payload.Nama); err == nil {
+	if _, err := h.memberStore.GetMemberByNama(ctx, payload.Nama); err == nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("nama: %v has already exist", payload.Nama))
 		return
 	}
 
-	if _, err := h.store.GetMemberByNoTelepon(ctx, payload.NoTelepon); err == nil {
+	if _, err := h.memberStore.GetMemberByNoTelepon(ctx, payload.NoTelepon); err == nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("no_telepon: %v has already exist", payload.NoTelepon))
 		return
 	}
 
 	file, header, err := r.FormFile("profil")
 	if err == http.ErrMissingFile {
-		fileName = "-"
+		filename = "-"
 	}
 
 	if err == nil {
 		defer file.Close()
 
-		sizeFile = header.Size
-		extFile = filepath.Ext(header.Filename)
+		filename, err = utils.SetNewFilenameImg("original", file, publicAvatarMembersPath, header.Filename, header.Size)
 
-		if extFile != ".png" && extFile != ".jpeg" && extFile != ".jpg" {
-			utils.WriteJSONError(w, http.StatusForbidden, fmt.Errorf("only support jpg, jpeg, and png"))
+		if err != nil {
+			utils.WriteJSONError(w, http.StatusInternalServerError, err)
 			return
 		}
-
-		if sizeFile > size1MB {
-			utils.WriteJSONError(w, http.StatusForbidden, fmt.Errorf("serve file under 1mb"))
-			return
-		}
-
-		fileName = header.Filename
-		avatarPath = dirAvatarPath + fileName
-
-		dst, _ := os.Create(avatarPath)
-		defer dst.Close()
-
-		io.Copy(dst, file)
 	}
 
-	err = h.store.CreateMember(ctx, &types.Member{
+	err = h.memberStore.CreateMember(ctx, &types.Member{
 		Nama:          payload.Nama,
 		JenisKelamin:  payload.JenisKelamin,
 		Kelas:         payload.Kelas,
 		NoTelepon:     payload.NoTelepon,
-		ProfilAnggota: fileName,
+		ProfilAnggota: filename,
 	})
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusCreated, utils.JsonData{
+	utils.WriteJSON(w, http.StatusCreated, utils.JsonResponse{
 		Code:    http.StatusCreated,
 		Message: "Member Created!",
 		Status:  http.StatusText(http.StatusCreated),
@@ -186,12 +167,9 @@ func (h *Handler) handleCreateMember(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleUpdateMember(w http.ResponseWriter, r *http.Request) {
 	memberID := mux.Vars(r)["memberID"]
 
-	var (
-		ctx = r.Context()
+	ctx := r.Context()
 
-		fileName, avatarPath, extFile string
-		sizeFile                      int64
-	)
+	var filename string
 
 	if r.Method != http.MethodPut {
 		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("method not allowed"))
@@ -217,15 +195,15 @@ func (h *Handler) handleUpdateMember(w http.ResponseWriter, r *http.Request) {
 		NoTelepon:    r.FormValue("no_telepon"),
 	}
 
-	if err := utils.Validate.Struct(payload); err != nil {
+	if err := utils.NewValidate.Struct(payload); err != nil {
 		errors := err.(validator.ValidationErrors)
-		vErrors := utils.CustomValidateRequestWithLangID(errors)
+		vErrors := utils.TransformValidationErrorsWithLangIndonesia(errors)
 
 		utils.WriteJSONError(w, http.StatusUnprocessableEntity, vErrors)
 		return
 	}
 
-	m, err := h.store.GetMemberByID(ctx, memberID)
+	m, err := h.memberStore.GetMemberByID(ctx, memberID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
@@ -245,57 +223,35 @@ func (h *Handler) handleUpdateMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	file, header, err := r.FormFile("profil")
+
 	if err == http.ErrMissingFile {
-		fileName = m.ProfilAnggota
+		filename = m.ProfilAnggota
 	}
 
 	if err == nil {
 		defer file.Close()
 
-		sizeFile = header.Size
-		extFile = filepath.Ext(header.Filename)
+		filename, err = utils.UpdateTheFilenameImg("original", file, publicAvatarMembersPath, m.ProfilAnggota, header.Filename, header.Size)
 
-		if extFile != ".png" && extFile != ".jpg" && extFile != ".jpeg" {
-			utils.WriteJSONError(w, http.StatusUnprocessableEntity, fmt.Errorf("only supports jpg, jpeg, and png"))
+		if err != nil {
+			utils.WriteJSONError(w, http.StatusInternalServerError, err)
 			return
 		}
-
-		if sizeFile > size1MB {
-			utils.WriteJSONError(w, http.StatusUnprocessableEntity, fmt.Errorf("only serve file under 1mb"))
-			return
-		}
-
-		avatarPathOld := dirAvatarPath + m.ProfilAnggota
-		info, err := os.Stat(avatarPathOld)
-
-		if err == nil {
-			if !info.IsDir() {
-				os.Remove(avatarPathOld)
-			}
-		}
-
-		fileName = header.Filename
-		avatarPath = dirAvatarPath + fileName
-
-		dst, _ := os.Create(avatarPath)
-		defer dst.Close()
-
-		io.Copy(dst, file)
 	}
 
-	err = h.store.UpdateMember(ctx, memberID, &types.Member{
+	err = h.memberStore.UpdateMember(ctx, memberID, &types.Member{
 		Nama:          m.Nama,
 		JenisKelamin:  m.JenisKelamin,
 		Kelas:         m.Kelas,
 		NoTelepon:     m.NoTelepon,
-		ProfilAnggota: fileName,
+		ProfilAnggota: filename,
 	})
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.WriteJSON(w, cok, utils.JsonData{
+	utils.WriteJSON(w, cok, utils.JsonResponse{
 		Code:    cok,
 		Message: "Member Updated!",
 		Status:  http.StatusText(cok),
@@ -312,27 +268,25 @@ func (h *Handler) handleDeleteMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	m, err := h.store.GetMemberByID(ctx, memberID)
+	m, err := h.memberStore.GetMemberByID(ctx, memberID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusNotFound, err)
 		return
 	}
 
-	filePath := dirAvatarPath + m.ProfilAnggota
-	info, err := os.Stat(filePath)
+	filePathAndFileName := filepath.Join(publicAvatarMembersPath, m.ProfilAnggota)
 
-	if err == nil {
-		if !info.IsDir() {
-			os.Remove(filePath)
-		}
-	}
-
-	if err := h.store.DeleteMember(ctx, memberID); err != nil {
+	if err := utils.DeleteFilepathWithFilename(filePathAndFileName); err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.WriteJSON(w, cok, utils.JsonData{
+	if err := h.memberStore.DeleteMember(ctx, memberID); err != nil {
+		utils.WriteJSONError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	utils.WriteJSON(w, cok, utils.JsonResponse{
 		Code:    cok,
 		Message: "Member Deleted!",
 		Status:  http.StatusText(cok),

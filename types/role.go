@@ -31,6 +31,3 @@ type SetPayloadRole struct {
 type SetPayloadUpdateRole struct {
 	Name string `form:"name" validate:"omitempty,required,min=3"`
 }
-
-// relation many to many with users.
-type Roles []Role

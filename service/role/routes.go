@@ -14,16 +14,16 @@ import (
 )
 
 type Handler struct {
-	store     types.RoleStore
+	roleStore types.RoleStore
 	userStore types.UserStore
 
 	jwt *jwt.AuthJWT
 }
 
-func NewHandler(jwt *jwt.AuthJWT, store types.RoleStore, userStore types.UserStore) *Handler {
+func NewHandler(jwt *jwt.AuthJWT, rs types.RoleStore, us types.UserStore) *Handler {
 	return &Handler{
-		store:     store,
-		userStore: userStore,
+		roleStore: rs,
+		userStore: us,
 		jwt:       jwt,
 	}
 }
@@ -31,27 +31,27 @@ func NewHandler(jwt *jwt.AuthJWT, store types.RoleStore, userStore types.UserSto
 const cok = http.StatusOK
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
-	_ = r.HandleFunc("/roles", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetRoles, "admin"))).Methods(http.MethodGet).GetError()
+	r.HandleFunc("/roles", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetRoles, "admin"))).Methods(http.MethodGet)
 
-	_ = r.HandleFunc("/roles/{roleID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetRoleByID, "admin"))).Methods(http.MethodGet).GetError()
+	r.HandleFunc("/roles/{roleID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetRoleByID, "admin"))).Methods(http.MethodGet)
 
-	_ = r.HandleFunc("/roles", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleCreateRole, "admin"))).Methods(http.MethodPost).GetError()
+	r.HandleFunc("/roles", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleCreateRole, "admin"))).Methods(http.MethodPost)
 
-	_ = r.HandleFunc("/roles/{roleID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleUpdateRole, "admin"))).Methods(http.MethodPatch).GetError()
+	r.HandleFunc("/roles/{roleID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleUpdateRole, "admin"))).Methods(http.MethodPatch)
 
-	_ = r.HandleFunc("/roles/{roleID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleDeleteRole, "admin"))).Methods(http.MethodDelete).GetError()
+	r.HandleFunc("/roles/{roleID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleDeleteRole, "admin"))).Methods(http.MethodDelete)
 }
 
 func (h *Handler) handleGetRoles(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	roles, err := h.store.GetRoles(ctx)
+	roles, err := h.roleStore.GetRoles(ctx)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	utils.WriteJSON(w, cok, utils.JsonData{
+	utils.WriteJSON(w, cok, utils.JsonResponse{
 		Code:   cok,
 		Data:   roles,
 		Status: http.StatusText(cok),
@@ -68,13 +68,13 @@ func (h *Handler) handleGetRoleByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	role, err := h.store.GetRoleByID(ctx, roleID)
+	role, err := h.roleStore.GetRoleByID(ctx, roleID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusNotFound, err)
 		return
 	}
 
-	utils.WriteJSON(w, cok, utils.JsonData{
+	utils.WriteJSON(w, cok, utils.JsonResponse{
 		Code:   cok,
 		Data:   role,
 		Status: http.StatusText(cok),
@@ -93,9 +93,9 @@ func (h *Handler) handleCreateRole(w http.ResponseWriter, r *http.Request) {
 		Name: r.FormValue("name"),
 	}
 
-	if err := utils.Validate.Struct(payload); err != nil {
+	if err := utils.NewValidate.Struct(payload); err != nil {
 		errors := err.(validator.ValidationErrors)
-		vErrors := utils.CustomValidateRequestWithLangID(errors)
+		vErrors := utils.TransformValidationErrorsWithLangIndonesia(errors)
 
 		utils.WriteJSONError(w, http.StatusUnprocessableEntity, vErrors)
 		return
@@ -107,12 +107,12 @@ func (h *Handler) handleCreateRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := h.store.GetRoleByName(ctx, payload.Name); err == nil {
+	if _, err := h.roleStore.GetRoleByName(ctx, payload.Name); err == nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("role with name: %s is already exists", payload.Name))
 		return
 	}
 
-	err := h.store.CreateRole(ctx, &types.Role{
+	err := h.roleStore.CreateRole(ctx, &types.Role{
 		Name: payload.Name,
 	})
 	if err != nil {
@@ -120,7 +120,7 @@ func (h *Handler) handleCreateRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusCreated, utils.JsonData{
+	utils.WriteJSON(w, http.StatusCreated, utils.JsonResponse{
 		Code:    http.StatusCreated,
 		Message: "Role Created!",
 		Status:  http.StatusText(http.StatusCreated),
@@ -146,15 +146,15 @@ func (h *Handler) handleUpdateRole(w http.ResponseWriter, req *http.Request) {
 		Name: req.FormValue("name"),
 	}
 
-	if err := utils.Validate.Struct(payload); err != nil {
+	if err := utils.NewValidate.Struct(payload); err != nil {
 		errors := err.(validator.ValidationErrors)
-		vErrors := utils.CustomValidateRequestWithLangID(errors)
+		vErrors := utils.TransformValidationErrorsWithLangIndonesia(errors)
 
 		utils.WriteJSONError(w, http.StatusUnprocessableEntity, vErrors)
 		return
 	}
 
-	r, err := h.store.GetRoleByID(ctx, roleID)
+	r, err := h.roleStore.GetRoleByID(ctx, roleID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusNotFound, err)
 		return
@@ -169,7 +169,7 @@ func (h *Handler) handleUpdateRole(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	err = h.store.UpdateRole(ctx, roleID, &types.Role{
+	err = h.roleStore.UpdateRole(ctx, roleID, &types.Role{
 		Name: r.Name,
 	})
 	if err != nil {
@@ -177,7 +177,7 @@ func (h *Handler) handleUpdateRole(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	utils.WriteJSON(w, cok, utils.JsonData{
+	utils.WriteJSON(w, cok, utils.JsonResponse{
 		Code:    cok,
 		Message: "Role Updated!",
 		Status:  http.StatusText(cok),
@@ -194,7 +194,7 @@ func (h *Handler) handleDeleteRole(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	r, err := h.store.GetRoleByID(ctx, roleID)
+	r, err := h.roleStore.GetRoleByID(ctx, roleID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
@@ -205,12 +205,12 @@ func (h *Handler) handleDeleteRole(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if err := h.store.DeleteRole(ctx, roleID); err != nil {
+	if err := h.roleStore.DeleteRole(ctx, roleID); err != nil {
 		utils.WriteJSONError(w, http.StatusNotFound, err)
 		return
 	}
 
-	utils.WriteJSON(w, cok, utils.JsonData{
+	utils.WriteJSON(w, cok, utils.JsonResponse{
 		Code:    cok,
 		Message: "Role Deleted!",
 		Status:  http.StatusText(cok),

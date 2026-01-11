@@ -33,16 +33,27 @@ func (s *Store) GetMembersWithPagination(ctx context.Context, page int) ([]*type
 	sortByColumn := "id_anggota"
 	sortOrder := "DESC"
 
-	// tanda ! == data yang false akan menjadi true
-	if !utils.IsValidSortColumn(sortByColumn) {
-		return nil, 0, fmt.Errorf("invalid sort column: %s", sortByColumn)
-	}
-
-	if !utils.IsValidSortOrder(sortOrder) {
-		return nil, 0, fmt.Errorf("invalid sort order: %s", sortOrder)
-	}
-
 	limitPage := 10 // set the limit perPage
+
+	membersKey, err := utils.SetRedisKeyForPagination("members", page, limitPage)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	res, err := s.rdb.Get(ctx, membersKey).Result()
+	if err == nil {
+		data := &types.MembersCachePage{}
+
+		if err := sonic.Unmarshal([]byte(res), data); err == nil {
+			return data.Members, data.LastPage, nil
+		}
+
+		s.rdb.Del(ctx, membersKey)
+	} else if err != redis.Nil {
+
+		s.rdb.Del(ctx, membersKey)
+		return nil, 0, err
+	}
 
 	query := fmt.Sprintf("SELECT m.id, m.id_anggota, m.nama, m.jenis_kelamin, m.kelas, m.no_telepon, m.profil_anggota, m.created_at, m.updated_at, COUNT(*) OVER() AS num_rows FROM members m GROUP BY m.id ORDER BY %s %s LIMIT %d OFFSET %d", sortByColumn, sortOrder, limitPage, (page-1)*limitPage)
 
@@ -74,6 +85,15 @@ func (s *Store) GetMembersWithPagination(ctx context.Context, page int) ([]*type
 		lastPage = int64(math.Ceil(float64(count) / float64(limitPage)))
 
 		members = append(members, m)
+	}
+
+	payloadMembers := types.MembersCachePage{
+		Members:  members,
+		LastPage: lastPage,
+	}
+
+	if data, err := sonic.Marshal(payloadMembers); err == nil {
+		s.rdb.SetEx(ctx, membersKey, data, 2*time.Minute)
 	}
 
 	return members, lastPage, nil
@@ -111,7 +131,7 @@ func (s *Store) GetMembersForSearch(ctx context.Context) []*types.Member {
 }
 
 func (s *Store) GetMemberByID(ctx context.Context, id string) (*types.Member, error) {
-	memberKey, err := utils.Redis2Key("member", id)
+	memberKey, err := utils.SetRedisKey("member", id)
 	if err != nil {
 		return nil, err
 	}
@@ -124,10 +144,10 @@ func (s *Store) GetMemberByID(ctx context.Context, id string) (*types.Member, er
 			return member, nil
 		}
 
-		_ = s.rdb.Del(ctx, memberKey).Err()
+		s.rdb.Del(ctx, memberKey)
 	} else if err != redis.Nil {
 
-		_ = s.rdb.Del(ctx, memberKey).Err()
+		s.rdb.Del(ctx, memberKey)
 		return nil, err
 	}
 
@@ -138,16 +158,16 @@ func (s *Store) GetMemberByID(ctx context.Context, id string) (*types.Member, er
 
 	defer stmt.Close()
 
-	m, err := helper.ScanAndRetRowMember(ctx, stmt, id)
+	member, err := helper.ScanAndRetRowMember(ctx, stmt, id)
 	if err != nil {
 		return nil, err
 	}
 
-	if data, err := sonic.Marshal(m); err == nil {
-		_ = s.rdb.SetEx(ctx, memberKey, data, 5*time.Minute)
+	if data, err := sonic.Marshal(member); err == nil {
+		s.rdb.SetEx(ctx, memberKey, data, 5*time.Minute)
 	}
 
-	return m, nil
+	return member, nil
 }
 
 func (s *Store) GetMemberByNama(ctx context.Context, nama string) (*types.Member, error) {
@@ -174,12 +194,12 @@ func (s *Store) GetMemberByNoTelepon(ctx context.Context, no_phone string) (*typ
 
 	defer stmt.Close()
 
-	m, err := helper.ScanAndRetRowMember(ctx, stmt, no_phone)
+	member, err := helper.ScanAndRetRowMember(ctx, stmt, no_phone)
 	if err != nil {
 		return nil, err
 	}
 
-	return m, nil
+	return member, nil
 }
 
 func (s *Store) CreateMember(ctx context.Context, m *types.Member) error {
@@ -207,8 +227,10 @@ func (s *Store) CreateMember(ctx context.Context, m *types.Member) error {
 	var lastNum int // initial first the last number in query row members
 
 	if err := stmtSelect.QueryRowContext(ctx).Scan(&lastNum); err == sql.ErrNoRows {
+
 		lastNum = 0
 	} else if err != nil {
+
 		return err
 	}
 
@@ -244,6 +266,10 @@ func (s *Store) CreateMember(ctx context.Context, m *types.Member) error {
 
 	defer stmtInsert.Close()
 
+	if err := utils.InvalidateAllKeysInCache(s.rdb, ctx); err != nil {
+		return err
+	}
+
 	_, err = stmtInsert.ExecContext(ctx, m.ID, m.IdAnggota, m.Nama, m.JenisKelamin, m.Kelas, m.NoTelepon, m.ProfilAnggota)
 	if err != nil {
 		return err
@@ -257,49 +283,39 @@ func (s *Store) CreateMember(ctx context.Context, m *types.Member) error {
 }
 
 func (s *Store) UpdateMember(ctx context.Context, id string, m *types.Member) error {
-	memberKey, err := utils.Redis2Key("member", id)
-	if err != nil {
-		_ = s.rdb.Del(ctx, memberKey).Err()
-		return err
-	}
-
 	stmt, err := s.db.Prepare("UPDATE members SET nama = ?, jenis_kelamin = ?, kelas = ?, no_telepon = ?, profil_anggota = ? WHERE id = ?")
 	if err != nil {
-		_ = s.rdb.Del(ctx, memberKey).Err()
 		return err
 	}
 
 	defer stmt.Close()
 
-	_ = s.rdb.Del(ctx, memberKey).Err()
+	if err := utils.InvalidateAllKeysInCache(s.rdb, ctx); err != nil {
+		return err
+	}
+
 	_, err = stmt.ExecContext(ctx, m.Nama, m.JenisKelamin, m.Kelas, m.NoTelepon, m.ProfilAnggota, id)
 	return err
 }
 
 func (s *Store) DeleteMember(ctx context.Context, id string) error {
-	memberKey, err := utils.Redis2Key("member", id)
-	if err != nil {
-		_ = s.rdb.Del(ctx, memberKey).Err()
+	if err := utils.InvalidateAllKeysInCache(s.rdb, ctx); err != nil {
 		return err
 	}
 
 	res, err := s.db.ExecContext(ctx, "DELETE FROM members WHERE id = ?", id)
 	if err != nil {
-		_ = s.rdb.Del(ctx, memberKey).Err()
 		return err
 	}
 
 	rows, err := res.RowsAffected()
 	if err != nil {
-		_ = s.rdb.Del(ctx, memberKey).Err()
 		return err
 	}
 
 	if rows == 0 {
-		_ = s.rdb.Del(ctx, memberKey).Err()
 		return fmt.Errorf("member not found")
 	}
 
-	_ = s.rdb.Del(ctx, memberKey).Err()
 	return nil
 }

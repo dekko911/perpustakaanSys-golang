@@ -35,28 +35,28 @@ func NewHandler(jwt *jwt.AuthJWT, us types.UserStore, rs types.RoleStore, ms typ
 }
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
-	r.HandleFunc("/search/users", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetSearchForUsers, "admin", "staff", "user"))).Methods(http.MethodGet)
+	r.HandleFunc("/search/users", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetSearchForUsers, "admin", "staff", "user"))).Methods(http.MethodPost)
 
-	r.HandleFunc("/search/roles", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetSearchForRoles, "admin", "staff", "user"))).Methods(http.MethodGet)
+	r.HandleFunc("/search/roles", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetSearchForRoles, "admin", "staff", "user"))).Methods(http.MethodPost)
 
-	r.HandleFunc("/search/members", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetSearchForMembers, "admin", "staff", "user"))).Methods(http.MethodGet)
+	r.HandleFunc("/search/members", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetSearchForMembers, "admin", "staff", "user"))).Methods(http.MethodPost)
 
-	r.HandleFunc("/search/books", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetSearchForBooks, "admin", "staff", "user"))).Methods(http.MethodGet)
+	r.HandleFunc("/search/books", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetSearchForBooks, "admin", "staff", "user"))).Methods(http.MethodPost)
 
-	r.HandleFunc("/search/circulations", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetSearchForCirculations, "admin", "staff", "user"))).Methods(http.MethodGet)
+	r.HandleFunc("/search/circulations", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetSearchForCirculations, "admin", "staff", "user"))).Methods(http.MethodPost)
 }
 
 var req types.SetPayloadQuery
 
 func (h *Handler) handleGetSearchForUsers(w http.ResponseWriter, r *http.Request) {
-	conn, err := utils.WSUpgrader.Upgrade(w, r, nil)
+	conn, err := utils.NewWSUpgrader.Upgrade(w, r, nil)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
 	// initial clientUser meilisearch
-	clientUser := utils.MSClient
+	clientUser := utils.NewMSClient
 
 	// assert value users to records meili
 	users := h.us.GetUsersForSearch(context.Background())
@@ -93,14 +93,14 @@ func (h *Handler) handleGetSearchForUsers(w http.ResponseWriter, r *http.Request
 }
 
 func (h *Handler) handleGetSearchForRoles(w http.ResponseWriter, r *http.Request) {
-	conn, err := utils.WSUpgrader.Upgrade(w, r, nil)
+	conn, err := utils.NewWSUpgrader.Upgrade(w, r, nil)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
 	// initial clientRole meili
-	clientRole := utils.MSClient
+	clientRole := utils.NewMSClient
 
 	// assert value roles to records meili
 	roles, _ := h.rs.GetRoles(context.Background())
@@ -137,14 +137,14 @@ func (h *Handler) handleGetSearchForRoles(w http.ResponseWriter, r *http.Request
 }
 
 func (h *Handler) handleGetSearchForMembers(w http.ResponseWriter, r *http.Request) {
-	conn, err := utils.WSUpgrader.Upgrade(w, r, nil)
+	conn, err := utils.NewWSUpgrader.Upgrade(w, r, nil)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
 	// initial clientMember meili
-	clientMember := utils.MSClient
+	clientMember := utils.NewMSClient
 
 	// assert value members to records meili
 	members := h.ms.GetMembersForSearch(context.Background())
@@ -181,14 +181,14 @@ func (h *Handler) handleGetSearchForMembers(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *Handler) handleGetSearchForBooks(w http.ResponseWriter, r *http.Request) {
-	conn, err := utils.WSUpgrader.Upgrade(w, r, nil)
+	conn, err := utils.NewWSUpgrader.Upgrade(w, r, nil)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
 	// initial clientBook meili
-	clientBook := utils.MSClient
+	clientBook := utils.NewMSClient
 
 	// assert value books to records meili
 	books := h.bs.GetBooksForSearch(context.Background())
@@ -225,14 +225,14 @@ func (h *Handler) handleGetSearchForBooks(w http.ResponseWriter, r *http.Request
 }
 
 func (h *Handler) handleGetSearchForCirculations(w http.ResponseWriter, r *http.Request) {
-	conn, err := utils.WSUpgrader.Upgrade(w, r, nil)
+	conn, err := utils.NewWSUpgrader.Upgrade(w, r, nil)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
 	// initial clientCirc meili
-	clientCirc := utils.MSClient
+	clientCirc := utils.NewMSClient
 
 	// assert value circulations to records meili
 	circulations := h.cs.GetCirculationsForSearch(context.Background())

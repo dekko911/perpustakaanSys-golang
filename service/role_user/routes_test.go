@@ -65,8 +65,8 @@ func TestHandlerRoleUser(t *testing.T) {
 
 	// 	t.Log(w.Body)
 
-	// 	if w.Code != COK {
-	// 		t.Errorf("expected status code %d, got %d", COK, w.Code)
+	// 	if w.Code != cok {
+	// 		t.Errorf("expected status code %d, got %d", cok, w.Code)
 	// 	}
 	// })
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"io/fs"
 	"log"
 	"os"
@@ -61,14 +62,21 @@ func main() {
 			log.Fatal(err)
 		}
 
-		dirPath := "./assets"
-		err := filepath.Walk(dirPath, func(path string, info fs.FileInfo, err error) error {
+		err := filepath.WalkDir("./assets", func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
 
-			if !info.IsDir() {
-				return os.Remove(path)
+			info, err := d.Info()
+			if err == nil {
+
+				if info.Mode()&os.ModeSymlink != 0 {
+					return errors.New("symlink not allowed")
+				}
+
+				if !info.IsDir() {
+					return os.Remove(path)
+				}
 			}
 
 			return nil

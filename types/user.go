@@ -8,7 +8,7 @@ import (
 type User struct {
 	CreatedAt time.Time `json:"created_at,omitzero"`
 	UpdatedAt time.Time `json:"updated_at,omitzero"`
-	Roles     Roles     `json:"roles"`
+	Roles     []Role    `json:"roles"`
 
 	ID       string `json:"id"`
 	Name     string `json:"name"`
@@ -17,6 +17,12 @@ type User struct {
 	Avatar   string `json:"avatar"`
 
 	TokenVersion int `json:"token_version"`
+}
+
+type UsersCachePage struct {
+	Users []*User `json:"users"`
+
+	LastPage int64 `json:"last_page"`
 }
 
 type UserStore interface {

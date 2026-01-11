@@ -28,14 +28,6 @@ func (s *Store) GetRoles(ctx context.Context) ([]*types.Role, error) {
 	sortByColumn := "created_at"
 	sortOrder := "DESC"
 
-	if !utils.IsValidSortColumn(sortByColumn) {
-		return nil, fmt.Errorf("invalid sort column: %s", sortByColumn)
-	}
-
-	if !utils.IsValidSortOrder(sortOrder) {
-		return nil, fmt.Errorf("invalid sort order: %s", sortOrder)
-	}
-
 	query := fmt.Sprintf("SELECT r.id, r.name, r.created_at, r.updated_at FROM roles r ORDER BY %s %s", sortByColumn, sortOrder)
 
 	stmt, err := s.db.Prepare(query)
@@ -52,7 +44,7 @@ func (s *Store) GetRoles(ctx context.Context) ([]*types.Role, error) {
 
 	defer rows.Close()
 
-	r := make([]*types.Role, 0)
+	roles := make([]*types.Role, 0)
 
 	for rows.Next() {
 		role, err := helper.ScanEachRowIntoRole(rows)
@@ -60,14 +52,14 @@ func (s *Store) GetRoles(ctx context.Context) ([]*types.Role, error) {
 			return nil, err
 		}
 
-		r = append(r, role)
+		roles = append(roles, role)
 	}
 
-	return r, nil
+	return roles, nil
 }
 
 func (s *Store) GetRoleByID(ctx context.Context, id string) (*types.Role, error) {
-	roleKey, err := utils.Redis2Key("role", id)
+	roleKey, err := utils.SetRedisKey("role", id)
 	if err != nil {
 		return nil, err
 	}
@@ -80,10 +72,10 @@ func (s *Store) GetRoleByID(ctx context.Context, id string) (*types.Role, error)
 			return role, nil
 		}
 
-		_ = s.rdb.Del(ctx, roleKey).Err()
+		s.rdb.Del(ctx, roleKey)
 	} else if err != redis.Nil {
 
-		_ = s.rdb.Del(ctx, roleKey).Err()
+		s.rdb.Del(ctx, roleKey)
 		return nil, err
 	}
 
@@ -94,16 +86,16 @@ func (s *Store) GetRoleByID(ctx context.Context, id string) (*types.Role, error)
 
 	defer stmt.Close()
 
-	r, err := helper.ScanAndRetRowRole(ctx, stmt, id)
+	role, err := helper.ScanAndRetRowRole(ctx, stmt, id)
 	if err != nil {
 		return nil, err
 	}
 
-	if data, err := sonic.Marshal(r); err == nil {
-		_ = s.rdb.SetEx(ctx, roleKey, data, 5*time.Minute).Err()
+	if data, err := sonic.Marshal(role); err == nil {
+		s.rdb.SetEx(ctx, roleKey, data, 5*time.Minute)
 	}
 
-	return r, nil
+	return role, nil
 }
 
 func (s *Store) GetRoleByName(ctx context.Context, name string) (*types.Role, error) {
@@ -114,16 +106,16 @@ func (s *Store) GetRoleByName(ctx context.Context, name string) (*types.Role, er
 
 	defer stmt.Close()
 
-	r, err := helper.ScanAndRetRowRole(ctx, stmt, name)
+	role, err := helper.ScanAndRetRowRole(ctx, stmt, name)
 	if err != nil {
 		return nil, err
 	}
 
-	if r.ID == "" {
+	if role.ID == "" {
 		return nil, fmt.Errorf("role not found")
 	}
 
-	return r, nil
+	return role, nil
 }
 
 func (s *Store) CreateRole(ctx context.Context, r *types.Role) error {
@@ -138,54 +130,48 @@ func (s *Store) CreateRole(ctx context.Context, r *types.Role) error {
 
 	defer stmt.Close()
 
+	if err := utils.InvalidateAllKeysInCache(s.rdb, ctx); err != nil {
+		return err
+	}
+
 	_, err = stmt.ExecContext(ctx, r.ID, r.Name)
 	return err
 }
 
 func (s *Store) UpdateRole(ctx context.Context, id string, r *types.Role) error {
-	roleKey, err := utils.Redis2Key("role", id)
-	if err != nil {
-		_ = s.rdb.Del(ctx, roleKey).Err()
-		return err
-	}
-
 	stmt, err := s.db.Prepare("UPDATE roles SET name = ? WHERE id = ?")
 	if err != nil {
-		_ = s.rdb.Del(ctx, roleKey).Err()
 		return err
 	}
 
 	defer stmt.Close()
 
-	_ = s.rdb.Del(ctx, roleKey).Err()
+	if err := utils.InvalidateAllKeysInCache(s.rdb, ctx); err != nil {
+		return err
+	}
+
 	_, err = stmt.ExecContext(ctx, r.Name, id)
 	return err
 }
 
 func (s *Store) DeleteRole(ctx context.Context, id string) error {
-	roleKey, err := utils.Redis2Key("role", id)
-	if err != nil {
-		_ = s.rdb.Del(ctx, roleKey).Err()
+	if err := utils.InvalidateAllKeysInCache(s.rdb, ctx); err != nil {
 		return err
 	}
 
 	res, err := s.db.ExecContext(ctx, "DELETE FROM roles WHERE id = ?", id)
 	if err != nil {
-		_ = s.rdb.Del(ctx, roleKey).Err()
 		return err
 	}
 
 	rows, err := res.RowsAffected()
 	if err != nil {
-		_ = s.rdb.Del(ctx, roleKey).Err()
 		return err
 	}
 
 	if rows == 0 {
-		_ = s.rdb.Del(ctx, roleKey).Err()
 		return fmt.Errorf("role not found")
 	}
 
-	_ = s.rdb.Del(ctx, roleKey).Err()
 	return nil
 }

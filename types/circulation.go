@@ -21,6 +21,12 @@ type Circulation struct {
 	Book *Book `json:"book"`
 }
 
+type CirculationsCachePage struct {
+	Circulations []*Circulation `json:"circulations"`
+
+	LastPage int64 `json:"last_page"`
+}
+
 type CirculationStore interface {
 	GetCirculationsWithPagination(ctx context.Context, page int) ([]*Circulation, int64, error)
 	GetCirculationsForSearch(ctx context.Context) []*Circulation

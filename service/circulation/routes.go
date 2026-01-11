@@ -14,32 +14,32 @@ import (
 )
 
 type Handler struct {
-	store     types.CirculationStore
-	userStore types.UserStore
+	circulationStore types.CirculationStore
+	userStore        types.UserStore
 
 	jwt *jwt.AuthJWT
 }
 
-func NewHandler(jwt *jwt.AuthJWT, s types.CirculationStore, us types.UserStore) *Handler {
+func NewHandler(jwt *jwt.AuthJWT, cs types.CirculationStore, us types.UserStore) *Handler {
 	return &Handler{
-		store:     s,
-		userStore: us,
-		jwt:       jwt,
+		circulationStore: cs,
+		userStore:        us,
+		jwt:              jwt,
 	}
 }
 
 const cok = http.StatusOK
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
-	_ = r.HandleFunc("/circulations", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetCirculations, "admin", "staff"))).Methods(http.MethodGet).GetError()
+	r.HandleFunc("/circulations", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetCirculations, "admin", "staff"))).Methods(http.MethodGet)
 
-	_ = r.HandleFunc("/circulations/{cID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetCirculationByID, "admin", "staff"))).Methods(http.MethodGet).GetError()
+	r.HandleFunc("/circulations/{cID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetCirculationByID, "admin", "staff"))).Methods(http.MethodGet)
 
-	_ = r.HandleFunc("/circulations", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleCreateCirculation, "admin", "staff"))).Methods(http.MethodPost).GetError()
+	r.HandleFunc("/circulations", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleCreateCirculation, "admin", "staff"))).Methods(http.MethodPost)
 
-	_ = r.HandleFunc("/circulations/{cID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleUpdateCirculation, "admin", "staff"))).Methods(http.MethodPatch).GetError()
+	r.HandleFunc("/circulations/{cID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleUpdateCirculation, "admin", "staff"))).Methods(http.MethodPatch)
 
-	_ = r.HandleFunc("/circulations/{cID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleDeleteCirculation, "admin", "staff"))).Methods(http.MethodDelete).GetError()
+	r.HandleFunc("/circulations/{cID}", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleDeleteCirculation, "admin", "staff"))).Methods(http.MethodDelete)
 }
 
 func (h *Handler) handleGetCirculations(w http.ResponseWriter, r *http.Request) {
@@ -47,15 +47,15 @@ func (h *Handler) handleGetCirculations(w http.ResponseWriter, r *http.Request) 
 
 	page := utils.ParseStringToInt(r.URL.Query().Get("page"))
 
-	c, lastPage, err := h.store.GetCirculationsWithPagination(ctx, page)
+	circulations, lastPage, err := h.circulationStore.GetCirculationsWithPagination(ctx, page)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.WriteJSON(w, cok, utils.JsonData{
+	utils.WriteJSON(w, cok, utils.JsonResponse{
 		Code:     cok,
-		Data:     c,
+		Data:     circulations,
 		Page:     page,
 		LastPage: lastPage,
 		Status:   http.StatusText(cok),
@@ -72,15 +72,15 @@ func (h *Handler) handleGetCirculationByID(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	c, err := h.store.GetCirculationByID(ctx, circulationID)
+	circulation, err := h.circulationStore.GetCirculationByID(ctx, circulationID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	utils.WriteJSON(w, cok, utils.JsonData{
+	utils.WriteJSON(w, cok, utils.JsonResponse{
 		Code:   cok,
-		Data:   c,
+		Data:   circulation,
 		Status: http.StatusText(cok),
 	})
 }
@@ -101,20 +101,25 @@ func (h *Handler) handleCreateCirculation(w http.ResponseWriter, r *http.Request
 		Denda:         r.FormValue("denda"),
 	}
 
-	if err := utils.Validate.Struct(payload); err != nil {
+	if err := uuid.Validate(payload.BukuID); err != nil {
+		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	if err := utils.NewValidate.Struct(payload); err != nil {
 		errors := err.(validator.ValidationErrors)
-		vErrors := utils.CustomValidateRequestWithLangID(errors)
+		vErrors := utils.TransformValidationErrorsWithLangIndonesia(errors)
 
 		utils.WriteJSONError(w, http.StatusUnprocessableEntity, vErrors)
 		return
 	}
 
-	if _, err := h.store.GetCirculationByPeminjam(ctx, payload.Peminjam); err == nil {
+	if _, err := h.circulationStore.GetCirculationByPeminjam(ctx, payload.Peminjam); err == nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("peminjam has name: %v been exist", payload.Peminjam))
 		return
 	}
 
-	err := h.store.CreateCirculation(ctx, &types.Circulation{
+	err := h.circulationStore.CreateCirculation(ctx, &types.Circulation{
 		BukuID:        payload.BukuID,
 		Peminjam:      payload.Peminjam,
 		TanggalPinjam: utils.ParseStringToFormatDate(payload.TanggalPinjam),
@@ -126,7 +131,7 @@ func (h *Handler) handleCreateCirculation(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusCreated, utils.JsonData{
+	utils.WriteJSON(w, http.StatusCreated, utils.JsonResponse{
 		Code:    http.StatusCreated,
 		Message: "Circulation added!",
 		Status:  http.StatusText(http.StatusCreated),
@@ -156,15 +161,20 @@ func (h *Handler) handleUpdateCirculation(w http.ResponseWriter, r *http.Request
 		Denda:         r.FormValue("denda"),
 	}
 
-	if err := utils.Validate.Struct(payload); err != nil {
+	if err := uuid.Validate(payload.BukuID); err != nil {
+		utils.WriteJSONError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	if err := utils.NewValidate.Struct(payload); err != nil {
 		errors := err.(validator.ValidationErrors)
-		vErrors := utils.CustomValidateRequestWithLangID(errors)
+		vErrors := utils.TransformValidationErrorsWithLangIndonesia(errors)
 
 		utils.WriteJSONError(w, http.StatusUnprocessableEntity, vErrors)
 		return
 	}
 
-	c, err := h.store.GetCirculationByID(ctx, circulationID)
+	c, err := h.circulationStore.GetCirculationByID(ctx, circulationID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
@@ -186,7 +196,7 @@ func (h *Handler) handleUpdateCirculation(w http.ResponseWriter, r *http.Request
 		c.Denda = utils.ParseStringToFloat(payload.Denda)
 	}
 
-	err = h.store.UpdateCirculation(ctx, circulationID, &types.Circulation{
+	err = h.circulationStore.UpdateCirculation(ctx, circulationID, &types.Circulation{
 		BukuID:        c.BukuID,
 		Peminjam:      c.Peminjam,
 		TanggalPinjam: c.TanggalPinjam,
@@ -198,7 +208,7 @@ func (h *Handler) handleUpdateCirculation(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	utils.WriteJSON(w, cok, utils.JsonData{
+	utils.WriteJSON(w, cok, utils.JsonResponse{
 		Code:    cok,
 		Message: "Circulation updated!",
 		Status:  http.StatusText(cok),
@@ -215,12 +225,12 @@ func (h *Handler) handleDeleteCirculation(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if err := h.store.DeleteCirculation(ctx, circulationID); err != nil {
+	if err := h.circulationStore.DeleteCirculation(ctx, circulationID); err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	utils.WriteJSON(w, cok, utils.JsonData{
+	utils.WriteJSON(w, cok, utils.JsonResponse{
 		Code:    cok,
 		Message: "Circulation deleted!",
 		Status:  http.StatusText(cok),

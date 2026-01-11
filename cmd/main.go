@@ -46,7 +46,7 @@ func init() {
 		DB:         0,
 	})
 
-	id.RegisterDefaultTranslations(utils.Validate, utils.Translate)
+	id.RegisterDefaultTranslations(utils.NewValidate, utils.GetTranslateIndonesia)
 }
 
 func main() {

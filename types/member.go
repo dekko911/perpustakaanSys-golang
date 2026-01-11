@@ -18,6 +18,12 @@ type Member struct {
 	ProfilAnggota string `json:"profil_anggota"` // image type
 }
 
+type MembersCachePage struct {
+	Members []*Member `json:"members"`
+
+	LastPage int64 `json:"last_page"`
+}
+
 type MemberStore interface {
 	GetMembersWithPagination(ctx context.Context, page int) ([]*Member, int64, error)
 	GetMembersForSearch(ctx context.Context) []*Member

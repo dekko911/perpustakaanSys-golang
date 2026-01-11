@@ -33,15 +33,27 @@ func (s *Store) GetCirculationsWithPagination(ctx context.Context, page int) ([]
 	sortByColumn := "id_skl"
 	sortOrder := "DESC"
 
-	if !utils.IsValidSortColumn(sortByColumn) {
-		return nil, 0, fmt.Errorf("invalid sort column: %s", sortByColumn)
-	}
-
-	if !utils.IsValidSortOrder(sortOrder) {
-		return nil, 0, fmt.Errorf("invalid sort order: %s", sortOrder)
-	}
-
 	limit := 10 // set the limit perPage
+
+	circulationsKey, err := utils.SetRedisKeyForPagination("circulations", page, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	res, err := s.rdb.Get(ctx, circulationsKey).Result()
+	if err == nil {
+		data := &types.CirculationsCachePage{}
+
+		if err := sonic.Unmarshal([]byte(res), data); err != nil {
+			return data.Circulations, data.LastPage, nil
+		}
+
+		s.rdb.Del(ctx, circulationsKey)
+	} else if err != redis.Nil {
+
+		s.rdb.Del(ctx, circulationsKey)
+		return nil, 0, err
+	}
 
 	query := fmt.Sprintf(`SELECT c.id, c.buku_id, c.id_skl, c.peminjam, c.tanggal_pinjam, c.jatuh_tempo, c.denda, c.created_at, c.updated_at, b.id, b.judul_buku, COUNT(*) OVER() AS num_rows FROM circulations c INNER JOIN books b ON c.buku_id = b.id GROUP BY c.id, b.id ORDER BY %s %s LIMIT %d OFFSET %d`, sortByColumn, sortOrder, limit, (page-1)*limit)
 
@@ -59,7 +71,7 @@ func (s *Store) GetCirculationsWithPagination(ctx context.Context, page int) ([]
 
 	defer rows.Close()
 
-	c := make([]*types.Circulation, 0)
+	circulations := make([]*types.Circulation, 0)
 
 	var lastPage int64
 
@@ -72,10 +84,20 @@ func (s *Store) GetCirculationsWithPagination(ctx context.Context, page int) ([]
 		lastPage = int64(math.Ceil(float64(total) / float64(limit)))
 
 		circulation.Book = book
-		c = append(c, circulation)
+
+		circulations = append(circulations, circulation)
 	}
 
-	return c, lastPage, nil
+	payloadCirculations := types.CirculationsCachePage{
+		Circulations: circulations,
+		LastPage:     lastPage,
+	}
+
+	if data, err := sonic.Marshal(payloadCirculations); err == nil {
+		s.rdb.SetEx(ctx, circulationsKey, data, 2*time.Minute)
+	}
+
+	return circulations, lastPage, nil
 }
 
 func (s *Store) GetCirculationsForSearch(ctx context.Context) []*types.Circulation {
@@ -95,7 +117,7 @@ func (s *Store) GetCirculationsForSearch(ctx context.Context) []*types.Circulati
 
 	defer rows.Close()
 
-	c := make([]*types.Circulation, 0)
+	circulations := make([]*types.Circulation, 0)
 
 	for rows.Next() {
 		circulation, book, err := helper.ScanRowsCirculation(rows)
@@ -104,14 +126,15 @@ func (s *Store) GetCirculationsForSearch(ctx context.Context) []*types.Circulati
 		}
 
 		circulation.Book = book
-		c = append(c, circulation)
+
+		circulations = append(circulations, circulation)
 	}
 
-	return c
+	return circulations
 }
 
 func (s *Store) GetCirculationByID(ctx context.Context, id string) (*types.Circulation, error) {
-	circKey, err := utils.Redis2Key("circulation", id)
+	circKey, err := utils.SetRedisKey("circulation", id)
 	if err != nil {
 		return nil, err
 	}
@@ -124,10 +147,10 @@ func (s *Store) GetCirculationByID(ctx context.Context, id string) (*types.Circu
 			return circ, nil
 		}
 
-		_ = s.rdb.Del(ctx, circKey).Err()
+		s.rdb.Del(ctx, circKey)
 	} else if err != redis.Nil {
 
-		_ = s.rdb.Del(ctx, circKey).Err()
+		s.rdb.Del(ctx, circKey)
 		return nil, err
 	}
 
@@ -154,16 +177,16 @@ func (s *Store) GetCirculationByID(ctx context.Context, id string) (*types.Circu
 
 	defer stmt.Close()
 
-	c, err := helper.ScanAndRetRowCirculation(ctx, stmt, id)
+	circulation, err := helper.ScanAndRetRowCirculation(ctx, stmt, id)
 	if err != nil {
 		return nil, err
 	}
 
-	if data, err := sonic.Marshal(c); err == nil {
-		_ = s.rdb.SetEx(ctx, circKey, data, 5*time.Minute).Err()
+	if data, err := sonic.Marshal(circulation); err == nil {
+		s.rdb.SetEx(ctx, circKey, data, 5*time.Minute)
 	}
 
-	return c, nil
+	return circulation, nil
 }
 
 func (s *Store) GetCirculationByPeminjam(ctx context.Context, borrowerName string) (*types.Circulation, error) {
@@ -190,12 +213,12 @@ func (s *Store) GetCirculationByPeminjam(ctx context.Context, borrowerName strin
 
 	defer stmt.Close()
 
-	c, err := helper.ScanAndRetRowCirculation(ctx, stmt, borrowerName)
+	circulation, err := helper.ScanAndRetRowCirculation(ctx, stmt, borrowerName)
 	if err != nil {
 		return nil, err
 	}
 
-	return c, nil
+	return circulation, nil
 }
 
 func (s *Store) CreateCirculation(ctx context.Context, c *types.Circulation) error {
@@ -261,6 +284,10 @@ func (s *Store) CreateCirculation(ctx context.Context, c *types.Circulation) err
 
 	defer stmtInsert.Close()
 
+	if err := utils.InvalidateAllKeysInCache(s.rdb, ctx); err != nil {
+		return err
+	}
+
 	_, err = stmtInsert.ExecContext(ctx, c.ID, c.BukuID, c.IdSKL, c.Peminjam, c.TanggalPinjam, c.JatuhTempo, c.Denda)
 	if err != nil {
 		return err
@@ -274,47 +301,37 @@ func (s *Store) CreateCirculation(ctx context.Context, c *types.Circulation) err
 }
 
 func (s *Store) UpdateCirculation(ctx context.Context, id string, c *types.Circulation) error {
-	circKey, err := utils.Redis2Key("circulation", id)
-	if err != nil {
-		_ = s.rdb.Del(ctx, circKey).Err()
-		return err
-	}
-
 	stmt, err := s.db.Prepare("UPDATE circulations SET buku_id = ?, peminjam = ?, tanggal_pinjam = ?, jatuh_tempo = ?, denda = ? WHERE id = ?")
 	if err != nil {
-		_ = s.rdb.Del(ctx, circKey).Err()
 		return err
 	}
 
-	_ = s.rdb.Del(ctx, circKey).Err()
+	if err := utils.InvalidateAllKeysInCache(s.rdb, ctx); err != nil {
+		return err
+	}
+
 	_, err = stmt.ExecContext(ctx, c.BukuID, c.Peminjam, c.TanggalPinjam, c.JatuhTempo, c.Denda, id)
 	return err
 }
 
 func (s *Store) DeleteCirculation(ctx context.Context, id string) error {
-	circKey, err := utils.Redis2Key("circulation", id)
-	if err != nil {
-		_ = s.rdb.Del(ctx, circKey).Err()
+	if err := utils.InvalidateAllKeysInCache(s.rdb, ctx); err != nil {
 		return err
 	}
 
 	res, err := s.db.ExecContext(ctx, "DELETE FROM circulations WHERE id = ?", id)
 	if err != nil {
-		_ = s.rdb.Del(ctx, circKey).Err()
 		return err
 	}
 
 	row, err := res.RowsAffected()
 	if err != nil {
-		_ = s.rdb.Del(ctx, circKey).Err()
 		return err
 	}
 
 	if row == 0 {
-		_ = s.rdb.Del(ctx, circKey).Err()
 		return fmt.Errorf("circulation not found")
 	}
 
-	_ = s.rdb.Del(ctx, circKey).Err()
 	return nil
 }
