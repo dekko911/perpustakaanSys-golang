@@ -138,7 +138,7 @@ func (s *Store) GetUserAndRoleNames(ctx context.Context, userID string) (*types.
 	}
 
 	if data, err := sonic.Marshal(u); err == nil {
-		s.rdb.SetEx(ctx, userKey, data, 5*time.Minute)
+		s.rdb.SetEx(ctx, userKey, data, time.Duration(5)*time.Minute)
 	}
 
 	return u, roles, nil

@@ -129,9 +129,10 @@ func (s *Store) GetUsersWithPagination(ctx context.Context, page int) ([]*types.
 
 	// set redis db
 	if data, err := sonic.Marshal(payloadUsers); err == nil {
-		s.rdb.SetEx(ctx, usersKey, data, 2*time.Minute)
+		s.rdb.SetEx(ctx, usersKey, data, time.Duration(2)*time.Minute)
 	}
 
+	// TODO: buat presigned url untuk showing files dari r2 cloudflare
 	return users, lastPage, nil
 }
 
@@ -246,7 +247,7 @@ func (s *Store) GetUserWithRolesByID(ctx context.Context, id string) (*types.Use
 
 	// set cache user
 	if data, err := sonic.Marshal(u); err == nil {
-		s.rdb.SetEx(ctx, userKey, data, 5*time.Minute)
+		s.rdb.SetEx(ctx, userKey, data, time.Duration(5)*time.Minute)
 	}
 
 	return u, nil
@@ -353,13 +354,12 @@ func (s *Store) IncrementTokenVersion(ctx context.Context, id, token string) err
 		return err
 	}
 
-	s.rdb.Del(ctx, token) // hapus token di cache jika terjadi error di bagian s.db.ExecContext()
-
 	// token_version + 1 (==) 0 + 1 = 1
 	_, err := s.db.ExecContext(ctx, "UPDATE users SET token_version = token_version + 1 WHERE id = ?", id)
 	if err != nil {
 		return err
 	}
 
+	s.rdb.Del(ctx, token) // hapus token di cache
 	return nil
 }

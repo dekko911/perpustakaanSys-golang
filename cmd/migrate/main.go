@@ -1,11 +1,8 @@
 package main
 
 import (
-	"errors"
-	"io/fs"
 	"log"
 	"os"
-	"path/filepath"
 
 	"github.com/perpus_backend/config"
 	"github.com/perpus_backend/db"
@@ -59,30 +56,6 @@ func main() {
 
 	if command == "down" {
 		if err := m.Down(); err != nil && err != migrate.ErrNoChange {
-			log.Fatal(err)
-		}
-
-		err := filepath.WalkDir("./assets", func(path string, d fs.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-
-			info, err := d.Info()
-			if err == nil {
-
-				if info.Mode()&os.ModeSymlink != 0 {
-					return errors.New("symlink not allowed")
-				}
-
-				if !info.IsDir() {
-					return os.Remove(path)
-				}
-			}
-
-			return nil
-		})
-
-		if err != nil {
 			log.Fatal(err)
 		}
 

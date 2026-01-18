@@ -92,7 +92,7 @@ func (s *Store) GetRoleByID(ctx context.Context, id string) (*types.Role, error)
 	}
 
 	if data, err := sonic.Marshal(role); err == nil {
-		s.rdb.SetEx(ctx, roleKey, data, 5*time.Minute)
+		s.rdb.SetEx(ctx, roleKey, data, time.Duration(5)*time.Minute)
 	}
 
 	return role, nil

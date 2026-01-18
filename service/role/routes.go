@@ -1,6 +1,7 @@
 package role
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -45,6 +46,11 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 func (h *Handler) handleGetRoles(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	if r.Method != http.MethodGet {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
+		return
+	}
+
 	roles, err := h.roleStore.GetRoles(ctx)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
@@ -62,6 +68,11 @@ func (h *Handler) handleGetRoleByID(w http.ResponseWriter, r *http.Request) {
 	roleID := mux.Vars(r)["roleID"]
 
 	ctx := r.Context()
+
+	if r.Method != http.MethodGet {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
+		return
+	}
 
 	if err := uuid.Validate(roleID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
@@ -84,13 +95,18 @@ func (h *Handler) handleGetRoleByID(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleCreateRole(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	if r.Method != http.MethodPost {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
+		return
+	}
+
 	if err := r.ParseForm(); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
 	payload := types.SetPayloadRole{
-		Name: r.FormValue("name"),
+		Name: r.PostForm.Get("name"),
 	}
 
 	if err := utils.NewValidate.Struct(payload); err != nil {
@@ -103,7 +119,7 @@ func (h *Handler) handleCreateRole(w http.ResponseWriter, r *http.Request) {
 
 	// if the role name was out of the box, it should be triggered
 	if !utils.IsInputRoleNameWasValid(payload.Name) {
-		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("invalid role name; only admin, staff, and user can be valid"))
+		utils.WriteJSONError(w, http.StatusBadRequest, errors.New("invalid role name; only admin, staff, and user can be valid"))
 		return
 	}
 
@@ -132,6 +148,11 @@ func (h *Handler) handleUpdateRole(w http.ResponseWriter, req *http.Request) {
 
 	ctx := req.Context()
 
+	if req.Method != http.MethodPatch {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", req.Method))
+		return
+	}
+
 	if err := uuid.Validate(roleID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
@@ -143,7 +164,7 @@ func (h *Handler) handleUpdateRole(w http.ResponseWriter, req *http.Request) {
 	}
 
 	payload := types.SetPayloadUpdateRole{
-		Name: req.FormValue("name"),
+		Name: req.PostForm.Get("name"),
 	}
 
 	if err := utils.NewValidate.Struct(payload); err != nil {
@@ -165,7 +186,7 @@ func (h *Handler) handleUpdateRole(w http.ResponseWriter, req *http.Request) {
 	}
 
 	if !utils.IsInputRoleNameWasValid(r.Name) {
-		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("invalid role name; only admin, staff, and user can be valid"))
+		utils.WriteJSONError(w, http.StatusBadRequest, errors.New("invalid role name; only admin, staff, and user can be valid"))
 		return
 	}
 
@@ -189,6 +210,11 @@ func (h *Handler) handleDeleteRole(w http.ResponseWriter, req *http.Request) {
 
 	ctx := req.Context()
 
+	if req.Method != http.MethodDelete {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", req.Method))
+		return
+	}
+
 	if err := uuid.Validate(roleID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
@@ -201,7 +227,7 @@ func (h *Handler) handleDeleteRole(w http.ResponseWriter, req *http.Request) {
 	}
 
 	if r.Name == "admin" {
-		utils.WriteJSONError(w, http.StatusForbidden, fmt.Errorf("you can't delete role admin"))
+		utils.WriteJSONError(w, http.StatusForbidden, errors.New("you can't delete role admin"))
 		return
 	}
 

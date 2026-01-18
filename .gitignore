@@ -1,4 +1,5 @@
 /bin
+/backup
 /vendor
 .env
 docker-compose.yml

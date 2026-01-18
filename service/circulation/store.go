@@ -94,7 +94,7 @@ func (s *Store) GetCirculationsWithPagination(ctx context.Context, page int) ([]
 	}
 
 	if data, err := sonic.Marshal(payloadCirculations); err == nil {
-		s.rdb.SetEx(ctx, circulationsKey, data, 2*time.Minute)
+		s.rdb.SetEx(ctx, circulationsKey, data, time.Duration(2)*time.Minute)
 	}
 
 	return circulations, lastPage, nil
@@ -183,7 +183,7 @@ func (s *Store) GetCirculationByID(ctx context.Context, id string) (*types.Circu
 	}
 
 	if data, err := sonic.Marshal(circulation); err == nil {
-		s.rdb.SetEx(ctx, circKey, data, 5*time.Minute)
+		s.rdb.SetEx(ctx, circKey, data, time.Duration(5)*time.Minute)
 	}
 
 	return circulation, nil

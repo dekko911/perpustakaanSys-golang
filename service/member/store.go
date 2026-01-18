@@ -93,7 +93,7 @@ func (s *Store) GetMembersWithPagination(ctx context.Context, page int) ([]*type
 	}
 
 	if data, err := sonic.Marshal(payloadMembers); err == nil {
-		s.rdb.SetEx(ctx, membersKey, data, 2*time.Minute)
+		s.rdb.SetEx(ctx, membersKey, data, time.Duration(2)*time.Minute)
 	}
 
 	return members, lastPage, nil
@@ -164,7 +164,7 @@ func (s *Store) GetMemberByID(ctx context.Context, id string) (*types.Member, er
 	}
 
 	if data, err := sonic.Marshal(member); err == nil {
-		s.rdb.SetEx(ctx, memberKey, data, 5*time.Minute)
+		s.rdb.SetEx(ctx, memberKey, data, time.Duration(5)*time.Minute)
 	}
 
 	return member, nil

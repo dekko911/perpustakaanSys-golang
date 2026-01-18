@@ -1,6 +1,7 @@
 package roleuser
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -48,6 +49,11 @@ func (h *Handler) handleGetUserWithRoleByUserID(w http.ResponseWriter, r *http.R
 
 	ctx := r.Context()
 
+	if r.Method != http.MethodGet {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
+		return
+	}
+
 	if err := uuid.Validate(userID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
@@ -70,6 +76,11 @@ func (h *Handler) handleGetUserAndRoleNames(w http.ResponseWriter, req *http.Req
 	userID := mux.Vars(req)["userID"]
 
 	ctx := req.Context()
+
+	if req.Method != http.MethodGet {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", req.Method))
+		return
+	}
 
 	if err := uuid.Validate(userID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
@@ -97,14 +108,19 @@ func (h *Handler) handleGetUserAndRoleNames(w http.ResponseWriter, req *http.Req
 func (h *Handler) handleAssignRoleIntoUser(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
+	if req.Method != http.MethodPost {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", req.Method))
+		return
+	}
+
 	if err := req.ParseForm(); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
 	payload := types.SetPayloadRoleAndUserID{
-		UserID: req.FormValue("user_id"),
-		RoleID: req.FormValue("role_id"),
+		UserID: req.PostForm.Get("user_id"),
+		RoleID: req.PostForm.Get("role_id"),
 	}
 
 	// validate id user
@@ -141,7 +157,7 @@ func (h *Handler) handleAssignRoleIntoUser(w http.ResponseWriter, req *http.Requ
 
 	if r.Name == "admin" {
 		if jwt.GetUserIDFromContext(ctx) != payload.UserID {
-			utils.WriteJSONError(w, http.StatusForbidden, fmt.Errorf("you can't add admin"))
+			utils.WriteJSONError(w, http.StatusForbidden, errors.New("you can't add admin"))
 			return
 		}
 	}
@@ -159,12 +175,15 @@ func (h *Handler) handleAssignRoleIntoUser(w http.ResponseWriter, req *http.Requ
 }
 
 func (h *Handler) handleDeleteRoleFromUser(w http.ResponseWriter, req *http.Request) {
-	var (
-		ctx = req.Context()
+	ctx := req.Context()
 
-		userID = mux.Vars(req)["userID"]
-		roleID = mux.Vars(req)["roleID"]
-	)
+	userID := mux.Vars(req)["userID"]
+	roleID := mux.Vars(req)["roleID"]
+
+	if req.Method != http.MethodDelete {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", req.Method))
+		return
+	}
 
 	// validate id user
 	if err := uuid.Validate(userID); err != nil {
@@ -187,7 +206,7 @@ func (h *Handler) handleDeleteRoleFromUser(w http.ResponseWriter, req *http.Requ
 	for _, r := range u.Roles {
 		for name := range strings.SplitSeq(r.Name, ",") {
 			if name == "admin" {
-				utils.WriteJSONError(w, http.StatusForbidden, fmt.Errorf("you can't delete admin"))
+				utils.WriteJSONError(w, http.StatusForbidden, errors.New("you can't delete admin"))
 				return
 			}
 		}

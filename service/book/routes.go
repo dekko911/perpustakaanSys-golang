@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"path/filepath"
 
 	"github.com/perpus_backend/pkg/jwt"
 	"github.com/perpus_backend/types"
@@ -33,12 +32,10 @@ func NewHandler(jwt *jwt.AuthJWT, bs types.BookStore, us types.UserStore) *Handl
 const (
 	cok = http.StatusOK
 
-	publicCoverBookFilePath = "./assets/public/images/cover/"
-	publicPDFBookFilePath   = "./assets/private/pdf/"
+	r2CoverBookPath = "books/cover_book"
+	r2PDFBookPath   = "books/pdf_book"
 
-	size10MB = 10 << 20
-	size8MB  = 8 << 20
-	size1MB  = 1 << 20
+	size9MB = 9 << 20
 )
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
@@ -57,6 +54,11 @@ func (h *Handler) handleGetBooks(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	page := utils.ParseStringToInt(r.URL.Query().Get("page"))
+
+	if r.Method != http.MethodGet {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
+		return
+	}
 
 	books, lastPage, err := h.bookStore.GetBooksWithPagination(ctx, page)
 	if err != nil {
@@ -77,6 +79,11 @@ func (h *Handler) handleGetBookByID(w http.ResponseWriter, r *http.Request) {
 	bookID := mux.Vars(r)["bookID"]
 
 	ctx := r.Context()
+
+	if r.Method != http.MethodGet {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
+		return
+	}
 
 	if err := uuid.Validate(bookID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
@@ -101,18 +108,23 @@ func (h *Handler) handleCreateBook(w http.ResponseWriter, r *http.Request) {
 
 	var filename, filePDF string
 
-	r.Body = http.MaxBytesReader(w, r.Body, size10MB)
+	if r.Method != http.MethodPost {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
+		return
+	}
 
-	if err := r.ParseMultipartForm(size10MB); err != nil { // 20 = 2 dikalikan sebanyak 20 kali.
+	if err := r.ParseMultipartForm(size9MB); err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
+	defer r.MultipartForm.RemoveAll()
+
 	payload := types.SetPayloadBook{
-		JudulBuku: r.FormValue("judul_buku"),
-		Penulis:   r.FormValue("penulis"),
-		Pengarang: r.FormValue("pengarang"),
-		Tahun:     r.FormValue("tahun"),
+		JudulBuku: r.PostForm.Get("judul_buku"),
+		Penulis:   r.PostForm.Get("penulis"),
+		Pengarang: r.PostForm.Get("pengarang"),
+		Tahun:     r.PostForm.Get("tahun"),
 	}
 
 	if err := utils.NewValidate.Struct(payload); err != nil {
@@ -128,28 +140,26 @@ func (h *Handler) handleCreateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fileImg, headerImg, errImg := r.FormFile("cover_buku") // get input form file name is "cover_buku"
+	_, headerImg, errImg := r.FormFile("cover_buku") // get input form file name is "cover_buku"
 
-	fileBookPDF, headerPDF, errPDF := r.FormFile("buku_pdf") // get input form file name is "buku_pdf"
+	_, headerPDF, errPDF := r.FormFile("buku_pdf") // get input form file name is "buku_pdf"
 
 	// fill the cover book, if input form file of cover book is empty
 	if errImg == http.ErrMissingFile {
-		utils.WriteJSONError(w, http.StatusUnprocessableEntity, fmt.Errorf("required file cover book"))
+		utils.WriteJSONError(w, http.StatusUnprocessableEntity, errors.New("required file cover book"))
 		filename = "-"
 		return
 	}
 
 	// fill the pdf file, if input form file of PDF is empty
 	if errPDF == http.ErrMissingFile {
-		utils.WriteJSONError(w, http.StatusUnprocessableEntity, fmt.Errorf("required file pdf"))
+		utils.WriteJSONError(w, http.StatusUnprocessableEntity, errors.New("required file pdf"))
 		filePDF = "-"
 		return
 	}
 
 	if errImg == nil {
-		defer fileImg.Close()
-
-		newFilename, err := utils.SetNewFilenameImg("random", fileImg, publicCoverBookFilePath, headerImg.Filename, headerImg.Size)
+		newFilename, err := utils.SetNewFilenameImg(ctx, "random", headerImg, r2CoverBookPath)
 
 		if err != nil {
 			utils.WriteJSONError(w, http.StatusInternalServerError, err)
@@ -160,9 +170,7 @@ func (h *Handler) handleCreateBook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if errPDF == nil {
-		defer fileBookPDF.Close()
-
-		newFilePDF, err := utils.SetOriginalFilenamePDF(fileBookPDF, publicPDFBookFilePath, headerPDF.Filename, headerPDF.Size)
+		newFilePDF, err := utils.SetOriginalFilenamePDF(ctx, headerPDF, r2PDFBookPath)
 
 		if err != nil {
 			utils.WriteJSONError(w, http.StatusInternalServerError, err)
@@ -172,6 +180,7 @@ func (h *Handler) handleCreateBook(w http.ResponseWriter, r *http.Request) {
 		filePDF = newFilePDF // <- set the filename PDF for PDF book
 	}
 
+	// TODO: BAGAIMANA AGAR REQUEST TIME UPLOAD 2 FILE TIDAK LEBIH DARI 3 DETIK
 	err := h.bookStore.CreateBook(ctx, &types.Book{
 		JudulBuku: payload.JudulBuku,
 		CoverBuku: filename,
@@ -201,11 +210,9 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 	var filename, filePDF string
 
 	if r.Method != http.MethodPut {
-		utils.WriteJSONError(w, http.StatusMethodNotAllowed, errors.New("method doesn't allowed"))
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
 		return
 	}
-
-	r.Body = http.MaxBytesReader(w, r.Body, size10MB)
 
 	if err := uuid.Validate(bookID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
@@ -213,16 +220,18 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// TODO: buat validasi file dan buatkan function logic untuk menyimpan file ke local storage
-	if err := r.ParseMultipartForm(size10MB); err != nil {
+	if err := r.ParseMultipartForm(size9MB); err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
+	defer r.MultipartForm.RemoveAll()
+
 	payload := types.SetPayloadUpdateBook{
-		JudulBuku: r.FormValue("judul_buku"),
-		Penulis:   r.FormValue("penulis"),
-		Pengarang: r.FormValue("pengarang"),
-		Tahun:     r.FormValue("tahun"),
+		JudulBuku: r.PostForm.Get("judul_buku"),
+		Penulis:   r.PostForm.Get("penulis"),
+		Pengarang: r.PostForm.Get("pengarang"),
+		Tahun:     r.PostForm.Get("tahun"),
 	}
 
 	if err := utils.NewValidate.Struct(payload); err != nil {
@@ -252,9 +261,9 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 		b.Tahun = utils.ParseStringToInt(payload.Tahun)
 	}
 
-	fileImg, headerImg, errImg := r.FormFile("cover_buku")
+	_, headerImg, errImg := r.FormFile("cover_buku")
 
-	fileBookPDF, headerPDF, errPDF := r.FormFile("buku_pdf")
+	_, headerPDF, errPDF := r.FormFile("buku_pdf")
 
 	if errImg == http.ErrMissingFile {
 		filename = b.CoverBuku
@@ -265,9 +274,7 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if errImg == nil {
-		defer fileImg.Close()
-
-		newFilename, err := utils.UpdateTheFilenameImg("random", fileImg, publicCoverBookFilePath, b.CoverBuku, headerImg.Filename, headerImg.Size)
+		newFilename, err := utils.UpdateTheFilenameImg(ctx, "random", headerImg, r2CoverBookPath, b.CoverBuku)
 
 		if err != nil {
 			utils.WriteJSONError(w, http.StatusInternalServerError, err)
@@ -278,9 +285,7 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if errPDF == nil {
-		defer fileBookPDF.Close()
-
-		newFilePDF, err := utils.UpdateTheOriginalFilenamePDF(fileBookPDF, publicPDFBookFilePath, b.BukuPDF, headerPDF.Filename, headerPDF.Size)
+		newFilePDF, err := utils.UpdateTheOriginalFilenamePDF(ctx, headerPDF, r2PDFBookPath, b.BukuPDF)
 
 		if err != nil {
 			utils.WriteJSONError(w, http.StatusInternalServerError, err)
@@ -316,6 +321,11 @@ func (h *Handler) handleDeleteBook(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
+	if r.Method != http.MethodDelete {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
+		return
+	}
+
 	if err := uuid.Validate(bookID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
@@ -327,13 +337,7 @@ func (h *Handler) handleDeleteBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// file cover book
-	fileImg := filepath.Join(publicCoverBookFilePath, b.CoverBuku)
-
-	// file pdf book
-	filePDF := filepath.Join(publicPDFBookFilePath, b.BukuPDF)
-
-	if err := utils.DeleteFilepathWithFilename(fileImg, filePDF); err != nil {
+	if err := utils.DeleteFilepathWithFilename(ctx, b.CoverBuku, b.BukuPDF); err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}

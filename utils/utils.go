@@ -6,12 +6,10 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
-	"io/fs"
 	"log"
 	"mime/multipart"
 	"net/http"
-	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -19,6 +17,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go"
 	"github.com/go-playground/locales/id"
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
@@ -41,6 +43,8 @@ var (
 	newIndonesiaLocale       = id.New()
 	newUniTrans              = ut.New(newIndonesiaLocale, newIndonesiaLocale)
 	GetTranslateIndonesia, _ = newUniTrans.GetTranslator("id_ID")
+
+	bucketR2 = config.Env.CFBucketName
 
 	NewValidate = validator.New(validator.WithRequiredStructEnabled()) // validate the request input.
 
@@ -90,6 +94,10 @@ func IsTesting() bool {
 	return flag.Lookup("test.v") != nil
 }
 
+func StringPtr(v string) *string {
+	return &v
+}
+
 // WriteJSON writes the provided JsonResponse to w as JSON.
 // It sets the "Content-Type" header to "application/json" and writes the
 // provided HTTP status code before encoding the body.
@@ -112,7 +120,7 @@ func WriteJSON(w http.ResponseWriter, statusCode int, d JsonResponse) error {
 	// encoder = Go -> change format -> JSON
 	// decoder = JSON -> change format -> Go
 
-	return cfg.Froze().NewEncoder(w).Encode(&d)
+	return cfg.Froze().NewEncoder(w).Encode(d)
 }
 
 // WriteJSONError writes an error response in JSON format to the provided http.ResponseWriter.
@@ -218,6 +226,7 @@ func SetRedisKey(keyName, keyValue string) (string, error) {
 	return fmt.Sprintf("%s:%s", keyName, keyValue), nil
 }
 
+// documentation: soon
 func SetRedisKeyForPagination(keyName string, page, limit int) (string, error) {
 	if page < 1 || limit < 10 {
 
@@ -245,37 +254,6 @@ func GetTokenFromRequest(r *http.Request) string {
 	}
 
 	return ""
-}
-
-// IsItInBaseDir reports whether the provided path refers to a non-directory file located inside the given baseDir.
-// It first converts both path and baseDir to absolute paths; if either conversion fails or the path does not exist, it returns false.
-// If the path refers to a directory, the function returns false.
-// Containment is determined by a simple string prefix comparison of the absolute paths; symbolic links are not fully resolved and this method can yield false positives for similarly named paths (e.g. "/base/dir2" vs "/base/dir"). Use more robust checks (e.g. filepath.Rel and verifying path separators or resolving symlinks) if strict containment is required.
-func IsItInBaseDir(path, baseDir string) bool {
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		return false
-	}
-
-	absBaseDir, err := filepath.Abs(baseDir)
-	if err != nil {
-		return false
-	}
-
-	info, err := os.Stat(absPath)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return false
-		}
-
-		return false
-	}
-
-	if info.IsDir() {
-		return false
-	}
-
-	return len(absPath) >= len(absBaseDir) && absPath[:len(absBaseDir)] == absBaseDir
 }
 
 // ParseStringToInt converts a decimal string to an int.
@@ -324,10 +302,10 @@ func CompareRole(roles, targetRoles []string) bool {
 	slices.Sort(targetRoles) // sort to ascending
 
 	// brute force algorithm
-	for _, s := range roles {
-		for _, t := range targetRoles {
-			if s != "" && t != "" {
-				if s == t {
+	for outer := range roles {
+		for inner := range targetRoles {
+			if roles[outer] != "" && targetRoles[inner] != "" {
+				if roles[outer] == targetRoles[inner] {
 					return true
 				}
 			}
@@ -370,261 +348,350 @@ func TransformValidationErrorsWithLangIndonesia(vErrors validator.ValidationErro
 	return newVErrors
 }
 
-// SetNewFilenameImg validates and saves an uploaded image file and returns the filename actually used.
-//
-// The function accepts a filenameMode ("original" or "random"), a multipart.File containing the file
-// data, a directoryPath to write into, the original file name (fileImg) to derive the extension, and
-// the sizeFile in bytes. It only accepts extensions .png, .jpg and .jpeg and enforces a maximum size
-// of 1<<20 bytes (1 MiB).
-//
-// Behavior:
-//   - If filenameMode == "random", the saved filename is xid.New().String() + file extension.
-//   - If filenameMode == "original", the original fileImg name is used (subject to validation).
-//   - The destination path is formed by concatenating directoryPath and the chosen filename; directoryPath
-//     is expected to include the appropriate path separator if needed.
-//   - The function creates (os.Create) the destination file (truncating any existing file) and copies the
-//     contents from srcFile into it. It does not close srcFile; the caller is responsible for closing it.
-//   - srcFile should be positioned at the start of the file (or at the intended read position) before calling.
-//
-// Return values:
-//   - On success returns the filename written (without directoryPath) and a nil error.
-//   - On failure returns "-" and a non-nil error explaining the reason (invalid filename mode, unsupported
-//     extension, file too large, or I/O error while creating or copying the file).
-func SetNewFilenameImg(filenameMode string, srcFile multipart.File, directoryPath, fileImg string, sizeFile int64) (string, error) {
-	if filenameMode != "original" && filenameMode != "random" {
+// fileMode = original or random.
+func SetNewFilenameImg(ctx context.Context, filenameMode string, headerSrcFile *multipart.FileHeader, directoryPath string) (string, error) {
 
-		fileImg = "-" // for explicit things
+	if len(directoryPath) < 1 {
 
-		return fileImg, errors.New("invalid filename mode, only two: original & random")
+		return "-", errors.New("you must put the path directory")
 	}
 
-	fileExt := filepath.Ext(fileImg) // init extension fileImg
+	if filenameMode != "original" && filenameMode != "random" {
+
+		return "-", errors.New("invalid filename mode, only two: original & random")
+	}
+
+	// init multipart.File
+	srcFile, err := headerSrcFile.Open()
+	if err != nil {
+		return "-", err
+	}
+
+	defer srcFile.Close()
+
+	// init filename original
+	newFilename := headerSrcFile.Filename
+
+	fileExt := filepath.Ext(newFilename) // init extension fileImg
 
 	if fileExt != ".png" && fileExt != ".jpg" && fileExt != ".jpeg" {
 
-		fileImg = "-" // for explicit things
-
-		return fileImg, fmt.Errorf("only support file '.jpg, .jpeg, and .png'. current file extension: %s", fileExt)
+		return "-", fmt.Errorf("only support file '.jpg, .jpeg, and .png'. current file extension: %s", fileExt)
 	}
 
-	if sizeFile <= 1<<20 {
+	if headerSrcFile.Size <= 1<<20 {
 
 		uniqueString := xid.New().String() // set the new unique filename
 
 		if filenameMode == "random" {
-			fileImg = uniqueString + fileExt // set the new filename
+			newFilename = uniqueString + fileExt // set the new filename
 		}
 
-		filePath := filepath.Join(directoryPath, fileImg) // set the filename + dirPath
+		// init r2 storage
+		clientR2, err := config.R2Storage(ctx)
+		if err != nil {
 
-		cleanPath := filepath.Clean(filePath) // clean the path for not messing the path?
+			return "-", err
+		}
 
-		destination, _ := os.Create(cleanPath)
-		defer destination.Close()
+		// init filepath for r2
+		keyFilepath := path.Join(directoryPath, newFilename)
 
-		io.Copy(destination, srcFile)
+		_, err = clientR2.PutObject(ctx, &s3.PutObjectInput{
+			Bucket:      &bucketR2,
+			Body:        srcFile,
+			Key:         &keyFilepath,
+			ContentType: aws.String(headerSrcFile.Header.Get("Content-Type")),
+		})
+		if err != nil {
+			var apiErr smithy.APIError
 
-		return fileImg, nil // <- this was right, below this was false case
+			if errors.As(err, &apiErr) && apiErr.ErrorCode() == "EntityTooLarge" {
+				// rewrite the var err
+				err = fmt.Errorf("Error while uploading object to %s. The object is too large.\n"+
+					"To upload objects larger than 5GB, use multipart upload API (5TB max).",
+					config.Env.CFBucketName)
+
+				return "-", err
+			}
+
+			// rewrite the var err
+			err = fmt.Errorf("Couldn't upload file %v to %v:%v. Here's why: %v\n",
+				newFilename, config.Env.CFBucketName, directoryPath, err)
+
+			return "-", err
+		}
+
+		return keyFilepath, nil // <- this was right, below this was false case
 	}
 
-	fileImg = "-" // for explicit things
-
-	return fileImg, errors.New("only serve file under 1mb")
+	return "-", errors.New("only serve file under 1mb")
 }
 
-// UpdateTheFilenameImg handles uploading and storing an image file with optional filename randomization.
-// It validates the filename mode, file extension, and file size before saving the image to disk.
-// If an old file exists at the specified path, it will be deleted before the new file is saved.
-//
-// Parameters:
-//   - filenameMode: The naming strategy for the saved file, either "original" (keeps newFileImg name) or "random" (generates unique name)
-//   - srcFile: The multipart.File to be uploaded
-//   - directoryPath: The directory path where the image will be saved (should end with path separator)
-//   - oldFileImg: The filename of the previous image to be deleted if it exists
-//   - newFileImg: The desired filename (or base filename if using random mode); must include extension
-//   - sizeFile: The size of the file in bytes; must be <= 1MB (1048576 bytes)
-//
-// Returns:
-//   - string: The saved filename (either newFileImg or a randomly generated name with original extension)
-//   - error: An error if filename mode is invalid, file extension is unsupported, file size exceeds limit, or oldFileImg file deletion fails
-//
-// Supported file extensions: .png, .jpg, .jpeg
-// Maximum file size: 1MB
-func UpdateTheFilenameImg(filenameMode string, srcFile multipart.File, directoryPath, oldFileImg, newFileImg string, sizeFile int64) (string, error) {
-	if filenameMode != "original" && filenameMode != "random" {
+// fileMode = original or random.
+func UpdateTheFilenameImg(ctx context.Context, filenameMode string, headerSrcFile *multipart.FileHeader, directoryPath, oldKeyFileImgPath string) (string, error) {
 
-		return oldFileImg, errors.New("invalid filename mode, only two: original & random")
+	if len(oldKeyFileImgPath) < 1 {
+
+		return "-", errors.New("you must put the oldKeyFilepath")
+	} else if len(directoryPath) < 1 {
+
+		return oldKeyFileImgPath, errors.New("you must put the path directory")
 	}
 
-	fileExt := filepath.Ext(newFileImg) // init extension filename
+	if filenameMode != "original" && filenameMode != "random" {
+
+		return oldKeyFileImgPath, errors.New("invalid filename mode, only two: original & random")
+	}
+
+	srcFile, err := headerSrcFile.Open()
+	if err != nil {
+
+		return oldKeyFileImgPath, err
+	}
+
+	defer srcFile.Close()
+
+	newFilename := headerSrcFile.Filename // set the filename
+
+	fileExt := filepath.Ext(newFilename) // init extension filename
 
 	if fileExt != ".png" && fileExt != ".jpg" && fileExt != ".jpeg" {
 
-		return oldFileImg, fmt.Errorf("only support file '.jpg, .jpeg, and .png'. current file extension: %s", fileExt)
+		return oldKeyFileImgPath, fmt.Errorf("only support file '.jpg, .jpeg, and .png'. current file extension: %s", fileExt)
 	}
 
-	if sizeFile <= 1<<20 {
+	if headerSrcFile.Size <= 1<<20 {
 
-		oldFilepath := filepath.Join(directoryPath, oldFileImg) // set filename here for make sure get the first the filename in param, you know what i mean
+		if err := DeleteFilepathWithFilename(ctx, oldKeyFileImgPath); err != nil {
 
-		if err := DeleteFilepathWithFilename(oldFilepath); err != nil {
-			return oldFileImg, err
+			return oldKeyFileImgPath, err
 		}
 
 		uniqueString := xid.New().String() // set the new unique filename
 
 		if filenameMode == "random" {
-			newFileImg = uniqueString + fileExt // set the new filename
+			newFilename = uniqueString + fileExt // set the new filename
 		}
 
-		newFilepath := filepath.Join(directoryPath, newFileImg) // set the filename + dirPath
+		newKeyFilepath := path.Join(directoryPath, newFilename) // set the filename + dirPath
 
-		cleanPath := filepath.Clean(newFilepath)
+		clientR2, err := config.R2Storage(ctx)
+		if err != nil {
 
-		// os.Rename(newFilepath, oldFilepath) // set replace the oldFile to newFile
+			return "-", err
+		}
 
-		destination, _ := os.Create(cleanPath)
-		defer destination.Close()
+		_, err = clientR2.PutObject(ctx, &s3.PutObjectInput{
+			Bucket:      &bucketR2,
+			Body:        srcFile,
+			Key:         &newKeyFilepath,
+			ContentType: aws.String(headerSrcFile.Header.Get("Content-Type")),
+		})
+		if err != nil {
+			var apiErr smithy.APIError
 
-		io.Copy(destination, srcFile)
+			if errors.As(err, &apiErr) && apiErr.ErrorCode() == "EntityTooLarge" {
+				// rewrite the var err
+				err = fmt.Errorf("Error while uploading object to %s. The object is too large.\n"+
+					"To upload objects larger than 5GB, use the S3 console (160GB max)\n"+
+					"or the multipart upload API (5TB max).", config.Env.CFBucketName)
 
-		return newFileImg, nil // <- this was right, below this was false case
+				return "-", err
+			}
+
+			// rewrite the var err
+			err = fmt.Errorf("Couldn't upload file %v to %v:%v. Here's why: %v\n",
+				newFilename, config.Env.CFBucketName, directoryPath, err)
+
+			return "-", err
+		}
+
+		return newKeyFilepath, nil // <- this was right, below this was false case
 	}
 
-	return oldFileImg, errors.New("only serve file under 1mb")
+	return oldKeyFileImgPath, errors.New("only serve file under 1mb")
 }
 
-// SetOriginalFilenamePDF saves an uploaded PDF file to the specified directory if it meets size and format requirements.
-// It validates that the file has a .pdf extension and does not exceed 8MB in size.
-// If validation passes, the file is written to disk at the specified local directory path.
-// srcFilePDF is the multipart file to be saved.
-// directoryPath is the destination local directory path where the file will be stored.
-// filePDF is the original filePDF of the uploaded file (header.Filename).
-// sizeFile is the size of the file in bytes.
-// It returns the filename if successful, or "-" with an error if validation fails.
-// Possible errors include file size exceeding 8MB or unsupported file format.
-func SetOriginalFilenamePDF(srcFilePDF multipart.File, directoryPath, filePDF string, sizeFile int64) (string, error) {
-	fileExt := filepath.Ext(filePDF)
+func SetOriginalFilenamePDF(ctx context.Context, headerSrcFilePDF *multipart.FileHeader, directoryPath string) (string, error) {
+	if len(directoryPath) < 1 {
+
+		return "-", errors.New("you must put the path directory")
+	}
+
+	srcFilePDF, err := headerSrcFilePDF.Open()
+	if err != nil {
+		return "-", err
+	}
+
+	defer srcFilePDF.Close()
+
+	newFilenamePDF := headerSrcFilePDF.Filename
+
+	fileExt := filepath.Ext(newFilenamePDF)
 
 	if fileExt == ".pdf" {
-		if sizeFile <= 8<<20 {
+		if headerSrcFilePDF.Size <= 8<<20 {
 
-			filePath := filepath.Join(directoryPath, filePDF)
+			keyFilePath := path.Join(directoryPath, newFilenamePDF)
 
-			cleanPath := filepath.Clean(filePath)
+			clientR2, err := config.R2Storage(ctx)
+			if err != nil {
 
-			destination, _ := os.Create(cleanPath)
-			defer destination.Close()
+				return "-", err
+			}
 
-			io.Copy(destination, srcFilePDF)
+			_, err = clientR2.PutObject(ctx, &s3.PutObjectInput{
+				Bucket:      &bucketR2,
+				Key:         &keyFilePath,
+				Body:        srcFilePDF,
+				ContentType: aws.String(headerSrcFilePDF.Header.Get("Content-Type")),
+			})
+			if err != nil {
+				var apiErr smithy.APIError
 
-			return filePDF, nil
+				if errors.As(err, &apiErr) && apiErr.ErrorCode() == "EntityTooLarge" {
+					// rewrite the var err
+					err = fmt.Errorf("Error while uploading object to %s. The object is too large.\n"+
+						"To upload objects larger than 5GB, use the S3 console (160GB max)\n"+
+						"or the multipart upload API (5TB max).", config.Env.CFBucketName)
+
+					return "-", err
+				}
+
+				// rewrite the var err
+				err = fmt.Errorf("Couldn't upload file %v to %v:%v. Here's why: %v\n",
+					newFilenamePDF, config.Env.CFBucketName, directoryPath, err)
+
+				return "-", err
+			}
+
+			return keyFilePath, nil
 		}
 
-		filePDF = "-"
-
-		return filePDF, errors.New("only serve file PDF under 8mb")
+		return "-", errors.New("only serve file PDF under 8mb")
 	}
 
-	filePDF = "-"
-
-	return filePDF, fmt.Errorf("only support file '.pdf'. current file extension: %s", fileExt)
+	return "-", fmt.Errorf("only support file '.pdf'. current file extension: %s", fileExt)
 }
 
-// UpdateTheOriginalFilenamePDF updates a PDF file on disk by replacing an existing file with a newly uploaded PDF.
-//
-// UpdateTheOriginalFilenamePDF expects an open multipart.File (srcFilePDF), a directory path (directoryPath),
-// the current filename to remove (oldFilePDF), the new filename to write (newFilePDF), and the reported size of
-// the new file in bytes (sizeFile).
-//
-// Behavior:
-//
-// - Validates that newFilePDF has the ".pdf" extension and that sizeFile is less than or equal to 8 MB (8 << 20).
-// - If validation fails, returns oldFilePDF and a descriptive error.
-// - If validation succeeds, it attempts to remove the existing file at directoryPath+oldFilePDF if it exists and is not a directory.
-// - It then creates a new file at directoryPath+newFilePDF and copies the contents of srcFilePDF into it.
-// - On success it returns newFilePDF and nil error.
-//
-// Notes and caveats:
-//   - Paths are constructed by simple string concatenation of directoryPath and the filename (no path joining or cleaning).
-//   - The function treats the given sizeFile as the authority for size checking (it does not re-check the stream length).
-//   - The implementation may ignore or propagate errors from file operations; callers should be aware of possible side effects
-//     (partial files written, old file removed) if an error occurs during creation/copy.
-//   - Only files with the exact ".pdf" extension are accepted (case-sensitive).
-func UpdateTheOriginalFilenamePDF(srcFilePDF multipart.File, directoryPath, oldFilePDF, newFilePDF string, sizeFile int64) (string, error) {
+func UpdateTheOriginalFilenamePDF(ctx context.Context, headerSrcFilePDF *multipart.FileHeader, directoryPath, oldKeyFilePDFPath string) (string, error) {
+	if len(oldKeyFilePDFPath) < 1 {
+
+		return "-", errors.New("you must put the oldKeyFilepath")
+	} else if len(directoryPath) < 1 {
+
+		return oldKeyFilePDFPath, errors.New("you must put the path directory")
+	}
+
+	srcFilePDF, err := headerSrcFilePDF.Open()
+	if err != nil {
+
+		return oldKeyFilePDFPath, err
+	}
+
+	newFilePDF := headerSrcFilePDF.Filename
+
 	fileExt := filepath.Ext(newFilePDF)
 
 	if fileExt == ".pdf" {
-		if sizeFile <= 8<<20 {
+		if headerSrcFilePDF.Size <= 8<<20 {
 
-			oldFilepath := filepath.Join(directoryPath, oldFilePDF)
+			if err := DeleteFilepathWithFilename(ctx, oldKeyFilePDFPath); err != nil {
 
-			if err := DeleteFilepathWithFilename(oldFilepath); err != nil {
-				return oldFilePDF, err
+				return oldKeyFilePDFPath, err
 			}
 
-			filePath := filepath.Join(directoryPath, newFilePDF)
+			keyFilepath := path.Join(directoryPath, newFilePDF)
 
-			cleanPath := filepath.Clean(filePath)
+			clientR2, err := config.R2Storage(ctx)
+			if err != nil {
 
-			destination, _ := os.Create(cleanPath)
-			defer destination.Close()
+				return "-", err
+			}
 
-			io.Copy(destination, srcFilePDF) // <- untuk copy seluruh data (dari metadata file, dll) ke param destination, agar bisa disimpan layaknya file biasanya, tapi juga support streaming dalam ukuran file yang besar
+			_, err = clientR2.PutObject(ctx, &s3.PutObjectInput{
+				Bucket:      &bucketR2,
+				Key:         &keyFilepath,
+				Body:        srcFilePDF,
+				ContentType: aws.String(headerSrcFilePDF.Header.Get("Content-Type")),
+			})
+			if err != nil {
+				var apiErr smithy.APIError
+
+				if errors.As(err, &apiErr) && apiErr.ErrorCode() == "EntityTooLarge" {
+					// rewrite the var err
+					err = fmt.Errorf("Error while uploading object to %s. The object is too large.\n"+
+						"To upload objects larger than 5GB, use the S3 console (160GB max)\n"+
+						"or the multipart upload API (5TB max).", config.Env.CFBucketName)
+
+					return "-", err
+				}
+
+				// rewrite the var err
+				err = fmt.Errorf("Couldn't upload file %v to %v:%v. Here's why: %v\n",
+					newFilePDF, config.Env.CFBucketName, directoryPath, err)
+
+				return "-", err
+			}
 
 			return newFilePDF, nil
 		}
 
-		return oldFilePDF, errors.New("only serve file PDF under 8mb")
+		return oldKeyFilePDFPath, errors.New("only serve file PDF under 8mb")
 	}
 
-	return oldFilePDF, fmt.Errorf("only support file '.pdf'. current file extension: %s", fileExt)
+	return oldKeyFilePDFPath, fmt.Errorf("only support file '.pdf'. current file extension: %s", fileExt)
 }
 
-// DeleteFilepathWithFilename resolves and deletes one or more files given by their paths.
-// It evaluates symbolic links and cleans the resolved path before attempting removal.
-//
-// For each provided path:
-//
-// - If resolving symlinks or stat reports the path does not exist, the function returns nil (no error).
-//
-// - If the path exists and is not a directory, the file is removed.
-//
-// - If the path exists and is a directory, it is left untouched.
-//
-// The function returns the first non-nil error encountered (other than file-not-found) and short-circuits on that error.
-func DeleteFilepathWithFilename(filepathWithFilenames ...string) error {
-	for _, v := range filepathWithFilenames {
-		// get actual path & actual target file
-		realPath, err := filepath.EvalSymlinks(v)
+// DeleteFilepathWithFilename deletes one or more objects from R2 storage by their file paths.
+// It takes a context and one or more S3 key filepaths as input.
+// Returns an error if the filepaths slice is empty, if R2 storage connection fails,
+// if the bucket does not exist, or if any deletion errors occur.
+func DeleteFilepathWithFilename(ctx context.Context, keyFilepaths ...string) error {
+	if len(keyFilepaths) < 1 {
+		return fmt.Errorf("the target %v is empty", keyFilepaths)
+	}
+
+	clientR2, err := config.R2Storage(ctx)
+	if err != nil {
+		return err
+	}
+
+	newDelObjs := make([]types.ObjectIdentifier, 0, len(keyFilepaths))
+
+	for i := range keyFilepaths {
+
+		newDelObjs = append(newDelObjs, types.ObjectIdentifier{Key: &keyFilepaths[i]}) // iterasi terus sampai value dari var i habis
+	}
+
+	delOut, err := clientR2.DeleteObjects(ctx, &s3.DeleteObjectsInput{
+		Bucket: &bucketR2,
+		Delete: &types.Delete{
+			Objects: newDelObjs,
+			Quiet:   aws.Bool(true),
+		},
+	})
+
+	if err != nil || len(delOut.Errors) > 0 {
 		if err != nil {
+			var noBucket *types.NoSuchBucket // check aja di sini, siapa tau kena invalid mem addr
 
-			if errors.Is(err, fs.ErrNotExist) {
-				return nil
+			if errors.As(err, &noBucket) {
+				// rewrite err
+				err = fmt.Errorf("Bucket %s does not exist.\n", bucketR2)
+
+				return err
 			}
 
 			return err
-		}
 
-		// clean the path
-		cleanPath := filepath.Clean(realPath)
-
-		// delete the file
-		info, err := os.Stat(cleanPath)
-		if err == nil {
-
-			if !info.IsDir() {
-				os.Remove(cleanPath)
-			}
-
-		} else {
-			if errors.Is(err, fs.ErrNotExist) {
-				return nil
-			}
+		} else if len(delOut.Errors) > 0 {
+			// rewrite err
+			err = fmt.Errorf("%s", *delOut.Errors[0].Message) // rewrite variable err
 
 			return err
 		}
-
 	}
 
 	return nil

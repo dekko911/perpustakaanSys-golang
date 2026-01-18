@@ -10,7 +10,7 @@ import (
 )
 
 type Config struct {
-	AppENV, AppURL, ClientPort, CookieName, CookieValue, DBUser, DBPassword, DBName, DBAddress, LocalAddress, MeilisearchURL, MSApiKey, Port, RedisAddress, RedisClient, RedisPassword, JWTSecret, SessionDomain string
+	AppENV, AppURL, ClientPort, CookieName, CookieValue, DBUser, DBPassword, DBName, DBAddress, LocalAddress, MeilisearchURL, MSApiKey, Port, RedisAddress, RedisClient, RedisPassword, JWTSecret, SessionDomain, CFBucketName, CFAccountID, CFAccessKeyID, CFSecretAccessKey, CFDefaultRegion string
 
 	DBLoc *time.Location
 }
@@ -26,25 +26,39 @@ func initConfig() *Config {
 	}
 
 	return &Config{
-		AppENV:         getENVConfigValue("APP_ENV"),
-		AppURL:         getENVConfigValue("APP_URL"),
-		ClientPort:     getENVConfigValue("CLIENT_PORT"),
-		CookieName:     getENVConfigValue("COOKIE_NAME"),
-		CookieValue:    getENVConfigValue("COOKIE_VALUE"),
-		DBUser:         getENVConfigValue("DB_USERNAME"),
-		DBPassword:     getENVConfigValue("DB_PASSWORD"),
-		DBName:         getENVConfigValue("DB_DATABASE"),
-		DBAddress:      fmt.Sprintf("%s:%s", getENVConfigValue("DB_HOST"), getENVConfigValue("DB_PORT")),
-		DBLoc:          loc,
-		LocalAddress:   fmt.Sprintf("%s:%s", getENVConfigValue("APP_URL"), getENVConfigValue("CLIENT_PORT")),
+		AppENV: getENVConfigValue("APP_ENV"),
+		AppURL: getENVConfigValue("APP_URL"),
+
+		ClientPort:  getENVConfigValue("CLIENT_PORT"),
+		CookieName:  getENVConfigValue("COOKIE_NAME"),
+		CookieValue: getENVConfigValue("COOKIE_VALUE"),
+
+		DBUser:     getENVConfigValue("DB_USERNAME"),
+		DBPassword: getENVConfigValue("DB_PASSWORD"),
+		DBName:     getENVConfigValue("DB_DATABASE"),
+		DBAddress:  fmt.Sprintf("%s:%s", getENVConfigValue("DB_HOST"), getENVConfigValue("DB_PORT")),
+		DBLoc:      loc,
+
+		LocalAddress: fmt.Sprintf("%s:%s", getENVConfigValue("APP_URL"), getENVConfigValue("CLIENT_PORT")),
+
 		MeilisearchURL: getENVConfigValue("MEILISEARCH_URL"),
 		MSApiKey:       getENVConfigValue("MS_API_KEY"),
-		Port:           getENVConfigValue("PORT"),
-		RedisAddress:   fmt.Sprintf("%s:%s", getENVConfigValue("REDIS_HOST"), getENVConfigValue("REDIS_PORT")),
-		RedisClient:    getENVConfigValue("REDIS_CLIENT"),
-		RedisPassword:  getENVConfigValue("REDIS_PASSWORD"),
-		JWTSecret:      getENVConfigValue("JWT_SECRET"),
-		SessionDomain:  getENVConfigValue("SESSION_DOMAIN"),
+
+		Port: getENVConfigValue("PORT"),
+
+		RedisAddress:  fmt.Sprintf("%s:%s", getENVConfigValue("REDIS_HOST"), getENVConfigValue("REDIS_PORT")),
+		RedisClient:   getENVConfigValue("REDIS_CLIENT"),
+		RedisPassword: getENVConfigValue("REDIS_PASSWORD"),
+
+		JWTSecret: getENVConfigValue("JWT_SECRET"),
+
+		SessionDomain: getENVConfigValue("SESSION_DOMAIN"),
+
+		CFBucketName:      getENVConfigValue("CF_BUCKET_NAME"),
+		CFAccountID:       getENVConfigValue("CF_ACCOUNT_ID"),
+		CFAccessKeyID:     getENVConfigValue("CF_ACCESS_KEY_ID"),
+		CFSecretAccessKey: getENVConfigValue("CF_SECRET_ACCESS_KEY"),
+		CFDefaultRegion:   getENVConfigValue("CF_DEFAULT_REGION"),
 	}
 }
 

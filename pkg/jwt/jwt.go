@@ -38,16 +38,14 @@ const (
 var (
 	jwtSecret = []byte(config.Env.JWTSecret)
 
-	shortTimeoutDuration = time.Duration(3 * time.Second)
-
 	ua = errors.New("Unauthorized")
 )
 
 // Authentication using JWT.
 func (j *AuthJWT) AuthWithJWTToken(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// initial context for http.request start from here
-		ctx := r.Context() // cuman isi token aja
+		// initial context for http.request start from here, this was peak *http.Request server
+		ctx := r.Context()
 
 		tokenString := utils.GetTokenFromRequest(r)
 
@@ -87,7 +85,7 @@ func (j *AuthJWT) AuthWithJWTToken(h http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(ctx, shortTimeoutDuration)
+		ctx, cancel := context.WithTimeout(ctx, time.Duration(3)*time.Second)
 		defer cancel()
 
 		u, err := j.us.GetUserWithRolesByID(ctx, userID)
@@ -122,25 +120,20 @@ func (j *AuthJWT) CreateTokenJWT(ctx context.Context, userID string) (string, er
 		return "", err
 	}
 
-	token := new(jwt.Token)
-
-	for _, role := range u.Roles {
-		token = jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-			"user_id":       u.ID,
-			"role":          role.Name,
-			"token_version": u.TokenVersion,
-			"iat":           time.Now().Unix(),
-			"exp":           time.Now().Add(4 * time.Hour).Unix(),
-		})
-	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"user_id":       u.ID,
+		"token_version": u.TokenVersion,
+		"iat":           time.Now().Unix(),
+		"exp":           time.Now().Add(time.Duration(4) * time.Hour).Unix(),
+	})
 
 	tokenString, err := token.SignedString(jwtSecret)
 	if err != nil {
 		return "", err
 	}
 
-	// set token and save into redis storage
-	_ = j.rdb.SetEx(ctx, tokenString, u.Name, time.Duration(4*time.Hour)).Err()
+	// set token and save into redis storage for check token
+	_ = j.rdb.SetEx(ctx, tokenString, u.Name, time.Duration(4)*time.Hour).Err()
 
 	return tokenString, nil
 }
@@ -160,6 +153,7 @@ func (j *AuthJWT) validateTokenJWT(tokenString string) (*jwt.Token, error) {
 // get user login info from ctx.
 func GetUserIDFromContext(ctx context.Context) string {
 	if userID, ok := ctx.Value(userKey).(string); ok {
+
 		return userID
 	}
 

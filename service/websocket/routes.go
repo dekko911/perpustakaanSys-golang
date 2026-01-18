@@ -2,6 +2,7 @@ package websocket
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/perpus_backend/helper"
@@ -49,6 +50,11 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 var req types.SetPayloadQuery
 
 func (h *Handler) handleGetSearchForUsers(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
+		return
+	}
+
 	conn, err := utils.NewWSUpgrader.Upgrade(w, r, nil)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
@@ -93,6 +99,11 @@ func (h *Handler) handleGetSearchForUsers(w http.ResponseWriter, r *http.Request
 }
 
 func (h *Handler) handleGetSearchForRoles(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
+		return
+	}
+
 	conn, err := utils.NewWSUpgrader.Upgrade(w, r, nil)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
@@ -137,6 +148,11 @@ func (h *Handler) handleGetSearchForRoles(w http.ResponseWriter, r *http.Request
 }
 
 func (h *Handler) handleGetSearchForMembers(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
+		return
+	}
+
 	conn, err := utils.NewWSUpgrader.Upgrade(w, r, nil)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
@@ -181,6 +197,11 @@ func (h *Handler) handleGetSearchForMembers(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *Handler) handleGetSearchForBooks(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
+		return
+	}
+
 	conn, err := utils.NewWSUpgrader.Upgrade(w, r, nil)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
@@ -225,6 +246,11 @@ func (h *Handler) handleGetSearchForBooks(w http.ResponseWriter, r *http.Request
 }
 
 func (h *Handler) handleGetSearchForCirculations(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
+		return
+	}
+
 	conn, err := utils.NewWSUpgrader.Upgrade(w, r, nil)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)

@@ -47,6 +47,11 @@ func (h *Handler) handleGetCirculations(w http.ResponseWriter, r *http.Request) 
 
 	page := utils.ParseStringToInt(r.URL.Query().Get("page"))
 
+	if r.Method != http.MethodGet {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
+		return
+	}
+
 	circulations, lastPage, err := h.circulationStore.GetCirculationsWithPagination(ctx, page)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
@@ -66,6 +71,11 @@ func (h *Handler) handleGetCirculationByID(w http.ResponseWriter, r *http.Reques
 	circulationID := mux.Vars(r)["cID"]
 
 	ctx := r.Context()
+
+	if r.Method != http.MethodGet {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
+		return
+	}
 
 	if err := uuid.Validate(circulationID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
@@ -88,17 +98,22 @@ func (h *Handler) handleGetCirculationByID(w http.ResponseWriter, r *http.Reques
 func (h *Handler) handleCreateCirculation(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	if r.Method != http.MethodPost {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
+		return
+	}
+
 	if err := r.ParseForm(); err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
 	payload := types.SetPayloadCirculation{
-		BukuID:        r.FormValue("buku_id"),
-		Peminjam:      r.FormValue("peminjam"),
-		TanggalPinjam: r.FormValue("tanggal_pinjam"),
-		JatuhTempo:    r.FormValue("jatuh_tempo"),
-		Denda:         r.FormValue("denda"),
+		BukuID:        r.PostForm.Get("buku_id"),
+		Peminjam:      r.PostForm.Get("peminjam"),
+		TanggalPinjam: r.PostForm.Get("tanggal_pinjam"),
+		JatuhTempo:    r.PostForm.Get("jatuh_tempo"),
+		Denda:         r.PostForm.Get("denda"),
 	}
 
 	if err := uuid.Validate(payload.BukuID); err != nil {
@@ -143,6 +158,11 @@ func (h *Handler) handleUpdateCirculation(w http.ResponseWriter, r *http.Request
 
 	ctx := r.Context()
 
+	if r.Method != http.MethodPatch {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
+		return
+	}
+
 	if err := uuid.Validate(circulationID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
@@ -154,11 +174,11 @@ func (h *Handler) handleUpdateCirculation(w http.ResponseWriter, r *http.Request
 	}
 
 	payload := types.SetPayloadUpdateCirculation{
-		BukuID:        r.FormValue("buku_id"),
-		Peminjam:      r.FormValue("peminjam"),
-		TanggalPinjam: r.FormValue("tanggal_pinjam"),
-		JatuhTempo:    r.FormValue("jatuh_tempo"),
-		Denda:         r.FormValue("denda"),
+		BukuID:        r.PostForm.Get("buku_id"),
+		Peminjam:      r.PostForm.Get("peminjam"),
+		TanggalPinjam: r.PostForm.Get("tanggal_pinjam"),
+		JatuhTempo:    r.PostForm.Get("jatuh_tempo"),
+		Denda:         r.PostForm.Get("denda"),
 	}
 
 	if err := uuid.Validate(payload.BukuID); err != nil {
@@ -219,6 +239,11 @@ func (h *Handler) handleDeleteCirculation(w http.ResponseWriter, r *http.Request
 	circulationID := mux.Vars(r)["cID"]
 
 	ctx := r.Context()
+
+	if r.Method != http.MethodDelete {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
+		return
+	}
 
 	if err := uuid.Validate(circulationID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"path/filepath"
 	"strings"
 
 	"github.com/perpus_backend/pkg/hash"
@@ -30,7 +29,7 @@ func NewHandler(jwt *jwt.AuthJWT, us types.UserStore) *Handler {
 const (
 	cok = http.StatusOK
 
-	userProfileFileInPublicPath = "./assets/public/images/profile/"
+	r2UsersAvatarPath = "users/avatar"
 
 	size1MB = 1 << 20
 )
@@ -49,6 +48,11 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 
 func (h *Handler) handleGetUsers(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context() // init context
+
+	if r.Method != http.MethodGet {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
+		return
+	}
 
 	page := utils.ParseStringToInt(r.URL.Query().Get("page"))
 
@@ -70,6 +74,11 @@ func (h *Handler) handleGetUsers(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleGetUserWithRolesByID(w http.ResponseWriter, r *http.Request) {
 	userID := mux.Vars(r)["userID"]
 	ctx := r.Context()
+
+	if r.Method != http.MethodGet {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
+		return
+	}
 
 	if err := uuid.Validate(userID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
@@ -93,6 +102,11 @@ func (h *Handler) HandleGetProfileUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	userID := jwt.GetUserIDFromContext(ctx)
 
+	if r.Method != http.MethodGet {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
+		return
+	}
+
 	user, err := h.userStore.GetUserWithRolesByID(ctx, userID)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
@@ -111,17 +125,22 @@ func (h *Handler) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 
 	var filename string
 
-	r.Body = http.MaxBytesReader(w, r.Body, size1MB)
+	if r.Method != http.MethodPost {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
+		return
+	}
 
 	if err := r.ParseMultipartForm(size1MB); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
+	defer r.MultipartForm.RemoveAll()
+
 	payload := types.SetPayloadUser{
-		Name:     r.FormValue("name"),
-		Email:    r.FormValue("email"),
-		Password: r.FormValue("password"),
+		Name:     r.PostForm.Get("name"),
+		Email:    r.PostForm.Get("email"),
+		Password: r.PostForm.Get("password"),
 	}
 
 	if err := utils.NewValidate.Struct(payload); err != nil {
@@ -138,16 +157,14 @@ func (h *Handler) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	file, header, err := r.FormFile("avatar")
+	_, header, err := r.FormFile("avatar")
 
 	if err == http.ErrMissingFile {
 		filename = "-"
 	}
 
 	if err == nil {
-		defer file.Close()
-
-		filename, err = utils.SetNewFilenameImg("random", file, userProfileFileInPublicPath, header.Filename, header.Size)
+		filename, err = utils.SetNewFilenameImg(ctx, "random", header, r2UsersAvatarPath)
 
 		if err != nil {
 			utils.WriteJSONError(w, http.StatusInternalServerError, err)
@@ -188,11 +205,9 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	var filename string
 
 	if r.Method != http.MethodPut {
-		utils.WriteJSONError(w, http.StatusMethodNotAllowed, errors.New("method doesn't allowed"))
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
 		return
 	}
-
-	r.Body = http.MaxBytesReader(w, r.Body, size1MB)
 
 	if err := uuid.Validate(userID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
@@ -204,10 +219,12 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	defer r.MultipartForm.RemoveAll()
+
 	payload := types.SetPayloadUpdateUser{
-		Name:     r.FormValue("name"),
-		Email:    r.FormValue("email"),
-		Password: r.FormValue("password"),
+		Name:     r.PostForm.Get("name"),
+		Email:    r.PostForm.Get("email"),
+		Password: r.PostForm.Get("password"),
 	}
 
 	if err := utils.NewValidate.Struct(payload); err != nil {
@@ -227,7 +244,7 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	for _, r := range u.Roles {
 		if r.Name == "admin" {
 			if authID != u.ID {
-				utils.WriteJSONError(w, http.StatusForbidden, fmt.Errorf("dilarang edit admin selain admin sendiri"))
+				utils.WriteJSONError(w, http.StatusForbidden, errors.New("dilarang edit admin selain admin sendiri"))
 				return
 			}
 		}
@@ -249,16 +266,14 @@ func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		u.Password = hashPass
 	}
 
-	file, header, err := r.FormFile("avatar")
+	_, header, err := r.FormFile("avatar")
 
 	if err == http.ErrMissingFile {
 		filename = u.Avatar
 	}
 
 	if err == nil {
-		defer file.Close()
-
-		filename, err = utils.UpdateTheFilenameImg("random", file, userProfileFileInPublicPath, u.Avatar, header.Filename, header.Size)
+		filename, err = utils.UpdateTheFilenameImg(ctx, "random", header, r2UsersAvatarPath, u.Avatar)
 
 		if err != nil {
 			utils.WriteJSONError(w, http.StatusInternalServerError, err)
@@ -288,6 +303,11 @@ func (h *Handler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	userID := mux.Vars(r)["userID"]
 	ctx := r.Context()
 
+	if r.Method != http.MethodDelete {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
+		return
+	}
+
 	if err := uuid.Validate(userID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
@@ -302,15 +322,13 @@ func (h *Handler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	for _, r := range u.Roles {
 		for name := range strings.SplitSeq(r.Name, ",") {
 			if name == "admin" {
-				utils.WriteJSONError(w, http.StatusForbidden, fmt.Errorf("you can't delete admin"))
+				utils.WriteJSONError(w, http.StatusForbidden, errors.New("you can't delete admin"))
 				return
 			}
 		}
 	}
 
-	filePathAndFileName := filepath.Join(userProfileFileInPublicPath, u.Avatar)
-
-	if err := utils.DeleteFilepathWithFilename(filePathAndFileName); err != nil {
+	if err := utils.DeleteFilepathWithFilename(ctx, u.Avatar); err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}

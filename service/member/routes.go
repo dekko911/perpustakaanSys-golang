@@ -3,7 +3,6 @@ package member
 import (
 	"fmt"
 	"net/http"
-	"path/filepath"
 
 	"github.com/perpus_backend/pkg/jwt"
 	"github.com/perpus_backend/types"
@@ -32,7 +31,7 @@ func NewHandler(jwt *jwt.AuthJWT, ms types.MemberStore, us types.UserStore) *Han
 const (
 	cok = http.StatusOK // for alias http.StatusOK
 
-	publicAvatarMembersPath = "./assets/public/images/avatar/"
+	r2MembersAvatarPath = "members/avatar"
 
 	size1MB = 1 << 20
 )
@@ -54,6 +53,11 @@ func (h *Handler) handleGetMembers(w http.ResponseWriter, r *http.Request) {
 
 	page := utils.ParseStringToInt(r.URL.Query().Get("page"))
 
+	if r.Method != http.MethodGet {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
+		return
+	}
+
 	members, lastPage, err := h.memberStore.GetMembersWithPagination(ctx, page)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
@@ -73,6 +77,11 @@ func (h *Handler) handleGetMemberByID(w http.ResponseWriter, r *http.Request) {
 	memberID := mux.Vars(r)["memberID"]
 
 	ctx := r.Context()
+
+	if r.Method != http.MethodGet {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
+		return
+	}
 
 	if err := uuid.Validate(memberID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
@@ -97,18 +106,23 @@ func (h *Handler) handleCreateMember(w http.ResponseWriter, r *http.Request) {
 
 	var filename string
 
-	r.Body = http.MaxBytesReader(w, r.Body, size1MB)
+	if r.Method != http.MethodPost {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
+		return
+	}
 
 	if err := r.ParseMultipartForm(size1MB); err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
+	defer r.MultipartForm.RemoveAll()
+
 	payload := types.SetPayloadMember{
-		Nama:         r.FormValue("nama"),
-		JenisKelamin: r.FormValue("jenis_kelamin"),
-		Kelas:        r.FormValue("kelas"),
-		NoTelepon:    r.FormValue("no_telepon"),
+		Nama:         r.PostForm.Get("nama"),
+		JenisKelamin: r.PostForm.Get("jenis_kelamin"),
+		Kelas:        r.PostForm.Get("kelas"),
+		NoTelepon:    r.PostForm.Get("no_telepon"),
 	}
 
 	if err := utils.NewValidate.Struct(payload); err != nil {
@@ -129,15 +143,13 @@ func (h *Handler) handleCreateMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	file, header, err := r.FormFile("profil")
+	_, header, err := r.FormFile("profil")
 	if err == http.ErrMissingFile {
 		filename = "-"
 	}
 
 	if err == nil {
-		defer file.Close()
-
-		filename, err = utils.SetNewFilenameImg("original", file, publicAvatarMembersPath, header.Filename, header.Size)
+		filename, err = utils.SetNewFilenameImg(ctx, "original", header, r2MembersAvatarPath)
 
 		if err != nil {
 			utils.WriteJSONError(w, http.StatusInternalServerError, err)
@@ -172,11 +184,9 @@ func (h *Handler) handleUpdateMember(w http.ResponseWriter, r *http.Request) {
 	var filename string
 
 	if r.Method != http.MethodPut {
-		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("method not allowed"))
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
 		return
 	}
-
-	r.Body = http.MaxBytesReader(w, r.Body, size1MB)
 
 	if err := uuid.Validate(memberID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
@@ -188,11 +198,13 @@ func (h *Handler) handleUpdateMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	defer r.MultipartForm.RemoveAll()
+
 	payload := types.SetPayloadUpdateMember{
-		Nama:         r.FormValue("nama"),
-		JenisKelamin: r.FormValue("jenis_kelamin"),
-		Kelas:        r.FormValue("kelas"),
-		NoTelepon:    r.FormValue("no_telepon"),
+		Nama:         r.PostForm.Get("nama"),
+		JenisKelamin: r.PostForm.Get("jenis_kelamin"),
+		Kelas:        r.PostForm.Get("kelas"),
+		NoTelepon:    r.PostForm.Get("no_telepon"),
 	}
 
 	if err := utils.NewValidate.Struct(payload); err != nil {
@@ -222,16 +234,14 @@ func (h *Handler) handleUpdateMember(w http.ResponseWriter, r *http.Request) {
 		m.NoTelepon = payload.NoTelepon
 	}
 
-	file, header, err := r.FormFile("profil")
+	_, header, err := r.FormFile("profil")
 
 	if err == http.ErrMissingFile {
 		filename = m.ProfilAnggota
 	}
 
 	if err == nil {
-		defer file.Close()
-
-		filename, err = utils.UpdateTheFilenameImg("original", file, publicAvatarMembersPath, m.ProfilAnggota, header.Filename, header.Size)
+		filename, err = utils.UpdateTheFilenameImg(ctx, "original", header, r2MembersAvatarPath, m.ProfilAnggota)
 
 		if err != nil {
 			utils.WriteJSONError(w, http.StatusInternalServerError, err)
@@ -263,6 +273,11 @@ func (h *Handler) handleDeleteMember(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
+	if r.Method != http.MethodDelete {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
+		return
+	}
+
 	if err := uuid.Validate(memberID); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
@@ -274,9 +289,7 @@ func (h *Handler) handleDeleteMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	filePathAndFileName := filepath.Join(publicAvatarMembersPath, m.ProfilAnggota)
-
-	if err := utils.DeleteFilepathWithFilename(filePathAndFileName); err != nil {
+	if err := utils.DeleteFilepathWithFilename(ctx, m.ProfilAnggota); err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}

@@ -5,9 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/dotse/go-health"
 	"github.com/perpus_backend/config"
-	"github.com/perpus_backend/db"
 	"github.com/perpus_backend/pkg/cookie"
 	"github.com/perpus_backend/pkg/cors"
 	"github.com/perpus_backend/pkg/jwt"
@@ -42,8 +40,6 @@ func NewAPIServer(addr string, db *sql.DB, rdb *redis.Client) *APIServer {
 	}
 }
 
-var publicURLHandler = http.StripPrefix("/public/", http.FileServer(http.Dir("./assets/public")))
-
 func (s *APIServer) Run() error {
 	r := mux.NewRouter()
 	r.Use(cookie.CookieMiddleware)
@@ -58,8 +54,8 @@ func (s *APIServer) Run() error {
 
 	// limiter for env production
 	if config.Env.AppENV == "production" {
-		r.Use(limiter.SetRateLimitMiddleware(rate.Every(1*time.Hour), 3000))
-		subrouter.Use(limiter.SetRateLimitMiddleware(rate.Every(1*time.Minute), 10))
+		r.Use(limiter.SetRateLimiter(rate.Every(time.Duration(1)*time.Hour), 3000))
+		subrouter.Use(limiter.SetRateLimiter(rate.Every(time.Duration(1)*time.Minute), 10))
 	}
 
 	// for ensures that OPTIONS "/api" is not thrown to 404 (which does not have a CORS header).
@@ -111,26 +107,20 @@ func (s *APIServer) Run() error {
 
 	// get health
 	subrouter.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		healthResp, err := health.CheckNow(r.Context())
-		if err != nil {
-			utils.WriteJSONError(w, http.StatusInternalServerError, err)
-			return
-		}
-
 		utils.WriteJSON(w, http.StatusOK, utils.JsonResponse{
 			Code: http.StatusOK,
 
+			// TODO: health db, redis, meilisearch dan status dari db, belum puas
 			Data: map[string]any{
-				"dbStatus":     db.HealthDBMySQL(s.db),
-				"healthStatus": healthResp.Status.String(),
+				"mysql_db":    s.db.Stats().OpenConnections,
+				"meilisearch": utils.NewMSClient.IsHealthy(),
+				"redis":       s.rdb.Options().ClientName,
 			},
 
 			Status: http.StatusText(http.StatusOK),
 		})
 	}).Methods(http.MethodGet)
 	// end here health
-
-	r.PathPrefix("/public/").Handler(publicURLHandler).Methods(http.MethodGet) // set accessing files across public url.
 
 	// get info logged profile
 	r.HandleFunc("/profile", jwt.AuthWithJWTToken(userHandler.HandleGetProfileUser)).Methods(http.MethodGet)

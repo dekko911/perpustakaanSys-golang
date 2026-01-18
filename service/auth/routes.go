@@ -1,9 +1,10 @@
 package auth
 
 import (
+	"context"
 	"fmt"
 	"net/http"
-	"path/filepath"
+	"time"
 
 	"github.com/perpus_backend/pkg/hash"
 	"github.com/perpus_backend/pkg/jwt"
@@ -27,7 +28,7 @@ func NewHandler(jwt *jwt.AuthJWT, store types.UserStore) *Handler {
 const (
 	cok = http.StatusOK
 
-	profilePath = "./assets/public/images/profile/"
+	r2UsersAvatarPath = "users/avatar"
 
 	size1MB = 1 << 20
 )
@@ -40,10 +41,11 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 
 // Handler auth login using JWT.
 func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(2)*time.Second)
+	defer cancel()
 
 	if r.Method != http.MethodPost {
-		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("method post only"))
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
 		return
 	}
 
@@ -53,8 +55,8 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	payload := types.SetPayloadLogin{
-		Email:    r.FormValue("email"),
-		Password: r.FormValue("password"),
+		Email:    r.PostForm.Get("email"),
+		Password: r.PostForm.Get("password"),
 	}
 
 	if err := utils.NewValidate.Struct(payload); err != nil {
@@ -103,6 +105,11 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 	token := utils.GetTokenFromRequest(r)
 
+	if r.Method != http.MethodPost {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
+		return
+	}
+
 	err := h.store.IncrementTokenVersion(ctx, userID, token)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
@@ -118,34 +125,26 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 // Handle register user, this not will add the role.
 func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
-	var (
-		ctx = r.Context()
+	ctx := r.Context()
 
-		filename string
-	)
+	var filename string
 
 	if r.Method != http.MethodPost {
-		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("method post only"))
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
 		return
 	}
-
-	r.Body = http.MaxBytesReader(w, r.Body, size1MB)
 
 	if err := r.ParseMultipartForm(size1MB); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
+	defer r.MultipartForm.RemoveAll()
+
 	payload := types.SetPayloadUser{
-		Name:     r.FormValue("name"),
-		Email:    r.FormValue("email"),
-		Password: r.FormValue("password"),
-	}
-
-	file, header, errFile := r.FormFile("avatar")
-
-	if errFile == http.ErrMissingFile {
-		filename = "-"
+		Name:     r.PostForm.Get("name"),
+		Email:    r.PostForm.Get("email"),
+		Password: r.PostForm.Get("password"),
 	}
 
 	if err := utils.NewValidate.Struct(payload); err != nil {
@@ -167,10 +166,14 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if errFile == nil {
-		defer file.Close()
+	_, header, errFile := r.FormFile("avatar")
 
-		filename, err = utils.SetNewFilenameImg("random", file, profilePath, header.Filename, header.Size)
+	if errFile == http.ErrMissingFile {
+		filename = "-"
+	}
+
+	if errFile == nil {
+		filename, err = utils.SetNewFilenameImg(ctx, "random", header, r2UsersAvatarPath)
 		if err != nil {
 			utils.WriteJSONError(w, http.StatusInternalServerError, err)
 			return
@@ -195,18 +198,7 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) PrivateURLHandler(w http.ResponseWriter, r *http.Request) {
-	filename := mux.Vars(r)["filename"]
+	// filename := mux.Vars(r)["filename"]
 
-	privateDir := "./assets/private"
-
-	combined := filepath.Join(privateDir, filename)
-
-	cleanPath := filepath.Clean(combined)
-
-	if !utils.IsItInBaseDir(cleanPath, privateDir) {
-		utils.WriteJSONError(w, http.StatusNotFound, fmt.Errorf("file not found"))
-		return
-	}
-
-	http.ServeFile(w, r, cleanPath)
+	// TODO: make this route to use private file access
 }

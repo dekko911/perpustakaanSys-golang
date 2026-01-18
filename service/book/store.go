@@ -92,7 +92,7 @@ func (s *Store) GetBooksWithPagination(ctx context.Context, page int) ([]*types.
 	}
 
 	if data, err := sonic.Marshal(payloadBooks); err == nil {
-		s.rdb.SetEx(ctx, booksKey, data, 2*time.Minute)
+		s.rdb.SetEx(ctx, booksKey, data, time.Duration(2)*time.Minute)
 	}
 
 	return books, lastPage, nil

@@ -11,7 +11,7 @@ import (
 
 // Limiter request get into routes. Param timer for set when request has been limit.
 // Param attempts for how many attempts you want to. ex: 10, 20, 66, and etc.
-func SetRateLimitMiddleware(timer rate.Limit, attempts int) func(http.Handler) http.Handler {
+func SetRateLimiter(timer rate.Limit, attempts int) func(http.Handler) http.Handler {
 	limiter := rate.NewLimiter(timer, attempts) // initial limiter for routes
 
 	return func(next http.Handler) http.Handler {

@@ -10,9 +10,11 @@ import (
 // HTTP response or the Cookie header of an HTTP request.
 func CookieMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// search the cookie first
 		_, err := r.Cookie(config.Env.CookieName)
+
+		// if cookieKey is not found or not available, create the new one
 		if err == http.ErrNoCookie {
-			// make new cookies if the first cookie isn't available
 			cookie := &http.Cookie{
 				Name:     config.Env.CookieName,
 				Value:    config.Env.CookieValue,
