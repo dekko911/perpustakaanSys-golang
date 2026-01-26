@@ -9,13 +9,15 @@ type Book struct {
 	CreatedAt time.Time `json:"created_at,omitzero"`
 	UpdatedAt time.Time `json:"updated_at,omitzero"`
 
-	ID        string `json:"id"`
-	IdBuku    string `json:"id_buku,omitempty"` // slug type, not relation
-	JudulBuku string `json:"judul_buku"`
-	CoverBuku string `json:"cover_buku,omitempty"` // image
-	BukuPDF   string `json:"buku_pdf,omitempty"`   // pdf
-	Penulis   string `json:"penulis,omitempty"`
-	Pengarang string `json:"pengarang,omitempty"`
+	ID             string `json:"id"`
+	IdBuku         string `json:"id_buku,omitempty"` // slug type, not relation
+	JudulBuku      string `json:"judul_buku"`
+	Penulis        string `json:"penulis,omitempty"`
+	Pengarang      string `json:"pengarang,omitempty"`
+	CoverBuku      string `json:"cover_buku,omitempty"` // image
+	BukuPDF        string `json:"buku_pdf,omitempty"`   // pdf
+	R2CoverBukuURL string `json:"r2_cover_buku_url"`
+	R2BukuPDFURL   string `json:"r2_buku_pdf_url"`
 
 	Tahun int `json:"tahun,omitempty"`
 }

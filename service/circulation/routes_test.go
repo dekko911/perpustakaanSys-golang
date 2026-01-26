@@ -60,7 +60,7 @@ func TestHandlerCirculation(t *testing.T) {
 
 	t.Run("it should create a circulation", func(t *testing.T) {
 		form := url.Values{}
-		payload := types.SetPayloadCirculation{
+		payload := types.SetPayloadJSONCirculation{
 			BukuID:        "6918315b-dff4-8324-969f-e43cd434eb3e",
 			Peminjam:      "miko",
 			TanggalPinjam: "2025-12-02",

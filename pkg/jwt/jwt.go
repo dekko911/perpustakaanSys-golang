@@ -85,7 +85,7 @@ func (j *AuthJWT) AuthWithJWTToken(h http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		ctx, cancel := context.WithTimeout(ctx, time.Duration(3)*time.Second)
+		ctx, cancel := context.WithTimeout(ctx, time.Duration(5)*time.Second)
 		defer cancel()
 
 		u, err := j.us.GetUserWithRolesByID(ctx, userID)

@@ -10,11 +10,12 @@ type User struct {
 	UpdatedAt time.Time `json:"updated_at,omitzero"`
 	Roles     []Role    `json:"roles"`
 
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Password string `json:"-"`
-	Avatar   string `json:"avatar"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Email       string `json:"email"`
+	Password    string `json:"-"`
+	Avatar      string `json:"avatar"`
+	R2AvatarURL string `json:"r2_avatar_url"`
 
 	TokenVersion int `json:"token_version"`
 }
@@ -39,9 +40,15 @@ type UserStore interface {
 	IncrementTokenVersion(ctx context.Context, id, token string) error
 }
 
-type SetPayloadLogin struct {
-	Email    string `form:"email" validate:"required,email"`
-	Password string `form:"password" validate:"required"`
+type SetPayloadJSONLogin struct {
+	Email    string `json:"email" validate:"required,email"`
+	Password string `json:"password" validate:"required"`
+}
+
+type SetPayloadJSONUser struct {
+	Name     string `json:"name" validate:"required,min=3"`
+	Email    string `json:"email" validate:"required,lowercase,email"`
+	Password string `json:"password" validate:"required,min=6"`
 }
 
 type SetPayloadUser struct {

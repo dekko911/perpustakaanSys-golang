@@ -24,10 +24,10 @@ type RoleStore interface {
 	DeleteRole(ctx context.Context, id string) error
 }
 
-type SetPayloadRole struct {
-	Name string `form:"name" validate:"required,min=3"`
+type SetPayloadJSONRole struct {
+	Name string `json:"name" validate:"required,min=3"`
 }
 
-type SetPayloadUpdateRole struct {
-	Name string `form:"name" validate:"omitempty,required,min=3"`
+type SetPayloadJSONUpdateRole struct {
+	Name string `json:"name" validate:"omitempty,required,min=3"`
 }

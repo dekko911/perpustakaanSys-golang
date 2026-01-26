@@ -100,18 +100,16 @@ func (h *Handler) handleCreateRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := r.ParseForm(); err != nil {
+	var payload types.SetPayloadJSONRole
+
+	if err := utils.ParseJSON(r, &payload); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	payload := types.SetPayloadRole{
-		Name: r.PostForm.Get("name"),
-	}
-
 	if err := utils.NewValidate.Struct(payload); err != nil {
 		errors := err.(validator.ValidationErrors)
-		vErrors := utils.TransformValidationErrorsWithLangIndonesia(errors)
+		vErrors := utils.TransformValidationErrorsWithLangIndonesian(errors)
 
 		utils.WriteJSONError(w, http.StatusUnprocessableEntity, vErrors)
 		return
@@ -158,18 +156,16 @@ func (h *Handler) handleUpdateRole(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if err := req.ParseForm(); err != nil {
+	var payload types.SetPayloadJSONUpdateRole
+
+	if err := utils.ParseJSON(req, &payload); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	payload := types.SetPayloadUpdateRole{
-		Name: req.PostForm.Get("name"),
-	}
-
 	if err := utils.NewValidate.Struct(payload); err != nil {
 		errors := err.(validator.ValidationErrors)
-		vErrors := utils.TransformValidationErrorsWithLangIndonesia(errors)
+		vErrors := utils.TransformValidationErrorsWithLangIndonesian(errors)
 
 		utils.WriteJSONError(w, http.StatusUnprocessableEntity, vErrors)
 		return

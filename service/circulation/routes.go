@@ -103,17 +103,11 @@ func (h *Handler) handleCreateCirculation(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if err := r.ParseForm(); err != nil {
+	var payload types.SetPayloadJSONCirculation
+
+	if err := utils.ParseJSON(r, &payload); err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
-	}
-
-	payload := types.SetPayloadCirculation{
-		BukuID:        r.PostForm.Get("buku_id"),
-		Peminjam:      r.PostForm.Get("peminjam"),
-		TanggalPinjam: r.PostForm.Get("tanggal_pinjam"),
-		JatuhTempo:    r.PostForm.Get("jatuh_tempo"),
-		Denda:         r.PostForm.Get("denda"),
 	}
 
 	if err := uuid.Validate(payload.BukuID); err != nil {
@@ -123,7 +117,7 @@ func (h *Handler) handleCreateCirculation(w http.ResponseWriter, r *http.Request
 
 	if err := utils.NewValidate.Struct(payload); err != nil {
 		errors := err.(validator.ValidationErrors)
-		vErrors := utils.TransformValidationErrorsWithLangIndonesia(errors)
+		vErrors := utils.TransformValidationErrorsWithLangIndonesian(errors)
 
 		utils.WriteJSONError(w, http.StatusUnprocessableEntity, vErrors)
 		return
@@ -168,17 +162,11 @@ func (h *Handler) handleUpdateCirculation(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if err := r.ParseForm(); err != nil {
+	var payload types.SetPayloadJSONUpdateCirculation
+
+	if err := utils.ParseJSON(r, &payload); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
-	}
-
-	payload := types.SetPayloadUpdateCirculation{
-		BukuID:        r.PostForm.Get("buku_id"),
-		Peminjam:      r.PostForm.Get("peminjam"),
-		TanggalPinjam: r.PostForm.Get("tanggal_pinjam"),
-		JatuhTempo:    r.PostForm.Get("jatuh_tempo"),
-		Denda:         r.PostForm.Get("denda"),
 	}
 
 	if err := uuid.Validate(payload.BukuID); err != nil {
@@ -188,7 +176,7 @@ func (h *Handler) handleUpdateCirculation(w http.ResponseWriter, r *http.Request
 
 	if err := utils.NewValidate.Struct(payload); err != nil {
 		errors := err.(validator.ValidationErrors)
-		vErrors := utils.TransformValidationErrorsWithLangIndonesia(errors)
+		vErrors := utils.TransformValidationErrorsWithLangIndonesian(errors)
 
 		utils.WriteJSONError(w, http.StatusUnprocessableEntity, vErrors)
 		return

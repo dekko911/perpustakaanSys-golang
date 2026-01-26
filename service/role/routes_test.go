@@ -60,7 +60,7 @@ func TestHandlerRole(t *testing.T) {
 
 	t.Run("it should correct and make role", func(t *testing.T) {
 		form := &url.Values{}
-		payload := types.SetPayloadRole{
+		payload := types.SetPayloadJSONRole{
 			Name: "admin",
 		}
 

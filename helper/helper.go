@@ -9,6 +9,7 @@ import (
 
 	"github.com/meilisearch/meilisearch-go"
 	"github.com/perpus_backend/types"
+	"github.com/perpus_backend/utils"
 )
 
 type stringAndNumberOnly interface {
@@ -42,6 +43,17 @@ func ScanAndCountRowsUserAndRole(rows *sql.Rows) (*types.User, *types.Role, int6
 		return nil, nil, 0, err
 	}
 
+	if u.R2AvatarURL == "" && u.Avatar != "-" {
+		url, err := utils.GetKeyFilepath(u.Avatar, false)
+		if err != nil {
+			return nil, nil, 0, err
+		}
+
+		u.R2AvatarURL = url
+	} else {
+		u.R2AvatarURL = "-"
+	}
+
 	if roleID.Valid && roleName.Valid {
 		r.ID = roleID.String
 		r.Name = roleName.String
@@ -71,6 +83,17 @@ func ScanRowsUserAndRole(rows *sql.Rows) (*types.User, *types.Role, error) {
 	)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	if u.R2AvatarURL == "" && u.Avatar != "-" {
+		url, err := utils.GetKeyFilepath(u.Avatar, false)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		u.R2AvatarURL = url
+	} else {
+		u.R2AvatarURL = "-"
 	}
 
 	if roleID.Valid && roleName.Valid {
@@ -121,6 +144,24 @@ func ScanAndCountRowsBook(rows *sql.Rows) (*types.Book, int64, error) {
 		return nil, 0, err
 	}
 
+	if b.R2CoverBukuURL == "" && b.R2BukuPDFURL == "" && b.CoverBuku != "-" && b.BukuPDF != "-" {
+		urlCoverBuku, err := utils.GetKeyFilepath(b.CoverBuku, false)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		urlBukuPDF, err := utils.GetKeyFilepath(b.BukuPDF, true)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		b.R2CoverBukuURL = urlCoverBuku
+		b.R2BukuPDFURL = urlBukuPDF
+	} else {
+		b.R2CoverBukuURL = "-"
+		b.R2BukuPDFURL = "-"
+	}
+
 	return b, count, nil
 }
 
@@ -141,6 +182,24 @@ func ScanRowsBook(rows *sql.Rows) (*types.Book, error) {
 	)
 	if err != nil {
 		return nil, err
+	}
+
+	if b.R2CoverBukuURL == "" && b.R2BukuPDFURL == "" && b.CoverBuku != "-" && b.BukuPDF != "-" {
+		urlCoverBuku, err := utils.GetKeyFilepath(b.CoverBuku, false)
+		if err != nil {
+			return nil, err
+		}
+
+		urlBukuPDF, err := utils.GetKeyFilepath(b.BukuPDF, true)
+		if err != nil {
+			return nil, err
+		}
+
+		b.R2CoverBukuURL = urlCoverBuku
+		b.R2BukuPDFURL = urlBukuPDF
+	} else {
+		b.R2CoverBukuURL = "-"
+		b.R2BukuPDFURL = "-"
 	}
 
 	return b, nil
@@ -167,6 +226,17 @@ func ScanAndCountRowsMember(rows *sql.Rows) (*types.Member, int64, error) {
 		return nil, 0, err
 	}
 
+	if m.R2ProfilUrl == "" && m.ProfilAnggota != "-" {
+		url, err := utils.GetKeyFilepath(m.ProfilAnggota, false)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		m.R2ProfilUrl = url
+	} else {
+		m.R2ProfilUrl = "-"
+	}
+
 	return m, count, nil
 }
 
@@ -186,6 +256,17 @@ func ScanRowsMember(rows *sql.Rows) (*types.Member, error) {
 	)
 	if err != nil {
 		return nil, err
+	}
+
+	if m.R2ProfilUrl == "" && m.ProfilAnggota != "-" {
+		url, err := utils.GetKeyFilepath(m.ProfilAnggota, false)
+		if err != nil {
+			return nil, err
+		}
+
+		m.R2ProfilUrl = url
+	} else {
+		m.R2ProfilUrl = "-"
 	}
 
 	return m, nil
@@ -258,6 +339,17 @@ func ScanAndRetRowUserAndRole[T stringAndNumberOnly](ctx context.Context, stmt *
 		return nil, err
 	}
 
+	if u.R2AvatarURL == "" && u.Avatar != "-" {
+		url, err := utils.GetKeyFilepath(u.Avatar, false)
+		if err != nil {
+			return nil, err
+		}
+
+		u.R2AvatarURL = url
+	} else {
+		u.R2AvatarURL = "-"
+	}
+
 	if roleID.Valid && roleName.Valid {
 		r.ID = roleID.String
 		r.Name = roleName.String
@@ -322,6 +414,17 @@ func ScanAndRetRowMember[T stringAndNumberOnly](ctx context.Context, stmt *sql.S
 		return nil, err
 	}
 
+	if m.R2ProfilUrl == "" && m.ProfilAnggota != "-" {
+		url, err := utils.GetKeyFilepath(m.ProfilAnggota, false)
+		if err != nil {
+			return nil, err
+		}
+
+		m.R2ProfilUrl = url
+	} else {
+		m.R2ProfilUrl = "-"
+	}
+
 	return &m, nil
 }
 
@@ -336,6 +439,24 @@ func ScanAndRetRowBook[T stringAndNumberOnly](ctx context.Context, stmt *sql.Stm
 		}
 
 		return nil, err
+	}
+
+	if b.R2CoverBukuURL == "" && b.R2BukuPDFURL == "" && b.CoverBuku != "-" && b.BukuPDF != "-" {
+		urlCoverBuku, err := utils.GetKeyFilepath(b.CoverBuku, false)
+		if err != nil {
+			return nil, err
+		}
+
+		urlBukuPDF, err := utils.GetKeyFilepath(b.BukuPDF, true)
+		if err != nil {
+			return nil, err
+		}
+
+		b.R2CoverBukuURL = urlCoverBuku
+		b.R2BukuPDFURL = urlBukuPDF
+	} else {
+		b.R2CoverBukuURL = "-"
+		b.R2BukuPDFURL = "-"
 	}
 
 	return &b, nil

@@ -17,6 +17,7 @@ func TestAuthHandler(t *testing.T) {
 	jwt := &jwt.AuthJWT{}
 	userStore := &types.MockUserStore{}
 
+	// TODO: UBAH METHOD FORM NYA MENJADI JSON
 	h := NewHandler(jwt, userStore)
 
 	t.Run("it should fail register, because use wrong email format", func(t *testing.T) {

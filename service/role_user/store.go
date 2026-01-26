@@ -130,8 +130,8 @@ func (s *Store) GetUserAndRoleNames(ctx context.Context, userID string) (*types.
 	}
 
 	for _, r := range u.Roles {
-		roleIDs := strings.Split(r.ID, ", ")     // jika id nya ada lebih, maka pecahkan menjadi subbagian?
-		roleNames := strings.Split(r.Name, ", ") // jika nama nya ada lebih, maka pecahkan menjadi subbagian?
+		roleIDs := strings.Split(r.ID, ", ")
+		roleNames := strings.Split(r.Name, ", ")
 
 		roles["id"] = append(roles["id"], roleIDs...)
 		roles["name"] = append(roles["name"], roleNames...)

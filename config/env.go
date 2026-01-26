@@ -42,7 +42,7 @@ func initConfig() *Config {
 		LocalAddress: fmt.Sprintf("%s:%s", getENVConfigValue("APP_URL"), getENVConfigValue("CLIENT_PORT")),
 
 		MeilisearchURL: getENVConfigValue("MEILISEARCH_URL"),
-		MSApiKey:       getENVConfigValue("MS_API_KEY"),
+		MSApiKey:       getENVConfigValue("MEILISEARCH_KEY"),
 
 		Port: getENVConfigValue("PORT"),
 
@@ -62,9 +62,9 @@ func initConfig() *Config {
 	}
 }
 
-// get value on file env, and check one by one variable at param to get the value.
-func getENVConfigValue(variable string) string {
-	v, ok := os.LookupEnv(variable)
+// get value on file env, and check one by one key at param to get the value.
+func getENVConfigValue(key string) string {
+	v, ok := os.LookupEnv(key)
 	if !ok {
 		return ""
 	}

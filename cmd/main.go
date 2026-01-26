@@ -87,10 +87,10 @@ func pingMysqlDB(ctx context.Context, db *sql.DB) {
 }
 
 func pingRedisDB(ctx context.Context, rdb *redis.Client) {
-	ping, err := rdb.Ping(ctx).Result()
+	_, err := rdb.Ping(ctx).Result()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	log.Printf("Redis Connected: %s", ping)
+	log.Println("Redis Connected!")
 }

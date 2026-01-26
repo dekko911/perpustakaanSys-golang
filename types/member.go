@@ -16,6 +16,7 @@ type Member struct {
 	Kelas         string `json:"kelas"`
 	NoTelepon     string `json:"no_telepon"`
 	ProfilAnggota string `json:"profil_anggota"` // image type
+	R2ProfilUrl   string `json:"r2_profil_url"`
 }
 
 type MembersCachePage struct {

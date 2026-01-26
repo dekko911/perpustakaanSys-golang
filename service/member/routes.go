@@ -127,7 +127,7 @@ func (h *Handler) handleCreateMember(w http.ResponseWriter, r *http.Request) {
 
 	if err := utils.NewValidate.Struct(payload); err != nil {
 		errors := err.(validator.ValidationErrors)
-		vErrors := utils.TransformValidationErrorsWithLangIndonesia(errors)
+		vErrors := utils.TransformValidationErrorsWithLangIndonesian(errors)
 
 		utils.WriteJSONError(w, http.StatusUnprocessableEntity, vErrors)
 		return
@@ -209,7 +209,7 @@ func (h *Handler) handleUpdateMember(w http.ResponseWriter, r *http.Request) {
 
 	if err := utils.NewValidate.Struct(payload); err != nil {
 		errors := err.(validator.ValidationErrors)
-		vErrors := utils.TransformValidationErrorsWithLangIndonesia(errors)
+		vErrors := utils.TransformValidationErrorsWithLangIndonesian(errors)
 
 		utils.WriteJSONError(w, http.StatusUnprocessableEntity, vErrors)
 		return

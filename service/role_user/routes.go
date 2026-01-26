@@ -113,33 +113,30 @@ func (h *Handler) handleAssignRoleIntoUser(w http.ResponseWriter, req *http.Requ
 		return
 	}
 
-	if err := req.ParseForm(); err != nil {
-		utils.WriteJSONError(w, http.StatusBadRequest, err)
-		return
-	}
+	var payload types.SetPayloadJSONRoleAndUserID
 
-	payload := types.SetPayloadRoleAndUserID{
-		UserID: req.PostForm.Get("user_id"),
-		RoleID: req.PostForm.Get("role_id"),
-	}
-
-	// validate id user
-	if err := uuid.Validate(payload.UserID); err != nil {
-		utils.WriteJSONError(w, http.StatusBadRequest, err)
-		return
-	}
-
-	// validate id role
-	if err := uuid.Validate(payload.RoleID); err != nil {
+	if err := utils.ParseJSON(req, &payload); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
 	if err := utils.NewValidate.Struct(payload); err != nil {
 		errors := err.(validator.ValidationErrors)
-		vErrors := utils.TransformValidationErrorsWithLangIndonesia(errors)
+		vErrors := utils.TransformValidationErrorsWithLangIndonesian(errors)
 
 		utils.WriteJSONError(w, http.StatusUnprocessableEntity, vErrors)
+		return
+	}
+
+	// validate id user
+	if err := uuid.Validate(payload.UserID); err != nil {
+		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("user_id: %v", err))
+		return
+	}
+
+	// validate id role
+	if err := uuid.Validate(payload.RoleID); err != nil {
+		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("role_id: %v", err))
 		return
 	}
 

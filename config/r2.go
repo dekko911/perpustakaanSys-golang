@@ -25,7 +25,6 @@ func R2Storage(ctx context.Context) (*s3.Client, error) {
 		return nil, err
 	}
 
-	// TODO: perlu optimisasi, agar stabil jalan di r2 cloudflare, atau butuh custom domain agar stabil
 	client := s3.NewFromConfig(cfg, func(o *s3.Options) {
 		o.BaseEndpoint = aws.String(fmt.Sprintf("https://%s.r2.cloudflarestorage.com", Env.CFAccountID))
 

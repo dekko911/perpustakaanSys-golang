@@ -35,7 +35,7 @@ const (
 	r2CoverBookPath = "books/cover_book"
 	r2PDFBookPath   = "books/pdf_book"
 
-	size9MB = 9 << 20
+	size10MB = 10 << 20
 )
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
@@ -113,7 +113,7 @@ func (h *Handler) handleCreateBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := r.ParseMultipartForm(size9MB); err != nil {
+	if err := r.ParseMultipartForm(size10MB); err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
@@ -129,7 +129,7 @@ func (h *Handler) handleCreateBook(w http.ResponseWriter, r *http.Request) {
 
 	if err := utils.NewValidate.Struct(payload); err != nil {
 		errors := err.(validator.ValidationErrors)
-		vErrors := utils.TransformValidationErrorsWithLangIndonesia(errors)
+		vErrors := utils.TransformValidationErrorsWithLangIndonesian(errors)
 
 		utils.WriteJSONError(w, http.StatusUnprocessableEntity, vErrors)
 		return
@@ -159,7 +159,7 @@ func (h *Handler) handleCreateBook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if errImg == nil {
-		newFilename, err := utils.SetNewFilenameImg(ctx, "random", headerImg, r2CoverBookPath)
+		newFilename, err := utils.SetNewFilenameImg(ctx, "original", headerImg, r2CoverBookPath)
 
 		if err != nil {
 			utils.WriteJSONError(w, http.StatusInternalServerError, err)
@@ -220,7 +220,7 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// TODO: buat validasi file dan buatkan function logic untuk menyimpan file ke local storage
-	if err := r.ParseMultipartForm(size9MB); err != nil {
+	if err := r.ParseMultipartForm(size10MB); err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
@@ -236,7 +236,7 @@ func (h *Handler) handleUpdateBook(w http.ResponseWriter, r *http.Request) {
 
 	if err := utils.NewValidate.Struct(payload); err != nil {
 		errors := err.(validator.ValidationErrors)
-		vErrors := utils.TransformValidationErrorsWithLangIndonesia(errors)
+		vErrors := utils.TransformValidationErrorsWithLangIndonesian(errors)
 
 		utils.WriteJSONError(w, http.StatusUnprocessableEntity, vErrors)
 		return

@@ -7,6 +7,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/perpus_backend/config"
 	"github.com/perpus_backend/helper"
 	"github.com/perpus_backend/types"
 	"github.com/perpus_backend/utils"
@@ -21,6 +22,8 @@ type Store struct {
 	rdb *redis.Client
 }
 
+var bucketR2 = config.Env.CFBucketName
+
 func NewStore(db *sql.DB, rdb *redis.Client) *Store {
 	return &Store{db: db, rdb: rdb}
 }
@@ -29,9 +32,6 @@ func (s *Store) GetUsersWithPagination(ctx context.Context, page int) ([]*types.
 	if page < 1 {
 		page = 1 // set default page
 	}
-
-	sortByColumn := "created_at"
-	sortOrder := "DESC"
 
 	// set the rows limit, hardcoded
 	limit := 10
@@ -73,7 +73,7 @@ func (s *Store) GetUsersWithPagination(ctx context.Context, page int) ([]*types.
 	LEFT JOIN roles r ON ru.role_id = r.id 
 	GROUP BY u.id, r.id 
 	ORDER BY %s %s 
-	LIMIT %d OFFSET %d`, sortByColumn, sortOrder, limit, (page-1)*limit)
+	LIMIT %d OFFSET %d`, "created_at", "DESC", limit, (page-1)*limit)
 
 	stmt, err := s.db.Prepare(query)
 	if err != nil {
@@ -128,11 +128,12 @@ func (s *Store) GetUsersWithPagination(ctx context.Context, page int) ([]*types.
 	}
 
 	// set redis db
+	// Jangan cache presigned URL di DB, expired tetap harus generate ulang
 	if data, err := sonic.Marshal(payloadUsers); err == nil {
 		s.rdb.SetEx(ctx, usersKey, data, time.Duration(2)*time.Minute)
 	}
 
-	// TODO: buat presigned url untuk showing files dari r2 cloudflare
+	// TODO: buat presigned url untuk showing files dari r2 cloudflare, buat map agar bisa terkelompok
 	return users, lastPage, nil
 }
 

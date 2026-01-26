@@ -3,9 +3,12 @@ package auth
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/perpus_backend/config"
 	"github.com/perpus_backend/pkg/hash"
 	"github.com/perpus_backend/pkg/jwt"
 	"github.com/perpus_backend/types"
@@ -25,13 +28,7 @@ func NewHandler(jwt *jwt.AuthJWT, store types.UserStore) *Handler {
 	return &Handler{store: store, jwt: jwt}
 }
 
-const (
-	cok = http.StatusOK
-
-	r2UsersAvatarPath = "users/avatar"
-
-	size1MB = 1 << 20
-)
+const cok = http.StatusOK
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
 	r.HandleFunc("/login", h.handleLogin).Methods(http.MethodPost)
@@ -41,7 +38,7 @@ func (h *Handler) RegisterRoutes(r *mux.Router) {
 
 // Handler auth login using JWT.
 func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(2)*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(1)*time.Second)
 	defer cancel()
 
 	if r.Method != http.MethodPost {
@@ -49,19 +46,16 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := r.ParseForm(); err != nil {
+	var payload types.SetPayloadJSONLogin
+
+	if err := utils.ParseJSON(r, &payload); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	payload := types.SetPayloadLogin{
-		Email:    r.PostForm.Get("email"),
-		Password: r.PostForm.Get("password"),
-	}
-
 	if err := utils.NewValidate.Struct(payload); err != nil {
 		errors := err.(validator.ValidationErrors)
-		vErrors := utils.TransformValidationErrorsWithLangIndonesia(errors)
+		vErrors := utils.TransformValidationErrorsWithLangIndonesian(errors)
 
 		utils.WriteJSONError(w, http.StatusUnprocessableEntity, vErrors)
 		return
@@ -73,13 +67,7 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	checkPassword, err := hash.CompareHashedPassword(u.Password, payload.Password)
-	if err != nil {
-		utils.WriteJSONError(w, http.StatusInternalServerError, err)
-		return
-	}
-
-	if !checkPassword {
+	if !hash.CompareHashedPassword(u.Password, payload.Password) {
 		utils.WriteJSONError(w, http.StatusBadRequest, fmt.Errorf("wrong password"))
 		return
 	}
@@ -97,7 +85,7 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Handle Logout and Revoke the Token using token versioning (user session ver).
+// Handle Logout and Revoke the Token using token version.
 func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -127,29 +115,21 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	var filename string
-
 	if r.Method != http.MethodPost {
 		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
 		return
 	}
 
-	if err := r.ParseMultipartForm(size1MB); err != nil {
+	var payload types.SetPayloadJSONUser
+
+	if err := utils.ParseJSON(r, &payload); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)
 		return
 	}
 
-	defer r.MultipartForm.RemoveAll()
-
-	payload := types.SetPayloadUser{
-		Name:     r.PostForm.Get("name"),
-		Email:    r.PostForm.Get("email"),
-		Password: r.PostForm.Get("password"),
-	}
-
 	if err := utils.NewValidate.Struct(payload); err != nil {
 		errors := err.(validator.ValidationErrors)
-		vErrors := utils.TransformValidationErrorsWithLangIndonesia(errors)
+		vErrors := utils.TransformValidationErrorsWithLangIndonesian(errors)
 
 		utils.WriteJSONError(w, http.StatusUnprocessableEntity, vErrors)
 		return
@@ -166,25 +146,11 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, header, errFile := r.FormFile("avatar")
-
-	if errFile == http.ErrMissingFile {
-		filename = "-"
-	}
-
-	if errFile == nil {
-		filename, err = utils.SetNewFilenameImg(ctx, "random", header, r2UsersAvatarPath)
-		if err != nil {
-			utils.WriteJSONError(w, http.StatusInternalServerError, err)
-			return
-		}
-	}
-
 	if err := h.store.CreateUser(ctx, &types.User{
 		Name:     payload.Name,
 		Email:    payload.Email,
 		Password: hashPass,
-		Avatar:   filename,
+		Avatar:   "-",
 	}); err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
@@ -198,7 +164,67 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) PrivateURLHandler(w http.ResponseWriter, r *http.Request) {
-	// filename := mux.Vars(r)["filename"]
+	ctx := r.Context()
+	keyFilepath := mux.Vars(r)["filepath"]
 
-	// TODO: make this route to use private file access
+	if r.Method != http.MethodGet {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
+		return
+	}
+
+	clientR2, err := config.R2Storage(ctx)
+	if err != nil {
+		utils.WriteJSONError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	output, err := clientR2.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: &config.Env.CFBucketName,
+		Key:    &keyFilepath,
+	})
+	if err != nil {
+		utils.WriteJSONError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	defer output.Body.Close()
+
+	// stream the body
+	if _, err := io.Copy(w, output.Body); err == io.ErrUnexpectedEOF {
+		utils.WriteJSONError(w, http.StatusInternalServerError, err)
+		return
+	}
+}
+
+func (h *Handler) PublicURLHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	keyFilepath := mux.Vars(r)["filepath"]
+
+	if r.Method != http.MethodGet {
+		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
+		return
+	}
+
+	clientR2, err := config.R2Storage(ctx)
+	if err != nil {
+		utils.WriteJSONError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	output, err := clientR2.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: &config.Env.CFBucketName,
+		Key:    &keyFilepath,
+	})
+	if err != nil {
+		utils.WriteJSONError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	defer output.Body.Close()
+
+	// stream the body
+	if _, err := io.Copy(w, output.Body); err == io.ErrUnexpectedEOF {
+		utils.WriteJSONError(w, http.StatusInternalServerError, err)
+		return
+	}
 }

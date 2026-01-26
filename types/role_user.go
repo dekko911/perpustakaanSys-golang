@@ -11,7 +11,7 @@ type RoleUserStore interface {
 	DeleteRoleFromUser(ctx context.Context, userID, roleID string) error
 }
 
-type SetPayloadRoleAndUserID struct {
-	UserID string `form:"user_id" validate:"required"`
-	RoleID string `form:"role_id" validate:"required"`
+type SetPayloadJSONRoleAndUserID struct {
+	UserID string `json:"user_id" validate:"required"`
+	RoleID string `json:"role_id" validate:"required"`
 }

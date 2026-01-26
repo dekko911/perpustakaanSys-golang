@@ -39,18 +39,18 @@ type CirculationStore interface {
 	DeleteCirculation(ctx context.Context, id string) error
 }
 
-type SetPayloadCirculation struct {
-	BukuID        string `form:"book_id" validate:"required"`
-	Peminjam      string `form:"peminjam" validate:"required"`
-	TanggalPinjam string `form:"tanggal_pinjam" validate:"required"`
-	JatuhTempo    string `form:"jatuh_tempo" validate:"required"`
-	Denda         string `form:"denda" validate:"required"`
+type SetPayloadJSONCirculation struct {
+	BukuID        string `json:"book_id" validate:"required"`
+	Peminjam      string `json:"peminjam" validate:"required"`
+	TanggalPinjam string `json:"tanggal_pinjam" validate:"required"`
+	JatuhTempo    string `json:"jatuh_tempo" validate:"required"`
+	Denda         string `json:"denda" validate:"required"`
 }
 
-type SetPayloadUpdateCirculation struct {
-	BukuID        string `form:"book_id" validate:"omitempty,required"`
-	Peminjam      string `form:"peminjam" validate:"omitempty,required"`
-	TanggalPinjam string `form:"tanggal_pinjam" validate:"omitempty,required"`
-	JatuhTempo    string `form:"jatuh_tempo" validate:"omitempty,required"`
-	Denda         string `form:"denda" validate:"omitempty,required"`
+type SetPayloadJSONUpdateCirculation struct {
+	BukuID        string `json:"book_id" validate:"omitempty,required"`
+	Peminjam      string `json:"peminjam" validate:"omitempty,required"`
+	TanggalPinjam string `json:"tanggal_pinjam" validate:"omitempty,required"`
+	JatuhTempo    string `json:"jatuh_tempo" validate:"omitempty,required"`
+	Denda         string `json:"denda" validate:"omitempty,required"`
 }

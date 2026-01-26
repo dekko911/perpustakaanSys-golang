@@ -1,4 +1,4 @@
-// INGAT LOG NYA KONTOL, PADAHAL ADA LOG LO UNTUK CEK SEGALA MASALAH, ANJING LO
+// INGAT LOG SAMA ERROR NYA KONTOL, PADAHAL ADA LOG SAMA ERROR LO UNTUK CEK SEGALA MASALAH, LITERASI DONG ANJING
 package utils
 
 import (
@@ -94,8 +94,18 @@ func IsTesting() bool {
 	return flag.Lookup("test.v") != nil
 }
 
-func StringPtr(v string) *string {
-	return &v
+// input payload must it in the value pointed to by payload param.
+func ParseJSON(r *http.Request, payload any) error {
+	if r.Body == http.NoBody {
+		return errors.New("missing request body")
+	}
+
+	cfg := sonic.Config{
+		CaseSensitive:    true,
+		CompactMarshaler: true,
+	}
+
+	return cfg.Froze().NewDecoder(r.Body).Decode(payload)
 }
 
 // WriteJSON writes the provided JsonResponse to w as JSON.
@@ -226,7 +236,13 @@ func SetRedisKey(keyName, keyValue string) (string, error) {
 	return fmt.Sprintf("%s:%s", keyName, keyValue), nil
 }
 
-// documentation: soon
+// SetRedisKeyForPagination returns a Redis key for paginated data in the form
+// "<keyName>:p:<page>:l:<limit>".
+// It validates inputs and returns an error if validation fails.
+// - keyName must be non-empty.
+// - page must be >= 1.
+// - limit must be >= 10.
+// On success it returns the formatted key string and a nil error; otherwise an error describing the validation failure.
 func SetRedisKeyForPagination(keyName string, page, limit int) (string, error) {
 	if page < 1 || limit < 10 {
 
@@ -302,10 +318,11 @@ func CompareRole(roles, targetRoles []string) bool {
 	slices.Sort(targetRoles) // sort to ascending
 
 	// brute force algorithm
-	for outer := range roles {
-		for inner := range targetRoles {
-			if roles[outer] != "" && targetRoles[inner] != "" {
-				if roles[outer] == targetRoles[inner] {
+	// or = outer loop, ir = inner loop
+	for or := range roles {
+		for ir := range targetRoles {
+			if roles[or] != "" && targetRoles[ir] != "" {
+				if roles[or] == targetRoles[ir] {
 					return true
 				}
 			}
@@ -328,10 +345,10 @@ func GenerateSpecificID(prefix string, number int, width int) (string, error) {
 	return fmt.Sprintf("%s%0*d", prefix, width, number+1), nil // prefix itu adalah awalan kata
 }
 
-// TransformValidationErrorsWithLangIndonesia converts validation errors to a map of field names and their corresponding
+// TransformValidationErrorsWithLangIndonesian converts validation errors to a map of field names and their corresponding
 // Indonesian error messages. Each key and value in the returned map is converted to lowercase.
 // It takes validator.ValidationErrors as input and returns a map where keys are field names and values are translated error messages.
-func TransformValidationErrorsWithLangIndonesia(vErrors validator.ValidationErrors) map[string]string {
+func TransformValidationErrorsWithLangIndonesian(vErrors validator.ValidationErrors) map[string]string {
 	newVErrors := make(map[string]string)
 
 	for _, e := range vErrors {
@@ -346,6 +363,34 @@ func TransformValidationErrorsWithLangIndonesia(vErrors validator.ValidationErro
 	}
 
 	return newVErrors
+}
+
+// GetKeyFilepath constructs and returns the full URL path for a key file based on the environment configuration.
+// It takes the keyFilepath (relative path to the key file) and a boolean isPrivate indicating whether the file is private.
+// In production, the function requires the port to be empty and returns an error if it's not.
+// The returned URL will include either "private" or "public" in the path depending on the isPrivate flag.
+// In non-production environments, the port is included in the URL.
+// Returns the constructed URL string and an error if any.
+func GetKeyFilepath(keyFilepath string, isPrivate bool) (string, error) {
+	if config.Env.AppENV == "production" {
+
+		if config.Env.Port == "" {
+
+			if isPrivate {
+				return fmt.Sprintf("%s/private/%s", config.Env.AppURL, keyFilepath), nil
+			}
+
+			return fmt.Sprintf("%s/public/%s", config.Env.AppURL, keyFilepath), nil
+		}
+
+		return "-", errors.New("the port must be empty!")
+	}
+
+	if isPrivate {
+		return fmt.Sprintf("%s:%s/private/%s", config.Env.AppURL, config.Env.Port, keyFilepath), nil
+	}
+
+	return fmt.Sprintf("%s:%s/public/%s", config.Env.AppURL, config.Env.Port, keyFilepath), nil
 }
 
 // fileMode = original or random.
@@ -463,9 +508,11 @@ func UpdateTheFilenameImg(ctx context.Context, filenameMode string, headerSrcFil
 
 	if headerSrcFile.Size <= 1<<20 {
 
-		if err := DeleteFilepathWithFilename(ctx, oldKeyFileImgPath); err != nil {
+		if oldKeyFileImgPath != "-" {
+			if err := DeleteFilepathWithFilename(ctx, oldKeyFileImgPath); err != nil {
 
-			return oldKeyFileImgPath, err
+				return oldKeyFileImgPath, err
+			}
 		}
 
 		uniqueString := xid.New().String() // set the new unique filename
@@ -597,9 +644,11 @@ func UpdateTheOriginalFilenamePDF(ctx context.Context, headerSrcFilePDF *multipa
 	if fileExt == ".pdf" {
 		if headerSrcFilePDF.Size <= 8<<20 {
 
-			if err := DeleteFilepathWithFilename(ctx, oldKeyFilePDFPath); err != nil {
+			if oldKeyFilePDFPath != "-" {
+				if err := DeleteFilepathWithFilename(ctx, oldKeyFilePDFPath); err != nil {
 
-				return oldKeyFilePDFPath, err
+					return oldKeyFilePDFPath, err
+				}
 			}
 
 			keyFilepath := path.Join(directoryPath, newFilePDF)
@@ -665,7 +714,7 @@ func DeleteFilepathWithFilename(ctx context.Context, keyFilepaths ...string) err
 		newDelObjs = append(newDelObjs, types.ObjectIdentifier{Key: &keyFilepaths[i]}) // iterasi terus sampai value dari var i habis
 	}
 
-	delOut, err := clientR2.DeleteObjects(ctx, &s3.DeleteObjectsInput{
+	delOutput, err := clientR2.DeleteObjects(ctx, &s3.DeleteObjectsInput{
 		Bucket: &bucketR2,
 		Delete: &types.Delete{
 			Objects: newDelObjs,
@@ -673,9 +722,9 @@ func DeleteFilepathWithFilename(ctx context.Context, keyFilepaths ...string) err
 		},
 	})
 
-	if err != nil || len(delOut.Errors) > 0 {
+	if err != nil || len(delOutput.Errors) > 0 {
 		if err != nil {
-			var noBucket *types.NoSuchBucket // check aja di sini, siapa tau kena invalid mem addr
+			var noBucket *types.NoSuchBucket // check aja, siapa tau kena invalid mem addr
 
 			if errors.As(err, &noBucket) {
 				// rewrite err
@@ -686,9 +735,9 @@ func DeleteFilepathWithFilename(ctx context.Context, keyFilepaths ...string) err
 
 			return err
 
-		} else if len(delOut.Errors) > 0 {
+		} else if len(delOutput.Errors) > 0 {
 			// rewrite err
-			err = fmt.Errorf("%s", *delOut.Errors[0].Message) // rewrite variable err
+			err = fmt.Errorf("%s", *delOutput.Errors[0].Message) // rewrite variable err
 
 			return err
 		}

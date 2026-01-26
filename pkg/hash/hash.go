@@ -13,11 +13,7 @@ func MakePasswordHash(password string) (string, error) {
 }
 
 // checking password in db with the request password.
-func CompareHashedPassword(hashedPassword string, plainTextPassword string) (bool, error) {
+func CompareHashedPassword(hashedPassword string, plainTextPassword string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(plainTextPassword))
-	if err != nil {
-		return false, err
-	}
-
-	return err == nil, nil // true
+	return err == nil // true
 }

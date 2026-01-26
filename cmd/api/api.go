@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
 	"time"
@@ -107,26 +108,38 @@ func (s *APIServer) Run() error {
 
 	// get health
 	subrouter.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		utils.WriteJSON(w, http.StatusOK, utils.JsonResponse{
-			Code: http.StatusOK,
+		ping, _ := s.rdb.Do(context.Background(), "PING").Text()
+		var ok int
+		meiliHealth := utils.NewMSClient.IsHealthy()
+		err := s.db.QueryRow("SELECT 1").Scan(&ok)
 
-			// TODO: health db, redis, meilisearch dan status dari db, belum puas
-			Data: map[string]any{
-				"mysql_db":    s.db.Stats().OpenConnections,
-				"meilisearch": utils.NewMSClient.IsHealthy(),
-				"redis":       s.rdb.Options().ClientName,
-			},
-
-			Status: http.StatusText(http.StatusOK),
-		})
+		if err == nil && meiliHealth == true && ping == "PONG" {
+			utils.WriteJSON(w, http.StatusOK, utils.JsonResponse{
+				Code: http.StatusOK,
+				Data: map[string]any{
+					"mysql_db":    ok,
+					"meilisearch": meiliHealth,
+					"redis":       ping,
+				},
+				Status: http.StatusText(http.StatusOK),
+			})
+			return
+		} else {
+			utils.WriteJSONError(w, http.StatusInternalServerError, map[string]string{
+				// TODO: buat semua error nya agar menjadi string.
+			})
+			return
+		}
 	}).Methods(http.MethodGet)
 	// end here health
 
 	// get info logged profile
 	r.HandleFunc("/profile", jwt.AuthWithJWTToken(userHandler.HandleGetProfileUser)).Methods(http.MethodGet)
 
+	r.HandleFunc("/public/{filepath:.*}", authHandler.PublicURLHandler).Methods(http.MethodGet)
+
 	// set accessing files across private routes. Which means, it is need to login auth.
-	r.HandleFunc("/private/{filename:.+}", jwt.AuthWithJWTToken(jwt.RoleGate(authHandler.PrivateURLHandler, "admin", "staff", "user"))).Methods(http.MethodGet)
+	r.HandleFunc("/private/{filepath:.*}", jwt.AuthWithJWTToken(jwt.RoleGate(authHandler.PrivateURLHandler, "admin", "staff", "user"))).Methods(http.MethodGet)
 
 	return http.ListenAndServe(s.addr, r)
 }
