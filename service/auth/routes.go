@@ -120,7 +120,7 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var payload types.SetPayloadJSONUser
+	var payload types.SetPayloadJSONRegister
 
 	if err := utils.ParseJSON(r, &payload); err != nil {
 		utils.WriteJSONError(w, http.StatusBadRequest, err)

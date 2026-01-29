@@ -31,6 +31,7 @@ type UserStore interface {
 	GetUsersForSearch(ctx context.Context) []*User
 
 	GetUserWithRolesByID(ctx context.Context, id string) (*User, error)
+	GetUserWithRolesByIDWithoutCache(ctx context.Context, id string) (*User, error)
 	GetUserWithRolesByEmail(ctx context.Context, email string) (*User, error)
 
 	CreateUser(ctx context.Context, u *User) error
@@ -45,7 +46,7 @@ type SetPayloadJSONLogin struct {
 	Password string `json:"password" validate:"required"`
 }
 
-type SetPayloadJSONUser struct {
+type SetPayloadJSONRegister struct {
 	Name     string `json:"name" validate:"required,min=3"`
 	Email    string `json:"email" validate:"required,lowercase,email"`
 	Password string `json:"password" validate:"required,min=6"`

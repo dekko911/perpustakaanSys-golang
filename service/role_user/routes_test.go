@@ -40,20 +40,17 @@ func TestHandlerRoleUser(t *testing.T) {
 	})
 
 	// t.Run("it should be create relation between user & role", func(t *testing.T) {
-	// 	form := url.Values{}
-
-	// 	payload := types.SetPayloadRoleAndUserID{
+	// 	payload := types.SetPayloadJSONRoleAndUserID{
 	// 		UserID: uuid.NewString(),
 	// 		RoleID: uuid.NewString(),
 	// 	}
 
-	// 	form.Set("user_id", payload.UserID)
-	// 	form.Set("role_id", payload.RoleID)
-
-	// 	req, err := http.NewRequest(http.MethodPost, "/role_user", strings.NewReader(form.Encode()))
+	// 	marshalled, err := json.Marshal(payload)
 	// 	if err != nil {
 	// 		t.Fatal(err)
 	// 	}
+
+	// 	req := httptest.NewRequest(http.MethodPost, "/role_user", bytes.NewBuffer(marshalled))
 
 	// 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
@@ -63,7 +60,7 @@ func TestHandlerRoleUser(t *testing.T) {
 	// 	r.HandleFunc("/role_user", h.handleAssignRoleIntoUser).Methods(http.MethodPost)
 	// 	r.ServeHTTP(w, req)
 
-	// 	t.Log(w.Body)
+	// 	// t.Log(w.Body)
 
 	// 	if w.Code != cok {
 	// 		t.Errorf("expected status code %d, got %d", cok, w.Code)

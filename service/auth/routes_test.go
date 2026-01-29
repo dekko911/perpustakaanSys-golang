@@ -2,7 +2,7 @@ package auth
 
 import (
 	"bytes"
-	"mime/multipart"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -21,34 +21,18 @@ func TestAuthHandler(t *testing.T) {
 	h := NewHandler(jwt, userStore)
 
 	t.Run("it should fail register, because use wrong email format", func(t *testing.T) {
-		body := &bytes.Buffer{}
-		writer := multipart.NewWriter(body)
-
-		payload := types.SetPayloadUser{
+		payload := types.SetPayloadJSONRegister{
 			Name:     "admin",
 			Email:    "asd",
 			Password: "asd",
 		}
 
-		writer.WriteField("name", payload.Name)
-		writer.WriteField("email", payload.Email)
-		writer.WriteField("password", payload.Password)
-
-		file, err := writer.CreateFormFile("avatar", "test.png")
+		marshalled, err := json.Marshal(payload)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		file.Write([]byte("fake img content"))
-
-		writer.Close()
-
-		req, err := http.NewRequest(http.MethodPost, "/register", body)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		req.Header.Set("Content-Type", writer.FormDataContentType())
+		req := httptest.NewRequest(http.MethodPost, "/register", bytes.NewBuffer(marshalled))
 
 		w := httptest.NewRecorder()
 		r := mux.NewRouter()
@@ -64,28 +48,18 @@ func TestAuthHandler(t *testing.T) {
 	})
 
 	t.Run("it should register an user", func(t *testing.T) {
-		body := &bytes.Buffer{}
-		writer := multipart.NewWriter(body)
-
-		payload := types.SetPayloadUser{
+		payload := types.SetPayloadJSONRegister{
 			Name:     "admin",
 			Email:    "admin@gmail.com",
 			Password: "admin12345",
 		}
 
-		writer.WriteField("name", payload.Name)
-		writer.WriteField("email", payload.Email)
-		writer.WriteField("password", payload.Password)
-		writer.WriteField("avatar", "-")
-
-		writer.Close()
-
-		req, err := http.NewRequest(http.MethodPost, "/register", body)
+		marshalled, err := json.Marshal(payload)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		req.Header.Set("Content-Type", writer.FormDataContentType())
+		req := httptest.NewRequest(http.MethodPost, "/register", bytes.NewBuffer(marshalled))
 
 		w := httptest.NewRecorder()
 		r := mux.NewRouter()

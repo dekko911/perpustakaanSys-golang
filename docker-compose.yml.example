@@ -1,0 +1,42 @@
+name: perpus_golang
+
+services:
+
+  mysql:
+    image: mysql:8.0
+    container_name: mysql-perpus-golang
+    restart: always
+    environment:
+      MYSQL_DB: ${DB_DATABASE}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      TZ: ${DB_LOC}
+    ports:
+      - "127.0.0.1:3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+
+  meilisearch:
+    image: getmeili/meilisearch:latest
+    container_name: meilisearch-perpus-golang
+    restart: always
+    ports:
+      - "127.0.0.1:7700:7700"
+    environment:
+      MEILI_MASTER_KEY: ${MEILISEARCH_KEY}
+    volumes:
+      - search_data:/meili_data/
+
+  redis:
+    image: redis:latest
+    container_name: redis-perpus-golang
+    restart: always
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - cache_data:/data
+    command: redis-server --save 20 1 --requirepass ${REDIS_PASSWORD}
+
+volumes:
+  db_data: # set volume/storage sekaligus nama nya untuk menyimpan data db mysql
+  search_data: # set volume/storage sekaligus nama nya untuk menyimpan data meilisearch
+  cache_data: # set volume/storage sekaligus nama nya untuk menyimpan cache data redis

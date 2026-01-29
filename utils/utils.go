@@ -94,7 +94,7 @@ func IsTesting() bool {
 	return flag.Lookup("test.v") != nil
 }
 
-// input payload must it in the value pointed to by payload param.
+// payload input must be pointed to payload param.
 func ParseJSON(r *http.Request, payload any) error {
 	if r.Body == http.NoBody {
 		return errors.New("missing request body")

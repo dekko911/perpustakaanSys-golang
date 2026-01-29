@@ -20,6 +20,10 @@ func (m MockUserStore) GetUserWithRolesByID(ctx context.Context, id string) (*Us
 	return nil, nil
 }
 
+func (m MockUserStore) GetUserWithRolesByIDWithoutCache(ctx context.Context, id string) (*User, error) {
+	return nil, nil
+}
+
 func (m MockUserStore) GetUserWithRolesByEmail(ctx context.Context, email string) (*User, error) {
 	return nil, fmt.Errorf("user not found")
 }

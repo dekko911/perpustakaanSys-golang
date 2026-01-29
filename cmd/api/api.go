@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"database/sql"
 	"net/http"
 	"time"
@@ -108,28 +107,47 @@ func (s *APIServer) Run() error {
 
 	// get health
 	subrouter.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		ping, _ := s.rdb.Do(context.Background(), "PING").Text()
-		var ok int
-		meiliHealth := utils.NewMSClient.IsHealthy()
-		err := s.db.QueryRow("SELECT 1").Scan(&ok)
+		var statusDB, statusRDB, statusMS string
+		var ok, code int
 
-		if err == nil && meiliHealth == true && ping == "PONG" {
-			utils.WriteJSON(w, http.StatusOK, utils.JsonResponse{
-				Code: http.StatusOK,
-				Data: map[string]any{
-					"mysql_db":    ok,
-					"meilisearch": meiliHealth,
-					"redis":       ping,
-				},
-				Status: http.StatusText(http.StatusOK),
-			})
-			return
+		// redis
+		ping, _ := s.rdb.Ping(r.Context()).Result()
+		if ping == "PONG" {
+			statusRDB = "up"
 		} else {
-			utils.WriteJSONError(w, http.StatusInternalServerError, map[string]string{
-				// TODO: buat semua error nya agar menjadi string.
-			})
-			return
+			statusRDB = "down"
 		}
+
+		// meilisearch
+		meiliHealth := utils.NewMSClient.IsHealthy()
+		if meiliHealth {
+			statusMS = "up"
+		} else {
+			statusMS = "down"
+		}
+
+		// db
+		_ = s.db.QueryRow("SELECT 1").Scan(&ok)
+		if ok == 1 {
+			statusDB = "up"
+		} else {
+			statusDB = "down"
+		}
+
+		if statusDB == "up" && statusRDB == "up" && statusMS == "up" {
+			code = http.StatusOK
+		} else {
+			code = http.StatusInternalServerError
+		}
+
+		utils.WriteJSON(w, code, utils.JsonResponse{
+			Code: code,
+			Data: map[string]string{
+				"mysql_db":    statusDB,
+				"meilisearch": statusMS,
+				"redis":       statusRDB,
+			},
+		})
 	}).Methods(http.MethodGet)
 	// end here health
 

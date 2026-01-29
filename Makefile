@@ -1,11 +1,11 @@
 build:
 	@go build -o bin/backend.exe cmd/main.go
 
-start: build
+run: build
 	@./bin/backend.exe
 
-run:
-	@go run ./cmd/main.go
+# run:
+# 	@go run ./cmd/main.go
 
 test: 
 	@go test -v ./...

@@ -36,21 +36,21 @@ func NewHandler(jwt *jwt.AuthJWT, us types.UserStore, rs types.RoleStore, ms typ
 }
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
-	r.HandleFunc("/search/users", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetSearchForUsers, "admin", "staff", "user"))).Methods(http.MethodPost)
+	r.HandleFunc("/search/users", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetSearchForUsers, "admin", "staff", "user"))).Methods(http.MethodGet)
 
-	r.HandleFunc("/search/roles", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetSearchForRoles, "admin", "staff", "user"))).Methods(http.MethodPost)
+	r.HandleFunc("/search/roles", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetSearchForRoles, "admin", "staff", "user"))).Methods(http.MethodGet)
 
-	r.HandleFunc("/search/members", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetSearchForMembers, "admin", "staff", "user"))).Methods(http.MethodPost)
+	r.HandleFunc("/search/members", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetSearchForMembers, "admin", "staff", "user"))).Methods(http.MethodGet)
 
-	r.HandleFunc("/search/books", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetSearchForBooks, "admin", "staff", "user"))).Methods(http.MethodPost)
+	r.HandleFunc("/search/books", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetSearchForBooks, "admin", "staff", "user"))).Methods(http.MethodGet)
 
-	r.HandleFunc("/search/circulations", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetSearchForCirculations, "admin", "staff", "user"))).Methods(http.MethodPost)
+	r.HandleFunc("/search/circulations", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetSearchForCirculations, "admin", "staff", "user"))).Methods(http.MethodGet)
 }
 
 var req types.SetPayloadQuery
 
 func (h *Handler) handleGetSearchForUsers(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
+	if r.Method != http.MethodGet {
 		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
 		return
 	}
@@ -99,7 +99,7 @@ func (h *Handler) handleGetSearchForUsers(w http.ResponseWriter, r *http.Request
 }
 
 func (h *Handler) handleGetSearchForRoles(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
+	if r.Method != http.MethodGet {
 		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
 		return
 	}
@@ -148,7 +148,7 @@ func (h *Handler) handleGetSearchForRoles(w http.ResponseWriter, r *http.Request
 }
 
 func (h *Handler) handleGetSearchForMembers(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
+	if r.Method != http.MethodGet {
 		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
 		return
 	}
@@ -197,7 +197,7 @@ func (h *Handler) handleGetSearchForMembers(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *Handler) handleGetSearchForBooks(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
+	if r.Method != http.MethodGet {
 		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
 		return
 	}
@@ -246,7 +246,7 @@ func (h *Handler) handleGetSearchForBooks(w http.ResponseWriter, r *http.Request
 }
 
 func (h *Handler) handleGetSearchForCirculations(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
+	if r.Method != http.MethodGet {
 		utils.WriteJSONError(w, http.StatusMethodNotAllowed, fmt.Errorf("your method is wrong, current method: %v", r.Method))
 		return
 	}

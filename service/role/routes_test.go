@@ -1,10 +1,10 @@
 package role
 
 import (
+	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
-	"strings"
 	"testing"
 
 	"github.com/perpus_backend/pkg/jwt"
@@ -59,17 +59,16 @@ func TestHandlerRole(t *testing.T) {
 	})
 
 	t.Run("it should correct and make role", func(t *testing.T) {
-		form := &url.Values{}
 		payload := types.SetPayloadJSONRole{
 			Name: "admin",
 		}
 
-		form.Add("name", payload.Name)
-
-		req, err := http.NewRequest(http.MethodPost, "/roles", strings.NewReader(form.Encode()))
+		marshalled, err := json.Marshal(payload)
 		if err != nil {
 			t.Fatal(err)
 		}
+
+		req := httptest.NewRequest(http.MethodPost, "/roles", bytes.NewBuffer(marshalled))
 
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 

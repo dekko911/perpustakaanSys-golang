@@ -166,6 +166,11 @@ func (j *AuthJWT) RoleGate(h http.HandlerFunc, roles ...string) http.HandlerFunc
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
+		if len(roles) < 1 {
+			utils.WriteJSONError(w, http.StatusBadRequest, errors.New("param roles still empty!"))
+			return
+		}
+
 		userID := GetUserIDFromContext(ctx)
 		if userID == "" {
 			utils.WriteJSONError(w, unauth, ua)

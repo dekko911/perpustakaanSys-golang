@@ -1,10 +1,10 @@
 package circulation
 
 import (
+	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
-	"strings"
 	"testing"
 
 	"github.com/perpus_backend/pkg/jwt"
@@ -59,7 +59,6 @@ func TestHandlerCirculation(t *testing.T) {
 	})
 
 	t.Run("it should create a circulation", func(t *testing.T) {
-		form := url.Values{}
 		payload := types.SetPayloadJSONCirculation{
 			BukuID:        "6918315b-dff4-8324-969f-e43cd434eb3e",
 			Peminjam:      "miko",
@@ -68,16 +67,12 @@ func TestHandlerCirculation(t *testing.T) {
 			Denda:         "10000",
 		}
 
-		form.Add("buku_id", payload.BukuID)
-		form.Add("peminjam", payload.Peminjam)
-		form.Add("tanggal_pinjam", payload.TanggalPinjam)
-		form.Add("jatuh_tempo", payload.JatuhTempo)
-		form.Add("denda", payload.Denda)
-
-		req, err := http.NewRequest(http.MethodPost, "/circulations", strings.NewReader(form.Encode()))
+		marshalled, err := json.Marshal(payload)
 		if err != nil {
 			t.Fatal(err)
 		}
+
+		req := httptest.NewRequest(http.MethodPost, "/circulations", bytes.NewBuffer(marshalled))
 
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 

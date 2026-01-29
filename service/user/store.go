@@ -254,6 +254,39 @@ func (s *Store) GetUserWithRolesByID(ctx context.Context, id string) (*types.Use
 	return u, nil
 }
 
+func (s *Store) GetUserWithRolesByIDWithoutCache(ctx context.Context, id string) (*types.User, error) {
+	query := `SELECT
+		u.id AS user_id, 
+		u.name AS user_name, 
+		u.email AS user_email, 
+		u.password AS user_password,
+		u.avatar AS user_avatar,
+		u.token_version AS user_token_version,
+		u.created_at,
+		u.updated_at,
+		GROUP_CONCAT(r.id SEPARATOR ', ') AS role_id,
+		GROUP_CONCAT(r.name SEPARATOR ', ') AS role_name
+		FROM users u
+		LEFT JOIN role_user ru ON u.id = ru.user_id 
+		LEFT JOIN roles r ON ru.role_id = r.id
+		WHERE u.id = ?
+		GROUP BY u.id`
+
+	stmt, err := s.db.Prepare(query)
+	if err != nil {
+		return nil, err
+	}
+
+	defer stmt.Close()
+
+	u, err := helper.ScanAndRetRowUserAndRole(ctx, stmt, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return u, nil
+}
+
 func (s *Store) GetUserWithRolesByEmail(ctx context.Context, email string) (*types.User, error) {
 	query := `SELECT
 	u.id AS user_id, 
