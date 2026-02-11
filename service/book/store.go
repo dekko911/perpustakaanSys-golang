@@ -40,11 +40,11 @@ func (s *Store) GetBooksWithPagination(ctx context.Context, page int) ([]*types.
 		return nil, 0, err
 	}
 
-	res, err := s.rdb.Get(ctx, booksKey).Result()
+	res, err := s.rdb.Get(ctx, booksKey).Bytes()
 	if err == nil {
 		data := &types.BooksCachePage{}
 
-		if err := sonic.Unmarshal([]byte(res), data); err == nil {
+		if err := sonic.Unmarshal(res, data); err == nil {
 			return data.Books, data.LastPage, nil
 		}
 
@@ -135,11 +135,11 @@ func (s *Store) GetBookByID(ctx context.Context, id string) (*types.Book, error)
 		return nil, err
 	}
 
-	res, err := s.rdb.Get(ctx, bookKey).Result()
+	res, err := s.rdb.Get(ctx, bookKey).Bytes()
 	if err == nil {
 		book := new(types.Book)
 
-		if err := sonic.Unmarshal([]byte(res), book); err == nil {
+		if err := sonic.Unmarshal(res, book); err == nil {
 			return book, nil
 		}
 

@@ -40,11 +40,11 @@ func (s *Store) GetMembersWithPagination(ctx context.Context, page int) ([]*type
 		return nil, 0, err
 	}
 
-	res, err := s.rdb.Get(ctx, membersKey).Result()
+	res, err := s.rdb.Get(ctx, membersKey).Bytes()
 	if err == nil {
 		data := &types.MembersCachePage{}
 
-		if err := sonic.Unmarshal([]byte(res), data); err == nil {
+		if err := sonic.Unmarshal(res, data); err == nil {
 			return data.Members, data.LastPage, nil
 		}
 
@@ -136,11 +136,11 @@ func (s *Store) GetMemberByID(ctx context.Context, id string) (*types.Member, er
 		return nil, err
 	}
 
-	res, err := s.rdb.Get(ctx, memberKey).Result()
+	res, err := s.rdb.Get(ctx, memberKey).Bytes()
 	if err == nil {
 		member := new(types.Member)
 
-		if err := sonic.Unmarshal([]byte(res), member); err == nil {
+		if err := sonic.Unmarshal(res, member); err == nil {
 			return member, nil
 		}
 

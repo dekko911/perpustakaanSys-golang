@@ -41,11 +41,11 @@ func (s *Store) GetUsersWithPagination(ctx context.Context, page int) ([]*types.
 		return nil, 0, err
 	}
 
-	res, err := s.rdb.Get(ctx, usersKey).Result()
+	res, err := s.rdb.Get(ctx, usersKey).Bytes()
 	if err == nil {
 		data := &types.UsersCachePage{}
 
-		if err := sonic.Unmarshal([]byte(res), data); err == nil {
+		if err := sonic.Unmarshal(res, data); err == nil {
 			return data.Users, data.LastPage, err
 		}
 
@@ -202,11 +202,11 @@ func (s *Store) GetUserWithRolesByID(ctx context.Context, id string) (*types.Use
 		return nil, err
 	}
 
-	res, err := s.rdb.Get(ctx, userKey).Result()
+	res, err := s.rdb.Get(ctx, userKey).Bytes()
 	if err == nil {
 		user := new(types.User)
 
-		if err := sonic.Unmarshal([]byte(res), user); err == nil {
+		if err := sonic.Unmarshal(res, user); err == nil {
 			return user, nil
 		}
 

@@ -7,8 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/perpus_backend/config"
 	"github.com/perpus_backend/pkg/hash"
 	"github.com/perpus_backend/pkg/jwt"
 	"github.com/perpus_backend/types"
@@ -19,16 +17,20 @@ import (
 )
 
 type Handler struct {
-	store types.UserStore
-
 	jwt *jwt.AuthJWT
+
+	store types.UserStore
 }
 
 func NewHandler(jwt *jwt.AuthJWT, store types.UserStore) *Handler {
 	return &Handler{store: store, jwt: jwt}
 }
 
-const cok = http.StatusOK
+const (
+	cok = http.StatusOK
+
+	maxCacheSize = 5 << 20
+)
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
 	r.HandleFunc("/login", h.handleLogin).Methods(http.MethodPost)
@@ -172,25 +174,16 @@ func (h *Handler) PrivateURLHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	clientR2, err := config.R2Storage(ctx)
+	res, err := utils.R2GetObject(ctx, keyFilepath)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	output, err := clientR2.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: &config.Env.CFBucketName,
-		Key:    &keyFilepath,
-	})
-	if err != nil {
-		utils.WriteJSONError(w, http.StatusInternalServerError, err)
-		return
-	}
-
-	defer output.Body.Close()
+	defer res.Body.Close()
 
 	// stream the body
-	if _, err := io.Copy(w, output.Body); err == io.ErrUnexpectedEOF {
+	if _, err := io.Copy(w, res.Body); err == io.ErrUnexpectedEOF {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
@@ -205,25 +198,16 @@ func (h *Handler) PublicURLHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	clientR2, err := config.R2Storage(ctx)
+	res, err := utils.R2GetObject(ctx, keyFilepath)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	output, err := clientR2.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: &config.Env.CFBucketName,
-		Key:    &keyFilepath,
-	})
-	if err != nil {
-		utils.WriteJSONError(w, http.StatusInternalServerError, err)
-		return
-	}
-
-	defer output.Body.Close()
+	defer res.Body.Close()
 
 	// stream the body
-	if _, err := io.Copy(w, output.Body); err == io.ErrUnexpectedEOF {
+	if _, err := io.Copy(w, res.Body); err == io.ErrUnexpectedEOF {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}

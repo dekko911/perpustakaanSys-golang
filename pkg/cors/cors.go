@@ -27,13 +27,13 @@ func CORSMiddleware(next http.Handler) http.Handler {
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 		w.Header().Set("Vary", "Origin")
 
-		if r.Method != http.MethodOptions {
-
-			next.ServeHTTP(w, r)
-			return
-		} else {
-
+		// this error phase
+		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
+			return
 		}
+
+		// this correct phase
+		next.ServeHTTP(w, r)
 	})
 }

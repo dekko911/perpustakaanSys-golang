@@ -27,7 +27,7 @@ func NewAuthJWT(us types.UserStore, rdb *redis.Client) *AuthJWT {
 	return &AuthJWT{us: us, rdb: rdb}
 }
 
-type contextKey string // 16 byte string
+type contextKey string // 16 bytes string
 
 const (
 	userKey contextKey = "user_id"
@@ -133,7 +133,7 @@ func (j *AuthJWT) CreateTokenJWT(ctx context.Context, userID string) (string, er
 	}
 
 	// set token and save into redis storage for check token
-	_ = j.rdb.SetEx(ctx, tokenString, u.Name, time.Duration(4)*time.Hour).Err()
+	j.rdb.SetEx(ctx, tokenString, u.Name, time.Duration(4)*time.Hour)
 
 	return tokenString, nil
 }

@@ -23,6 +23,7 @@ func CookieMiddleware(next http.Handler) http.Handler {
 				HttpOnly: true,
 				SameSite: http.SameSiteLaxMode,
 				MaxAge:   3600,
+				Secure:   false, // set ini jika sudah "https"
 			}
 
 			http.SetCookie(w, cookie)

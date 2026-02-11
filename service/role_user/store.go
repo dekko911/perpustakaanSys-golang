@@ -31,11 +31,11 @@ func (s *Store) GetUserWithRoleByUserID(ctx context.Context, userID string) (*ty
 		return nil, err
 	}
 
-	res, err := s.rdb.Get(ctx, userKey).Result()
+	res, err := s.rdb.Get(ctx, userKey).Bytes()
 	if err == nil {
 		user := new(types.User)
 
-		if err := sonic.Unmarshal([]byte(res), user); err == nil {
+		if err := sonic.Unmarshal(res, user); err == nil {
 			return user, nil
 		}
 
@@ -91,11 +91,11 @@ func (s *Store) GetUserAndRoleNames(ctx context.Context, userID string) (*types.
 	// initial empty roles
 	roles := make(map[string][]string)
 
-	res, err := s.rdb.Get(ctx, userKey).Result()
+	res, err := s.rdb.Get(ctx, userKey).Bytes()
 	if err == nil {
 		user := new(types.User)
 
-		if err := sonic.Unmarshal([]byte(res), user); err == nil {
+		if err := sonic.Unmarshal(res, user); err == nil {
 
 			for _, r := range user.Roles {
 				redisRoleIDs := strings.Split(r.ID, ", ")

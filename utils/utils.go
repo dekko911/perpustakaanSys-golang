@@ -1,4 +1,4 @@
-// INGAT LOG SAMA ERROR NYA KONTOL, PADAHAL ADA LOG SAMA ERROR LO UNTUK CEK SEGALA MASALAH, LITERASI DONG ANJING
+// INGAT LOG ERROR NYA KONTOL, PADAHAL BISA LOG ERROR LO UNTUK CEK SEGALA MASALAH, LITERASI / ATAU DIBACA DONG ANJING
 package utils
 
 import (
@@ -38,7 +38,7 @@ var (
 		meilisearch.WithAPIKey(config.Env.MSApiKey),
 		meilisearch.WithCustomJsonMarshaler(sonic.Marshal),
 		meilisearch.WithCustomJsonUnmarshaler(sonic.Unmarshal),
-		meilisearch.WithContentEncoding(meilisearch.GzipEncoding, meilisearch.BestCompression))
+		meilisearch.WithContentEncoding(meilisearch.GzipEncoding, meilisearch.BestSpeed))
 
 	newIndonesiaLocale       = id.New()
 	newUniTrans              = ut.New(newIndonesiaLocale, newIndonesiaLocale)
@@ -393,6 +393,41 @@ func GetKeyFilepath(keyFilepath string, isPrivate bool) (string, error) {
 	return fmt.Sprintf("%s:%s/public/%s", config.Env.AppURL, config.Env.Port, keyFilepath), nil
 }
 
+func R2GetObject(ctx context.Context, keyFilepath string) (*s3.GetObjectOutput, error) {
+	if len(keyFilepath) < 1 {
+		return nil, errors.New("you must fill keyFilepath first")
+	}
+
+	// init r2 storage
+	clientR2, err := config.R2Storage(ctx)
+	if err != nil {
+
+		return nil, err
+	}
+
+	output, err := clientR2.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: &config.Env.CFBucketName,
+		Key:    &keyFilepath,
+	})
+	if err != nil {
+		var noKey *types.NoSuchKey
+
+		if errors.As(err, &noKey) {
+
+			log.Printf("Can't get object %s from bucket %s. No such key exists.\n", keyFilepath, config.Env.CFBucketName)
+
+			err = noKey
+		} else {
+
+			log.Printf("Couldn't get object %v:%v. Here's why: %v\n", config.Env.CFBucketName, keyFilepath, err)
+		}
+
+		return nil, err
+	}
+
+	return output, nil
+}
+
 // fileMode = original or random.
 func SetNewFilenameImg(ctx context.Context, filenameMode string, headerSrcFile *multipart.FileHeader, directoryPath string) (string, error) {
 
@@ -428,8 +463,11 @@ func SetNewFilenameImg(ctx context.Context, filenameMode string, headerSrcFile *
 
 		uniqueString := xid.New().String() // set the new unique filename
 
-		if filenameMode == "random" {
+		switch filenameMode {
+		case "random":
 			newFilename = uniqueString + fileExt // set the new filename
+		case "original":
+			newFilename = strings.ReplaceAll(newFilename, " ", "-")
 		}
 
 		// init r2 storage
@@ -517,8 +555,11 @@ func UpdateTheFilenameImg(ctx context.Context, filenameMode string, headerSrcFil
 
 		uniqueString := xid.New().String() // set the new unique filename
 
-		if filenameMode == "random" {
+		switch filenameMode {
+		case "random":
 			newFilename = uniqueString + fileExt // set the new filename
+		case "original":
+			newFilename = strings.ReplaceAll(newFilename, " ", "-")
 		}
 
 		newKeyFilepath := path.Join(directoryPath, newFilename) // set the filename + dirPath
@@ -579,6 +620,8 @@ func SetOriginalFilenamePDF(ctx context.Context, headerSrcFilePDF *multipart.Fil
 
 	if fileExt == ".pdf" {
 		if headerSrcFilePDF.Size <= 8<<20 {
+
+			newFilenamePDF = strings.ReplaceAll(newFilenamePDF, " ", "-")
 
 			keyFilePath := path.Join(directoryPath, newFilenamePDF)
 
@@ -650,6 +693,8 @@ func UpdateTheOriginalFilenamePDF(ctx context.Context, headerSrcFilePDF *multipa
 					return oldKeyFilePDFPath, err
 				}
 			}
+
+			newFilePDF = strings.ReplaceAll(newFilePDF, " ", "-")
 
 			keyFilepath := path.Join(directoryPath, newFilePDF)
 

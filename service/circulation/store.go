@@ -40,11 +40,11 @@ func (s *Store) GetCirculationsWithPagination(ctx context.Context, page int) ([]
 		return nil, 0, err
 	}
 
-	res, err := s.rdb.Get(ctx, circulationsKey).Result()
+	res, err := s.rdb.Get(ctx, circulationsKey).Bytes()
 	if err == nil {
 		data := &types.CirculationsCachePage{}
 
-		if err := sonic.Unmarshal([]byte(res), data); err != nil {
+		if err := sonic.Unmarshal(res, data); err != nil {
 			return data.Circulations, data.LastPage, nil
 		}
 
@@ -139,11 +139,11 @@ func (s *Store) GetCirculationByID(ctx context.Context, id string) (*types.Circu
 		return nil, err
 	}
 
-	res, err := s.rdb.Get(ctx, circKey).Result()
+	res, err := s.rdb.Get(ctx, circKey).Bytes()
 	if err == nil {
 		circ := new(types.Circulation)
 
-		if err := sonic.Unmarshal([]byte(res), circ); err == nil {
+		if err := sonic.Unmarshal(res, circ); err == nil {
 			return circ, nil
 		}
 
