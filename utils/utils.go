@@ -408,16 +408,18 @@ func GetKeyFilepath(keyFilepath string, isPrivate bool) (string, error) {
 	return fmt.Sprintf("%s:%s/public/%s", config.Env.AppURL, config.Env.Port, keyFilepath), nil
 }
 
-func R2GetObject(ctx context.Context, keyFilepath string) (*s3.GetObjectOutput, error) {
+func R2GetObject(ctx context.Context, keyFilepath string) (*s3.GetObjectOutput, string, error) {
 	if len(keyFilepath) < 1 {
-		return nil, errors.New("you must fill keyFilepath first")
+		return nil, "", errors.New("you must fill keyFilepath first")
 	}
+
+	ext := path.Ext(keyFilepath)
 
 	// init r2 storage
 	clientR2, err := config.R2Storage(ctx)
 	if err != nil {
 
-		return nil, err
+		return nil, "", err
 	}
 
 	output, err := clientR2.GetObject(ctx, &s3.GetObjectInput{
@@ -437,10 +439,10 @@ func R2GetObject(ctx context.Context, keyFilepath string) (*s3.GetObjectOutput, 
 			log.Printf("Couldn't get object %v:%v. Here's why: %v\n", config.Env.CFBucketName, keyFilepath, err)
 		}
 
-		return nil, err
+		return nil, "", err
 	}
 
-	return output, nil
+	return output, ext, nil
 }
 
 // fileMode = original or random.

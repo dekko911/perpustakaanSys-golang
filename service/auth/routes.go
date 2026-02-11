@@ -29,7 +29,7 @@ func NewHandler(jwt *jwt.AuthJWT, store types.UserStore) *Handler {
 const (
 	cok = http.StatusOK
 
-	maxCacheSize = 5 << 20
+	maxSize = 5 << 20
 )
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
@@ -174,7 +174,7 @@ func (h *Handler) PrivateURLHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, err := utils.R2GetObject(ctx, keyFilepath)
+	res, ext, err := utils.R2GetObject(ctx, keyFilepath)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
@@ -182,7 +182,24 @@ func (h *Handler) PrivateURLHandler(w http.ResponseWriter, r *http.Request) {
 
 	defer res.Body.Close()
 
-	// stream the body
+	// stream the body (for small size)
+	if ext == ".png" || ext == ".jpg" || ext == ".jpeg" {
+		// check size file, if over 5 mb, it goes to method io.Copy
+		if *res.ContentLength <= maxSize {
+			dataFile, err := io.ReadAll(res.Body)
+			if err == io.ErrUnexpectedEOF {
+				utils.WriteJSONError(w, http.StatusInternalServerError, err)
+				return
+			}
+
+			w.Header().Set("Content-Type", *res.ContentType)
+			w.WriteHeader(http.StatusOK)
+			w.Write(dataFile)
+			return
+		}
+	}
+
+	// stream the body (for big and bigger size)
 	if _, err := io.Copy(w, res.Body); err == io.ErrUnexpectedEOF {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
@@ -198,7 +215,7 @@ func (h *Handler) PublicURLHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, err := utils.R2GetObject(ctx, keyFilepath)
+	res, ext, err := utils.R2GetObject(ctx, keyFilepath)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
@@ -206,7 +223,24 @@ func (h *Handler) PublicURLHandler(w http.ResponseWriter, r *http.Request) {
 
 	defer res.Body.Close()
 
-	// stream the body
+	// stream the body (for small size)
+	if ext == ".png" || ext == ".jpg" || ext == ".jpeg" {
+		// check size file, if over 5 mb, it goes to method io.Copy
+		if *res.ContentLength <= maxSize {
+			dataFile, err := io.ReadAll(res.Body)
+			if err == io.ErrUnexpectedEOF {
+				utils.WriteJSONError(w, http.StatusInternalServerError, err)
+				return
+			}
+
+			w.Header().Set("Content-Type", *res.ContentType)
+			w.WriteHeader(http.StatusOK)
+			w.Write(dataFile)
+			return
+		}
+	}
+
+	// stream the body (for big and bigger size)
 	if _, err := io.Copy(w, res.Body); err == io.ErrUnexpectedEOF {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
