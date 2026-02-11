@@ -300,6 +300,10 @@ func ParseStringToFormatDate(date string) time.Time {
 // allowed role names ("admin", "staff", "user"). The check is case-sensitive.
 // It returns true when the name exactly matches an allowed role, otherwise false.
 func IsInputRoleNameWasValid(name string) bool {
+	if len(name) < 1 {
+		return false // error
+	}
+
 	roleNamesMap := map[string]struct{}{
 		"admin": {},
 		"staff": {},
@@ -314,8 +318,19 @@ func IsInputRoleNameWasValid(name string) bool {
 // in the roles slice matches any non-empty role in the targetRoles slice.
 // Both slices are sorted in ascending order before comparison.
 func CompareRole(roles, targetRoles []string) bool {
+	if len(roles) < 1 && len(targetRoles) < 1 {
+		log.Printf("the roles or target roles is empty, see: roles: %v, target roles: %v", roles, targetRoles)
+		return false // error
+	}
+
 	slices.Sort(roles)       // sort to ascending
 	slices.Sort(targetRoles) // sort to ascending
+
+	// if slices not sorted yet, throw error and just set to false.
+	if !slices.IsSorted(roles) && !slices.IsSorted(targetRoles) {
+		log.Println("the roles or target roles isn't sorted")
+		return false
+	}
 
 	// brute force algorithm
 	// or = outer loop, ir = inner loop
@@ -602,6 +617,7 @@ func UpdateTheFilenameImg(ctx context.Context, filenameMode string, headerSrcFil
 }
 
 func SetOriginalFilenamePDF(ctx context.Context, headerSrcFilePDF *multipart.FileHeader, directoryPath string) (string, error) {
+
 	if len(directoryPath) < 1 {
 
 		return "-", errors.New("you must put the path directory")
@@ -666,6 +682,7 @@ func SetOriginalFilenamePDF(ctx context.Context, headerSrcFilePDF *multipart.Fil
 }
 
 func UpdateTheOriginalFilenamePDF(ctx context.Context, headerSrcFilePDF *multipart.FileHeader, directoryPath, oldKeyFilePDFPath string) (string, error) {
+
 	if len(oldKeyFilePDFPath) < 1 {
 
 		return "-", errors.New("you must put the oldKeyFilepath")
@@ -743,6 +760,7 @@ func UpdateTheOriginalFilenamePDF(ctx context.Context, headerSrcFilePDF *multipa
 // Returns an error if the filepaths slice is empty, if R2 storage connection fails,
 // if the bucket does not exist, or if any deletion errors occur.
 func DeleteFilepathWithFilename(ctx context.Context, keyFilepaths ...string) error {
+
 	if len(keyFilepaths) < 1 {
 		return fmt.Errorf("the target %v is empty", keyFilepaths)
 	}
