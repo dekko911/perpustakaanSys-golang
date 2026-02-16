@@ -13,11 +13,11 @@ import (
 	"github.com/perpus_backend/service/auth"
 	"github.com/perpus_backend/service/book"
 	"github.com/perpus_backend/service/circulation"
+	"github.com/perpus_backend/service/meilisearch"
 	"github.com/perpus_backend/service/member"
 	"github.com/perpus_backend/service/role"
 	roleuser "github.com/perpus_backend/service/role_user"
 	"github.com/perpus_backend/service/user"
-	"github.com/perpus_backend/service/websocket"
 	"github.com/perpus_backend/utils"
 
 	"github.com/gorilla/mux"
@@ -101,9 +101,8 @@ func (s *APIServer) Run() error {
 	authHandler.RegisterRoutes(subrouter)
 
 	// search routes
-	wsSubrouter := r.PathPrefix("/ws").Subrouter()
-	wsHandler := websocket.NewHandler(jwt, userStore, roleStore, memberStore, bookStore, circulationStore)
-	wsHandler.RegisterRoutes(wsSubrouter)
+	meiliHandler := meilisearch.NewHandler(jwt, userStore, roleStore, memberStore, bookStore, circulationStore)
+	meiliHandler.RegisterRoutes(subrouter)
 
 	// get health
 	subrouter.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {

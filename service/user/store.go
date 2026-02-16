@@ -7,7 +7,6 @@ import (
 	"math"
 	"time"
 
-	"github.com/perpus_backend/config"
 	"github.com/perpus_backend/helper"
 	"github.com/perpus_backend/types"
 	"github.com/perpus_backend/utils"
@@ -21,8 +20,6 @@ type Store struct {
 	db  *sql.DB
 	rdb *redis.Client
 }
-
-var bucketR2 = config.Env.CFBucketName
 
 func NewStore(db *sql.DB, rdb *redis.Client) *Store {
 	return &Store{db: db, rdb: rdb}
@@ -127,8 +124,7 @@ func (s *Store) GetUsersWithPagination(ctx context.Context, page int) ([]*types.
 		LastPage: lastPage,
 	}
 
-	// set redis db
-	// Jangan cache presigned URL di DB, expired tetap harus generate ulang
+	// set redis db and meili
 	if data, err := sonic.Marshal(payloadUsers); err == nil {
 		s.rdb.SetEx(ctx, usersKey, data, time.Duration(2)*time.Minute)
 	}

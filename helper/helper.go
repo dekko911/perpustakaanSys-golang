@@ -488,7 +488,7 @@ func AddDocumentsWithWait(client meilisearch.ServiceManager, index string, prima
 		return err
 	}
 
-	task, err := client.WaitForTask(res.TaskUID, 3*time.Second)
+	task, err := client.WaitForTask(res.TaskUID, 100*time.Millisecond)
 	if err != nil {
 		return err
 	}

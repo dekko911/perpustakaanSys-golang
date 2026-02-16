@@ -29,7 +29,6 @@ import (
 	"github.com/rs/xid"
 
 	"github.com/bytedance/sonic"
-	"github.com/gorilla/websocket"
 	"github.com/meilisearch/meilisearch-go"
 )
 
@@ -47,12 +46,6 @@ var (
 	bucketR2 = config.Env.CFBucketName
 
 	NewValidate = validator.New(validator.WithRequiredStructEnabled()) // validate the request input.
-
-	NewWSUpgrader = websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool {
-			return true
-		},
-	}
 )
 
 // JsonResponse represents a standardized JSON payload used for HTTP responses.
@@ -944,4 +937,16 @@ func InvalidateAllKeysInCache(rdb *redis.Client, ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func IsIndexMeiliAvailable(ctx context.Context, client meilisearch.ServiceManager, index string) bool {
+	if len(index) < 1 {
+		return false
+	}
+
+	if _, err := client.GetIndexWithContext(ctx, index); err != nil {
+		return false
+	}
+
+	return true
 }

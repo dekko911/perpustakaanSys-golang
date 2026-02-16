@@ -56,6 +56,8 @@ func main() {
 
 	defer redisDB.Close() // <- just set redisDB close func for safety reason.
 
+	defer utils.NewMSClient.Close() // <- just set meilisearch close func for safety reason.
+
 	switch config.Env.AppENV {
 	case "production":
 		debug.SetGCPercent(200)
