@@ -261,6 +261,10 @@ func (s *Store) CreateBook(ctx context.Context, b *types.Book) error {
 		return err
 	}
 
+	if err := utils.InvalidateIndexMeili(ctx, "books"); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -276,12 +280,20 @@ func (s *Store) UpdateBook(ctx context.Context, id string, b *types.Book) error 
 		return err
 	}
 
+	if err := utils.InvalidateIndexMeili(ctx, "books"); err != nil {
+		return err
+	}
+
 	_, err = stmt.ExecContext(ctx, b.JudulBuku, b.CoverBuku, b.BukuPDF, b.Penulis, b.Pengarang, b.Tahun, id)
 	return err
 }
 
 func (s *Store) DeleteBook(ctx context.Context, id string) error {
 	if err := utils.InvalidateAllKeysInCache(s.rdb, ctx); err != nil {
+		return err
+	}
+
+	if err := utils.InvalidateIndexMeili(ctx, "books"); err != nil {
 		return err
 	}
 

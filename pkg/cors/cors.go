@@ -9,7 +9,6 @@ import (
 
 // Allows web pages to securely access resources from other domains, overcoming the same-origin policy restrictions that apply by default.
 func CORSMiddleware(next http.Handler) http.Handler {
-
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		// set to http for debug & https for production

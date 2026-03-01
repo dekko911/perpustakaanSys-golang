@@ -156,12 +156,28 @@ func (s *Store) AssignRoleIntoUser(ctx context.Context, userID, roleID string) e
 		return err
 	}
 
+	if err := utils.InvalidateIndexMeili(ctx, "users"); err != nil {
+		return err
+	}
+
+	if err := utils.InvalidateIndexMeili(ctx, "roles"); err != nil {
+		return err
+	}
+
 	_, err = stmt.ExecContext(ctx, userID, roleID)
 	return err
 }
 
 func (s *Store) DeleteRoleFromUser(ctx context.Context, userID, roleID string) error {
 	if err := utils.InvalidateAllKeysInCache(s.rdb, ctx); err != nil {
+		return err
+	}
+
+	if err := utils.InvalidateIndexMeili(ctx, "users"); err != nil {
+		return err
+	}
+
+	if err := utils.InvalidateIndexMeili(ctx, "roles"); err != nil {
 		return err
 	}
 

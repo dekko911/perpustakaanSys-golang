@@ -51,11 +51,13 @@ func (s *APIServer) Run() error {
 	})
 
 	subrouter := r.PathPrefix("/api").Subrouter()
+	searchRouter := r.PathPrefix("/search").Subrouter()
 
-	// limiter for env production
+	// limiter for production
 	if config.Env.AppENV == "production" {
-		r.Use(limiter.SetRateLimiter(rate.Every(time.Duration(1)*time.Hour), 3000))
+		r.Use(limiter.SetRateLimiter(rate.Every(time.Duration(1)*time.Minute), 3000))
 		subrouter.Use(limiter.SetRateLimiter(rate.Every(time.Duration(1)*time.Minute), 10))
+		searchRouter.Use(limiter.SetRateLimiter(rate.Every(time.Duration(30)*time.Second), 10000))
 	}
 
 	// for ensures that OPTIONS "/api" is not thrown to 404 (which does not have a CORS header).
@@ -102,7 +104,7 @@ func (s *APIServer) Run() error {
 
 	// search routes
 	meiliHandler := meilisearch.NewHandler(jwt, userStore, roleStore, memberStore, bookStore, circulationStore)
-	meiliHandler.RegisterRoutes(subrouter)
+	meiliHandler.RegisterRoutes(searchRouter)
 
 	// get health
 	subrouter.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {

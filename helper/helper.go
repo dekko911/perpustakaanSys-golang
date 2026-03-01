@@ -482,7 +482,9 @@ func ScanAndRetRowCirculation[T stringAndNumberOnly](ctx context.Context, stmt *
 }
 
 // method AddDocuments custom meili for all tables.
-func AddDocumentsWithWait(client meilisearch.ServiceManager, index string, primaryKey string, dbTablePtr any) error {
+func AddDocumentsWithWait(index string, primaryKey string, dbTablePtr any) error {
+	client := utils.NewMSClient
+
 	res, err := client.Index(index).AddDocuments(dbTablePtr, &meilisearch.DocumentOptions{PrimaryKey: &primaryKey})
 	if err != nil {
 		return err

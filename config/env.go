@@ -10,7 +10,7 @@ import (
 )
 
 type Config struct {
-	AppENV, AppURL, ClientPort, CookieName, CookieValue, DBUser, DBPassword, DBName, DBAddress, LocalAddress, MeilisearchURL, MSApiKey, Port, RedisAddress, RedisClient, RedisPassword, JWTSecret, SessionDomain, CFBucketName, CFAccountID, CFAccessKeyID, CFSecretAccessKey, CFDefaultRegion string
+	AppENV, AppURL, ClientPort, CookieMaxAge, CookieName, CookieValue, DBUser, DBPassword, DBName, DBAddress, LocalAddress, MeilisearchURL, MSApiKey, Port, RedisAddress, RedisClient, RedisPassword, JWTSecret, SessionDomain, CFEndpoint, CFBucketName, CFAccountID, CFAccessKeyID, CFSecretAccessKey, CFDefaultRegion string
 
 	DBLoc *time.Location
 }
@@ -29,9 +29,10 @@ func initConfig() *Config {
 		AppENV: getENVConfigValue("APP_ENV"),
 		AppURL: getENVConfigValue("APP_URL"),
 
-		ClientPort:  getENVConfigValue("CLIENT_PORT"),
-		CookieName:  getENVConfigValue("COOKIE_NAME"),
-		CookieValue: getENVConfigValue("COOKIE_VALUE"),
+		ClientPort:   getENVConfigValue("CLIENT_PORT"),
+		CookieMaxAge: getENVConfigValue("COOKIE_MAX_AGE"),
+		CookieName:   getENVConfigValue("COOKIE_NAME"),
+		CookieValue:  getENVConfigValue("COOKIE_VALUE"),
 
 		DBUser:     getENVConfigValue("DB_USERNAME"),
 		DBPassword: getENVConfigValue("DB_PASSWORD"),
@@ -54,6 +55,7 @@ func initConfig() *Config {
 
 		SessionDomain: getENVConfigValue("SESSION_DOMAIN"),
 
+		CFEndpoint:        getENVConfigValue("CF_ENDPOINT"),
 		CFBucketName:      getENVConfigValue("CF_BUCKET_NAME"),
 		CFAccountID:       getENVConfigValue("CF_ACCOUNT_ID"),
 		CFAccessKeyID:     getENVConfigValue("CF_ACCESS_KEY_ID"),
@@ -64,6 +66,10 @@ func initConfig() *Config {
 
 // get value on file env, and check one by one key at param to get the value.
 func getENVConfigValue(key string) string {
+	if len(key) < 1 {
+		return ""
+	}
+
 	v, ok := os.LookupEnv(key)
 	if !ok {
 		return ""

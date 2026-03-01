@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/perpus_backend/config"
+	"github.com/perpus_backend/utils"
 )
 
 // A Cookie represents an HTTP cookie as sent in the Set-Cookie header of an
@@ -22,8 +23,8 @@ func CookieMiddleware(next http.Handler) http.Handler {
 				Domain:   config.Env.SessionDomain,
 				HttpOnly: true,
 				SameSite: http.SameSiteLaxMode,
-				MaxAge:   3600,
-				Secure:   false, // set ini jika sudah "https"
+				MaxAge:   utils.ParseStringToInt(config.Env.CookieMaxAge),
+				Secure:   config.Env.AppENV == "production",
 			}
 
 			http.SetCookie(w, cookie)

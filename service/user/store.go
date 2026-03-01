@@ -332,6 +332,10 @@ func (s *Store) CreateUser(ctx context.Context, u *types.User) error {
 		return err
 	}
 
+	if err := utils.InvalidateIndexMeili(ctx, "users"); err != nil {
+		return err
+	}
+
 	_, err = stmt.ExecContext(ctx, u.ID, u.Name, u.Email, u.Password, u.Avatar)
 	return err
 }
@@ -348,12 +352,20 @@ func (s *Store) UpdateUser(ctx context.Context, id string, u *types.User) error 
 		return err
 	}
 
+	if err := utils.InvalidateIndexMeili(ctx, "users"); err != nil {
+		return err
+	}
+
 	_, err = stmt.ExecContext(ctx, u.Name, u.Email, u.Password, u.Avatar, id)
 	return err
 }
 
 func (s *Store) DeleteUser(ctx context.Context, id string) error {
 	if err := utils.InvalidateAllKeysInCache(s.rdb, ctx); err != nil {
+		return err
+	}
+
+	if err := utils.InvalidateIndexMeili(ctx, "users"); err != nil {
 		return err
 	}
 

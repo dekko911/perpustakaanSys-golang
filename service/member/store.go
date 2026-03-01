@@ -279,6 +279,10 @@ func (s *Store) CreateMember(ctx context.Context, m *types.Member) error {
 		return err
 	}
 
+	if err := utils.InvalidateIndexMeili(ctx, "members"); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -294,12 +298,20 @@ func (s *Store) UpdateMember(ctx context.Context, id string, m *types.Member) er
 		return err
 	}
 
+	if err := utils.InvalidateIndexMeili(ctx, "members"); err != nil {
+		return err
+	}
+
 	_, err = stmt.ExecContext(ctx, m.Nama, m.JenisKelamin, m.Kelas, m.NoTelepon, m.ProfilAnggota, id)
 	return err
 }
 
 func (s *Store) DeleteMember(ctx context.Context, id string) error {
 	if err := utils.InvalidateAllKeysInCache(s.rdb, ctx); err != nil {
+		return err
+	}
+
+	if err := utils.InvalidateIndexMeili(ctx, "members"); err != nil {
 		return err
 	}
 

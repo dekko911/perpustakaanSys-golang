@@ -36,15 +36,15 @@ func NewHandler(jwt *jwt.AuthJWT, us types.UserStore, rs types.RoleStore, ms typ
 }
 
 func (h *Handler) RegisterRoutes(r *mux.Router) {
-	r.HandleFunc("/search/users", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetSearchForUsers, "admin", "staff", "user"))).Methods(http.MethodGet)
+	r.HandleFunc("/users", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetSearchForUsers, "admin", "staff", "user"))).Methods(http.MethodGet)
 
-	r.HandleFunc("/search/roles", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetSearchForRoles, "admin", "staff", "user"))).Methods(http.MethodGet)
+	r.HandleFunc("/roles", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetSearchForRoles, "admin", "staff", "user"))).Methods(http.MethodGet)
 
-	r.HandleFunc("/search/members", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetSearchForMembers, "admin", "staff", "user"))).Methods(http.MethodGet)
+	r.HandleFunc("/members", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetSearchForMembers, "admin", "staff", "user"))).Methods(http.MethodGet)
 
-	r.HandleFunc("/search/books", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetSearchForBooks, "admin", "staff", "user"))).Methods(http.MethodGet)
+	r.HandleFunc("/books", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetSearchForBooks, "admin", "staff", "user"))).Methods(http.MethodGet)
 
-	r.HandleFunc("/search/circulations", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetSearchForCirculations, "admin", "staff", "user"))).Methods(http.MethodGet)
+	r.HandleFunc("/circulations", h.jwt.AuthWithJWTToken(h.jwt.RoleGate(h.handleGetSearchForCirculations, "admin", "staff", "user"))).Methods(http.MethodGet)
 }
 
 func (h *Handler) handleGetSearchForUsers(w http.ResponseWriter, r *http.Request) {
@@ -62,18 +62,18 @@ func (h *Handler) handleGetSearchForUsers(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// initial clientUser meilisearch
-	clientUser := utils.NewMSClient
-
-	if !utils.IsIndexMeiliAvailable(ctx, clientUser, "users") {
+	if !utils.IsIndexMeiliAvailable(ctx, "users") {
 		users := h.us.GetUsersForSearch(ctx)
 
 		// assert value users to records meili
-		if err := helper.AddDocumentsWithWait(clientUser, "users", "id", users); err != nil {
+		if err := helper.AddDocumentsWithWait("users", "id", users); err != nil {
 			utils.WriteJSONError(w, http.StatusInternalServerError, err)
 			return
 		}
 	}
+
+	// initial clientUser meilisearch
+	clientUser := utils.NewMSClient
 
 	res, err := clientUser.Index("users").SearchWithContext(ctx, query, &meilisearch.SearchRequest{
 		Limit: 10,
@@ -105,18 +105,18 @@ func (h *Handler) handleGetSearchForRoles(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// initial clientRole meili
-	clientRole := utils.NewMSClient
-
-	if !utils.IsIndexMeiliAvailable(ctx, clientRole, "roles") {
+	if !utils.IsIndexMeiliAvailable(ctx, "roles") {
 		roles, _ := h.rs.GetRoles(ctx)
 
 		// assert value roles to records meili
-		if err := helper.AddDocumentsWithWait(clientRole, "roles", "id", roles); err != nil {
+		if err := helper.AddDocumentsWithWait("roles", "id", roles); err != nil {
 			utils.WriteJSONError(w, http.StatusInternalServerError, err)
 			return
 		}
 	}
+
+	// initial clientRole meili
+	clientRole := utils.NewMSClient
 
 	res, err := clientRole.Index("roles").SearchWithContext(ctx, query, &meilisearch.SearchRequest{
 		Limit: 10,
@@ -148,18 +148,18 @@ func (h *Handler) handleGetSearchForMembers(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// initial clientMember meili
-	clientMember := utils.NewMSClient
-
-	if !utils.IsIndexMeiliAvailable(ctx, clientMember, "members") {
+	if !utils.IsIndexMeiliAvailable(ctx, "members") {
 		members := h.ms.GetMembersForSearch(ctx)
 
 		// assert value members to records meili
-		if err := helper.AddDocumentsWithWait(clientMember, "members", "id", members); err != nil {
+		if err := helper.AddDocumentsWithWait("members", "id", members); err != nil {
 			utils.WriteJSONError(w, http.StatusInternalServerError, err)
 			return
 		}
 	}
+
+	// initial clientMember meili
+	clientMember := utils.NewMSClient
 
 	res, err := clientMember.Index("members").SearchWithContext(ctx, query, &meilisearch.SearchRequest{
 		Limit: 10,
@@ -191,18 +191,18 @@ func (h *Handler) handleGetSearchForBooks(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// initial clientBook meili
-	clientBook := utils.NewMSClient
-
-	if !utils.IsIndexMeiliAvailable(ctx, clientBook, "books") {
+	if !utils.IsIndexMeiliAvailable(ctx, "books") {
 		books := h.bs.GetBooksForSearch(ctx)
 
 		// assert value books to records meili
-		if err := helper.AddDocumentsWithWait(clientBook, "books", "id", books); err != nil {
+		if err := helper.AddDocumentsWithWait("books", "id", books); err != nil {
 			utils.WriteJSONError(w, http.StatusInternalServerError, err)
 			return
 		}
 	}
+
+	// initial clientBook meili
+	clientBook := utils.NewMSClient
 
 	res, err := clientBook.Index("books").SearchWithContext(ctx, query, &meilisearch.SearchRequest{
 		Limit: 10,
@@ -234,18 +234,18 @@ func (h *Handler) handleGetSearchForCirculations(w http.ResponseWriter, r *http.
 		return
 	}
 
-	// initial clientCirc meili
-	clientCirc := utils.NewMSClient
-
-	if !utils.IsIndexMeiliAvailable(ctx, clientCirc, "circulations") {
+	if !utils.IsIndexMeiliAvailable(ctx, "circulations") {
 		circulations := h.cs.GetCirculationsForSearch(ctx)
 
 		// assert value circulations to records meili
-		if err := helper.AddDocumentsWithWait(clientCirc, "circulations", "id", circulations); err != nil {
+		if err := helper.AddDocumentsWithWait("circulations", "id", circulations); err != nil {
 			utils.WriteJSONError(w, http.StatusInternalServerError, err)
 			return
 		}
 	}
+
+	// initial clientCirc meili
+	clientCirc := utils.NewMSClient
 
 	res, err := clientCirc.Index("circulations").SearchWithContext(ctx, query, &meilisearch.SearchRequest{
 		Limit: 10,

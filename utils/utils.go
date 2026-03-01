@@ -416,8 +416,8 @@ func R2GetObject(ctx context.Context, keyFilepath string) (*s3.GetObjectOutput, 
 	}
 
 	output, err := clientR2.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: &config.Env.CFBucketName,
-		Key:    &keyFilepath,
+		Bucket: aws.String(config.Env.CFBucketName),
+		Key:    aws.String(keyFilepath),
 	})
 	if err != nil {
 		var noKey *types.NoSuchKey
@@ -491,9 +491,9 @@ func SetNewFilenameImg(ctx context.Context, filenameMode string, headerSrcFile *
 		keyFilepath := path.Join(directoryPath, newFilename)
 
 		_, err = clientR2.PutObject(ctx, &s3.PutObjectInput{
-			Bucket:      &bucketR2,
+			Bucket:      aws.String(bucketR2),
 			Body:        srcFile,
-			Key:         &keyFilepath,
+			Key:         aws.String(keyFilepath),
 			ContentType: aws.String(headerSrcFile.Header.Get("Content-Type")),
 		})
 		if err != nil {
@@ -581,9 +581,9 @@ func UpdateTheFilenameImg(ctx context.Context, filenameMode string, headerSrcFil
 		}
 
 		_, err = clientR2.PutObject(ctx, &s3.PutObjectInput{
-			Bucket:      &bucketR2,
+			Bucket:      aws.String(bucketR2),
 			Body:        srcFile,
-			Key:         &newKeyFilepath,
+			Key:         aws.String(newKeyFilepath),
 			ContentType: aws.String(headerSrcFile.Header.Get("Content-Type")),
 		})
 		if err != nil {
@@ -643,8 +643,8 @@ func SetOriginalFilenamePDF(ctx context.Context, headerSrcFilePDF *multipart.Fil
 			}
 
 			_, err = clientR2.PutObject(ctx, &s3.PutObjectInput{
-				Bucket:      &bucketR2,
-				Key:         &keyFilePath,
+				Bucket:      aws.String(bucketR2),
+				Key:         aws.String(keyFilePath),
 				Body:        srcFilePDF,
 				ContentType: aws.String(headerSrcFilePDF.Header.Get("Content-Type")),
 			})
@@ -692,6 +692,8 @@ func UpdateTheOriginalFilenamePDF(ctx context.Context, headerSrcFilePDF *multipa
 		return oldKeyFilePDFPath, err
 	}
 
+	defer srcFilePDF.Close()
+
 	newFilePDF := headerSrcFilePDF.Filename
 
 	fileExt := filepath.Ext(newFilePDF)
@@ -717,8 +719,8 @@ func UpdateTheOriginalFilenamePDF(ctx context.Context, headerSrcFilePDF *multipa
 			}
 
 			_, err = clientR2.PutObject(ctx, &s3.PutObjectInput{
-				Bucket:      &bucketR2,
-				Key:         &keyFilepath,
+				Bucket:      aws.String(bucketR2),
+				Key:         aws.String(keyFilepath),
 				Body:        srcFilePDF,
 				ContentType: aws.String(headerSrcFilePDF.Header.Get("Content-Type")),
 			})
@@ -773,7 +775,7 @@ func DeleteFilepathWithFilename(ctx context.Context, keyFilepaths ...string) err
 	}
 
 	delOutput, err := clientR2.DeleteObjects(ctx, &s3.DeleteObjectsInput{
-		Bucket: &bucketR2,
+		Bucket: aws.String(bucketR2),
 		Delete: &types.Delete{
 			Objects: newDelObjs,
 			Quiet:   aws.Bool(true),
@@ -939,14 +941,31 @@ func InvalidateAllKeysInCache(rdb *redis.Client, ctx context.Context) error {
 	return nil
 }
 
-func IsIndexMeiliAvailable(ctx context.Context, client meilisearch.ServiceManager, index string) bool {
+func IsIndexMeiliAvailable(ctx context.Context, index string) bool {
 	if len(index) < 1 {
 		return false
 	}
 
-	if _, err := client.GetIndexWithContext(ctx, index); err != nil {
+	if _, err := NewMSClient.GetIndexWithContext(ctx, index); err != nil {
 		return false
 	}
 
 	return true
+}
+
+func InvalidateIndexMeili(ctx context.Context, index string) error {
+	if len(index) < 1 {
+		return errors.New("the index was empty")
+	}
+
+	task, err := NewMSClient.DeleteIndexWithContext(ctx, index)
+	if err != nil {
+		return err
+	}
+
+	if task.Status == "failed" {
+		return errors.New("the process of task is incorrectly")
+	}
+
+	return nil
 }

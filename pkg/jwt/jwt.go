@@ -44,8 +44,9 @@ var (
 // Authentication using JWT.
 func (j *AuthJWT) AuthWithJWTToken(h http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// initial context for http.request start from here, this was peak *http.Request server
-		ctx := r.Context()
+		// initial context for http.request start from here, this was peak of *http.Request
+		ctx, cancel := context.WithTimeout(r.Context(), time.Duration(5)*time.Second)
+		defer cancel()
 
 		tokenString := utils.GetTokenFromRequest(r)
 
@@ -84,9 +85,6 @@ func (j *AuthJWT) AuthWithJWTToken(h http.HandlerFunc) http.HandlerFunc {
 			log.Println("type assertion failed")
 			return
 		}
-
-		ctx, cancel := context.WithTimeout(ctx, time.Duration(5)*time.Second)
-		defer cancel()
 
 		u, err := j.us.GetUserWithRolesByID(ctx, userID)
 		if err != nil {

@@ -2,7 +2,6 @@ package config
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -26,7 +25,7 @@ func R2Storage(ctx context.Context) (*s3.Client, error) {
 	}
 
 	client := s3.NewFromConfig(cfg, func(o *s3.Options) {
-		o.BaseEndpoint = aws.String(fmt.Sprintf("https://%s.r2.cloudflarestorage.com", Env.CFAccountID))
+		o.BaseEndpoint = aws.String(Env.CFEndpoint)
 
 		// set default endpoint r2
 		o.UsePathStyle = true

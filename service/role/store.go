@@ -134,6 +134,10 @@ func (s *Store) CreateRole(ctx context.Context, r *types.Role) error {
 		return err
 	}
 
+	if err := utils.InvalidateIndexMeili(ctx, "roles"); err != nil {
+		return err
+	}
+
 	_, err = stmt.ExecContext(ctx, r.ID, r.Name)
 	return err
 }
@@ -150,12 +154,20 @@ func (s *Store) UpdateRole(ctx context.Context, id string, r *types.Role) error 
 		return err
 	}
 
+	if err := utils.InvalidateIndexMeili(ctx, "roles"); err != nil {
+		return err
+	}
+
 	_, err = stmt.ExecContext(ctx, r.Name, id)
 	return err
 }
 
 func (s *Store) DeleteRole(ctx context.Context, id string) error {
 	if err := utils.InvalidateAllKeysInCache(s.rdb, ctx); err != nil {
+		return err
+	}
+
+	if err := utils.InvalidateIndexMeili(ctx, "roles"); err != nil {
 		return err
 	}
 

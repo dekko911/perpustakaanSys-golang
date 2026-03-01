@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"runtime"
 	"runtime/debug"
 
 	"github.com/go-sql-driver/mysql"
@@ -50,7 +49,7 @@ func init() {
 }
 
 func main() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
+	ctx := context.Background()
 
 	defer mysqlDB.Close() // <- just set mysqlDB close func for safety reason.
 
@@ -66,8 +65,6 @@ func main() {
 	default:
 		log.Fatalf("invalid app env: %s", config.Env.AppENV)
 	}
-
-	ctx := context.Background()
 
 	pingMysqlDB(ctx, mysqlDB)
 

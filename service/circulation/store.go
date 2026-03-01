@@ -297,6 +297,10 @@ func (s *Store) CreateCirculation(ctx context.Context, c *types.Circulation) err
 		return err
 	}
 
+	if err := utils.InvalidateIndexMeili(ctx, "circulations"); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -310,12 +314,20 @@ func (s *Store) UpdateCirculation(ctx context.Context, id string, c *types.Circu
 		return err
 	}
 
+	if err := utils.InvalidateIndexMeili(ctx, "circulations"); err != nil {
+		return err
+	}
+
 	_, err = stmt.ExecContext(ctx, c.BukuID, c.Peminjam, c.TanggalPinjam, c.JatuhTempo, c.Denda, id)
 	return err
 }
 
 func (s *Store) DeleteCirculation(ctx context.Context, id string) error {
 	if err := utils.InvalidateAllKeysInCache(s.rdb, ctx); err != nil {
+		return err
+	}
+
+	if err := utils.InvalidateIndexMeili(ctx, "circulations"); err != nil {
 		return err
 	}
 
