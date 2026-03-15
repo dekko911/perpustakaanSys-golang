@@ -25,7 +25,7 @@ func NewStore(db *sql.DB, rdb *redis.Client) *Store {
 	return &Store{db: db, rdb: rdb}
 }
 
-func (s *Store) GetUsersWithPagination(ctx context.Context, page int) ([]*types.User, int64, error) {
+func (s *Store) GetUsersWithPagination(ctx context.Context, page int) ([]*types.User, int64, int64, error) {
 	if page < 1 {
 		page = 1 // set default page
 	}
@@ -35,7 +35,7 @@ func (s *Store) GetUsersWithPagination(ctx context.Context, page int) ([]*types.
 
 	usersKey, err := utils.SetRedisKeyForPagination("users", page, limit)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, 0, err
 	}
 
 	res, err := s.rdb.Get(ctx, usersKey).Bytes()
@@ -43,14 +43,14 @@ func (s *Store) GetUsersWithPagination(ctx context.Context, page int) ([]*types.
 		data := &types.UsersCachePage{}
 
 		if err := sonic.Unmarshal(res, data); err == nil {
-			return data.Users, data.LastPage, err
+			return data.Users, data.LastPage, data.TotalData, nil
 		}
 
 		s.rdb.Del(ctx, usersKey)
 	} else if err != redis.Nil {
 
 		s.rdb.Del(ctx, usersKey)
-		return nil, 0, err
+		return nil, 0, 0, err
 	}
 
 	query := fmt.Sprintf(`SELECT 
@@ -74,27 +74,27 @@ func (s *Store) GetUsersWithPagination(ctx context.Context, page int) ([]*types.
 
 	stmt, err := s.db.Prepare(query)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, 0, err
 	}
 
 	defer stmt.Close()
 
 	rows, err := stmt.QueryContext(ctx)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, 0, err
 	}
 
 	defer rows.Close()
 
 	usersMap := make(map[string]*types.User)
 
-	// init variable lastPage the rows users
-	var lastPage int64
+	// init variable lastPage & totalData the rows users
+	var lastPage, totalData int64
 
 	for rows.Next() { // <- while loop
 		user, role, total, err := helper.ScanAndCountRowsUserAndRole(rows)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, 0, err
 		}
 
 		// count all the users and sum & divide to get the lastPage
@@ -111,6 +111,8 @@ func (s *Store) GetUsersWithPagination(ctx context.Context, page int) ([]*types.
 		if role != nil {
 			u.Roles = append(u.Roles, *role) // add roles data to usersMap
 		}
+
+		totalData = total
 	}
 
 	users := make([]*types.User, 0, len(usersMap))
@@ -120,8 +122,9 @@ func (s *Store) GetUsersWithPagination(ctx context.Context, page int) ([]*types.
 	}
 
 	payloadUsers := types.UsersCachePage{
-		Users:    users,
-		LastPage: lastPage,
+		Users:     users,
+		TotalData: totalData,
+		LastPage:  lastPage,
 	}
 
 	// set redis db and meili
@@ -129,8 +132,7 @@ func (s *Store) GetUsersWithPagination(ctx context.Context, page int) ([]*types.
 		s.rdb.SetEx(ctx, usersKey, data, time.Duration(2)*time.Minute)
 	}
 
-	// TODO: buat presigned url untuk showing files dari r2 cloudflare, buat map agar bisa terkelompok
-	return users, lastPage, nil
+	return users, lastPage, totalData, nil
 }
 
 func (s *Store) GetUsersForSearch(ctx context.Context) []*types.User {

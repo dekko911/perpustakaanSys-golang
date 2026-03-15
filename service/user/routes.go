@@ -56,18 +56,19 @@ func (h *Handler) handleGetUsers(w http.ResponseWriter, r *http.Request) {
 
 	page := utils.ParseStringToInt(r.URL.Query().Get("page"))
 
-	users, lastPage, err := h.userStore.GetUsersWithPagination(ctx, page)
+	users, lastPage, total, err := h.userStore.GetUsersWithPagination(ctx, page)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
 	utils.WriteJSON(w, cok, utils.JsonResponse{
-		Code:     cok,
-		Data:     users,
-		LastPage: lastPage,
-		Page:     page,
-		Status:   http.StatusText(cok),
+		Code:      cok,
+		Data:      users,
+		LastPage:  lastPage,
+		Page:      page,
+		TotalData: total,
+		Status:    http.StatusText(cok),
 	})
 }
 

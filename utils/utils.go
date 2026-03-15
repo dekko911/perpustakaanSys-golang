@@ -74,10 +74,11 @@ type JsonResponse struct {
 	Message string `json:"message,omitempty"`
 	Status  string `json:"status,omitempty"`
 
-	Page     int   `json:"page,omitempty"`
-	LastPage int64 `json:"last_page,omitempty"`
-	Line     int   `json:"line,omitempty"`
-	Code     int   `json:"code,omitempty"`
+	Page      int   `json:"page,omitempty"`
+	LastPage  int64 `json:"last_page,omitempty"`
+	TotalData int64 `json:"total_data,omitempty"`
+	Line      int   `json:"line,omitempty"`
+	Code      int   `json:"code,omitempty"`
 }
 
 // IsTesting returns true if the code is being executed in a test environment,
@@ -123,7 +124,7 @@ func WriteJSON(w http.ResponseWriter, statusCode int, d JsonResponse) error {
 	// encoder = Go -> change format -> JSON
 	// decoder = JSON -> change format -> Go
 
-	return cfg.Froze().NewEncoder(w).Encode(d)
+	return cfg.Froze().NewEncoder(w).Encode(&d)
 }
 
 // WriteJSONError writes an error response in JSON format to the provided http.ResponseWriter.

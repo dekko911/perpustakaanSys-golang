@@ -23,11 +23,13 @@ type User struct {
 type UsersCachePage struct {
 	Users []*User `json:"users"`
 
+	TotalData int64 `json:"total"`
+
 	LastPage int64 `json:"last_page"`
 }
 
 type UserStore interface {
-	GetUsersWithPagination(ctx context.Context, page int) ([]*User, int64, error)
+	GetUsersWithPagination(ctx context.Context, page int) ([]*User, int64, int64, error)
 	GetUsersForSearch(ctx context.Context) []*User
 
 	GetUserWithRolesByID(ctx context.Context, id string) (*User, error)

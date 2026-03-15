@@ -8,8 +8,8 @@ import (
 // mock user store for test purpose
 type MockUserStore struct{}
 
-func (m MockUserStore) GetUsersWithPagination(ctx context.Context, page int) ([]*User, int64, error) {
-	return nil, 0, nil
+func (m MockUserStore) GetUsersWithPagination(ctx context.Context, page int) ([]*User, int64, int64, error) {
+	return nil, 0, 0, nil
 }
 
 func (m MockUserStore) GetUsersForSearch(ctx context.Context) []*User {
