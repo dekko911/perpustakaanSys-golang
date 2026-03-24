@@ -60,18 +60,19 @@ func (h *Handler) handleGetBooks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	books, lastPage, err := h.bookStore.GetBooksWithPagination(ctx, page)
+	books, lastPage, total, err := h.bookStore.GetBooksWithPagination(ctx, page)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
 	utils.WriteJSON(w, cok, utils.JsonResponse{
-		Code:     cok,
-		Data:     books,
-		Page:     page,
-		LastPage: lastPage,
-		Status:   http.StatusText(cok),
+		Code:      cok,
+		Data:      books,
+		Page:      page,
+		LastPage:  lastPage,
+		TotalData: total,
+		Status:    http.StatusText(cok),
 	})
 }
 

@@ -25,7 +25,7 @@ func NewStore(db *sql.DB, rdb *redis.Client) *Store {
 	return &Store{db: db, rdb: rdb}
 }
 
-func (s *Store) GetMembersWithPagination(ctx context.Context, page int) ([]*types.Member, int64, error) {
+func (s *Store) GetMembersWithPagination(ctx context.Context, page int) ([]*types.Member, int64, int64, error) {
 	if page < 1 {
 		page = 1 // set default page
 	}
@@ -37,7 +37,7 @@ func (s *Store) GetMembersWithPagination(ctx context.Context, page int) ([]*type
 
 	membersKey, err := utils.SetRedisKeyForPagination("members", page, limitPage)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, 0, err
 	}
 
 	res, err := s.rdb.Get(ctx, membersKey).Bytes()
@@ -45,58 +45,61 @@ func (s *Store) GetMembersWithPagination(ctx context.Context, page int) ([]*type
 		data := &types.MembersCachePage{}
 
 		if err := sonic.Unmarshal(res, data); err == nil {
-			return data.Members, data.LastPage, nil
+			return data.Members, data.LastPage, data.TotalData, nil
 		}
 
 		s.rdb.Del(ctx, membersKey)
 	} else if err != redis.Nil {
 
 		s.rdb.Del(ctx, membersKey)
-		return nil, 0, err
+		return nil, 0, 0, err
 	}
 
 	query := fmt.Sprintf("SELECT m.id, m.id_anggota, m.nama, m.jenis_kelamin, m.kelas, m.no_telepon, m.profil_anggota, m.created_at, m.updated_at, COUNT(*) OVER() AS num_rows FROM members m GROUP BY m.id ORDER BY %s %s LIMIT %d OFFSET %d", sortByColumn, sortOrder, limitPage, (page-1)*limitPage)
 
 	stmt, err := s.db.Prepare(query)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, 0, err
 	}
 
 	defer stmt.Close()
 
 	rows, err := stmt.QueryContext(ctx)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, 0, err
 	}
 
 	defer rows.Close()
 
 	members := make([]*types.Member, 0)
 
-	// init lastPage
-	var lastPage int64
+	// init lastPage & totalData for books
+	var lastPage, totalData int64
 
 	for rows.Next() {
 		m, count, err := helper.ScanAndCountRowsMember(rows)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, 0, err
 		}
 
 		lastPage = int64(math.Ceil(float64(count) / float64(limitPage)))
 
 		members = append(members, m)
+
+		totalData = count
 	}
 
 	payloadMembers := types.MembersCachePage{
-		Members:  members,
-		LastPage: lastPage,
+		Members:   members,
+		TotalData: totalData,
+		LastPage:  lastPage,
 	}
 
 	if data, err := sonic.Marshal(payloadMembers); err == nil {
 		s.rdb.SetEx(ctx, membersKey, data, time.Duration(2)*time.Minute)
 	}
 
-	return members, lastPage, nil
+	return members, lastPage, totalData, nil
 }
 
 func (s *Store) GetMembersForSearch(ctx context.Context) []*types.Member {

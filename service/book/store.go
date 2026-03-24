@@ -25,7 +25,7 @@ func NewStore(db *sql.DB, rdb *redis.Client) *Store {
 	return &Store{db: db, rdb: rdb}
 }
 
-func (s *Store) GetBooksWithPagination(ctx context.Context, page int) ([]*types.Book, int64, error) {
+func (s *Store) GetBooksWithPagination(ctx context.Context, page int) ([]*types.Book, int64, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -37,7 +37,7 @@ func (s *Store) GetBooksWithPagination(ctx context.Context, page int) ([]*types.
 
 	booksKey, err := utils.SetRedisKeyForPagination("books", page, limit)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, 0, err
 	}
 
 	res, err := s.rdb.Get(ctx, booksKey).Bytes()
@@ -45,57 +45,60 @@ func (s *Store) GetBooksWithPagination(ctx context.Context, page int) ([]*types.
 		data := &types.BooksCachePage{}
 
 		if err := sonic.Unmarshal(res, data); err == nil {
-			return data.Books, data.LastPage, nil
+			return data.Books, data.LastPage, data.TotalData, nil
 		}
 
 		s.rdb.Del(ctx, booksKey)
 	} else if err != redis.Nil {
 
 		s.rdb.Del(ctx, booksKey)
-		return nil, 0, err
+		return nil, 0, 0, err
 	}
 
 	query := fmt.Sprintf("SELECT b.id, b.id_buku, b.judul_buku, b.cover_buku, b.buku_pdf, b.penulis, b.pengarang, b.tahun, b.created_at, b.updated_at, COUNT(*) OVER() AS num_rows FROM books b GROUP BY b.id ORDER BY %s %s LIMIT %d OFFSET %d", sortByColumn, sortOrder, limit, (page-1)*limit)
 
 	stmt, err := s.db.Prepare(query)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, 0, err
 	}
 
 	defer stmt.Close()
 
 	rows, err := stmt.QueryContext(ctx)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, 0, err
 	}
 
 	defer rows.Close()
 
 	books := make([]*types.Book, 0)
 
-	var lastPage int64
+	var lastPage, totalData int64
 
 	for rows.Next() {
-		b, total, err := helper.ScanAndCountRowsBook(rows)
+		b, count, err := helper.ScanAndCountRowsBook(rows)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, 0, err
 		}
 
-		lastPage = int64(math.Ceil(float64(total) / float64(limit)))
+		lastPage = int64(math.Ceil(float64(count) / float64(limit)))
 
 		books = append(books, b)
+
+		totalData = count
 	}
 
 	payloadBooks := types.BooksCachePage{
-		Books:    books,
-		LastPage: lastPage,
+		Books:     books,
+		TotalData: totalData,
+		LastPage:  lastPage,
 	}
 
 	if data, err := sonic.Marshal(payloadBooks); err == nil {
 		s.rdb.SetEx(ctx, booksKey, data, time.Duration(2)*time.Minute)
 	}
 
-	return books, lastPage, nil
+	return books, lastPage, totalData, nil
 }
 
 func (s *Store) GetBooksForSearch(ctx context.Context) []*types.Book {

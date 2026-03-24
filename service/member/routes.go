@@ -58,18 +58,19 @@ func (h *Handler) handleGetMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	members, lastPage, err := h.memberStore.GetMembersWithPagination(ctx, page)
+	members, lastPage, total, err := h.memberStore.GetMembersWithPagination(ctx, page)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
 	utils.WriteJSON(w, cok, utils.JsonResponse{
-		Code:     cok,
-		Data:     members,
-		LastPage: lastPage,
-		Page:     page,
-		Status:   http.StatusText(cok),
+		Code:      cok,
+		Data:      members,
+		LastPage:  lastPage,
+		Page:      page,
+		TotalData: total,
+		Status:    http.StatusText(cok),
 	})
 }
 

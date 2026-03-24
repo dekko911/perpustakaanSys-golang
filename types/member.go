@@ -22,11 +22,13 @@ type Member struct {
 type MembersCachePage struct {
 	Members []*Member `json:"members"`
 
+	TotalData int64 `json:"total_data"`
+
 	LastPage int64 `json:"last_page"`
 }
 
 type MemberStore interface {
-	GetMembersWithPagination(ctx context.Context, page int) ([]*Member, int64, error)
+	GetMembersWithPagination(ctx context.Context, page int) ([]*Member, int64, int64, error)
 	GetMembersForSearch(ctx context.Context) []*Member
 
 	GetMemberByID(ctx context.Context, id string) (*Member, error)

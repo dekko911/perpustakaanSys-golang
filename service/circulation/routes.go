@@ -52,18 +52,19 @@ func (h *Handler) handleGetCirculations(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	circulations, lastPage, err := h.circulationStore.GetCirculationsWithPagination(ctx, page)
+	circulations, lastPage, total, err := h.circulationStore.GetCirculationsWithPagination(ctx, page)
 	if err != nil {
 		utils.WriteJSONError(w, http.StatusInternalServerError, err)
 		return
 	}
 
 	utils.WriteJSON(w, cok, utils.JsonResponse{
-		Code:     cok,
-		Data:     circulations,
-		Page:     page,
-		LastPage: lastPage,
-		Status:   http.StatusText(cok),
+		Code:      cok,
+		Data:      circulations,
+		Page:      page,
+		LastPage:  lastPage,
+		TotalData: total,
+		Status:    http.StatusText(cok),
 	})
 }
 

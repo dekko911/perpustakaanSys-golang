@@ -25,7 +25,7 @@ func NewStore(db *sql.DB, rdb *redis.Client) *Store {
 	return &Store{db: db, rdb: rdb}
 }
 
-func (s *Store) GetCirculationsWithPagination(ctx context.Context, page int) ([]*types.Circulation, int64, error) {
+func (s *Store) GetCirculationsWithPagination(ctx context.Context, page int) ([]*types.Circulation, int64, int64, error) {
 	if page < 1 {
 		page = 1
 	}
@@ -37,7 +37,7 @@ func (s *Store) GetCirculationsWithPagination(ctx context.Context, page int) ([]
 
 	circulationsKey, err := utils.SetRedisKeyForPagination("circulations", page, limit)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, 0, err
 	}
 
 	res, err := s.rdb.Get(ctx, circulationsKey).Bytes()
@@ -45,59 +45,64 @@ func (s *Store) GetCirculationsWithPagination(ctx context.Context, page int) ([]
 		data := &types.CirculationsCachePage{}
 
 		if err := sonic.Unmarshal(res, data); err != nil {
-			return data.Circulations, data.LastPage, nil
+			return data.Circulations, data.LastPage, data.TotalData, nil
 		}
 
 		s.rdb.Del(ctx, circulationsKey)
 	} else if err != redis.Nil {
 
 		s.rdb.Del(ctx, circulationsKey)
-		return nil, 0, err
+		return nil, 0, 0, err
 	}
 
 	query := fmt.Sprintf(`SELECT c.id, c.buku_id, c.id_skl, c.peminjam, c.tanggal_pinjam, c.jatuh_tempo, c.denda, c.created_at, c.updated_at, b.id, b.judul_buku, COUNT(*) OVER() AS num_rows FROM circulations c INNER JOIN books b ON c.buku_id = b.id GROUP BY c.id, b.id ORDER BY %s %s LIMIT %d OFFSET %d`, sortByColumn, sortOrder, limit, (page-1)*limit)
 
 	stmt, err := s.db.Prepare(query)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, 0, err
 	}
 
 	defer stmt.Close()
 
 	rows, err := stmt.QueryContext(ctx)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, 0, err
 	}
 
 	defer rows.Close()
 
 	circulations := make([]*types.Circulation, 0)
 
-	var lastPage int64
+	var lastPage, totalData int64
 
 	for rows.Next() {
-		circulation, book, total, err := helper.ScanAndCountRowsCirculation(rows)
+		circulation, book, count, err := helper.ScanAndCountRowsCirculation(rows)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, 0, err
 		}
 
-		lastPage = int64(math.Ceil(float64(total) / float64(limit)))
+		lastPage = int64(math.Ceil(float64(count) / float64(limit)))
 
 		circulation.Book = book
 
 		circulations = append(circulations, circulation)
+
+		totalData = count
 	}
 
 	payloadCirculations := types.CirculationsCachePage{
 		Circulations: circulations,
-		LastPage:     lastPage,
+
+		TotalData: totalData,
+
+		LastPage: lastPage,
 	}
 
 	if data, err := sonic.Marshal(payloadCirculations); err == nil {
 		s.rdb.SetEx(ctx, circulationsKey, data, time.Duration(2)*time.Minute)
 	}
 
-	return circulations, lastPage, nil
+	return circulations, lastPage, totalData, nil
 }
 
 func (s *Store) GetCirculationsForSearch(ctx context.Context) []*types.Circulation {

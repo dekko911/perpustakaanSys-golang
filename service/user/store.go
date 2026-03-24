@@ -92,13 +92,13 @@ func (s *Store) GetUsersWithPagination(ctx context.Context, page int) ([]*types.
 	var lastPage, totalData int64
 
 	for rows.Next() { // <- while loop
-		user, role, total, err := helper.ScanAndCountRowsUserAndRole(rows)
+		user, role, count, err := helper.ScanAndCountRowsUserAndRole(rows)
 		if err != nil {
 			return nil, 0, 0, err
 		}
 
 		// count all the users and sum & divide to get the lastPage
-		lastPage = int64(math.Ceil(float64(total) / float64(limit)))
+		lastPage = int64(math.Ceil(float64(count) / float64(limit)))
 
 		// (total + int64(limit) - 1) / int64(limit) another formula/rumus
 
@@ -112,7 +112,7 @@ func (s *Store) GetUsersWithPagination(ctx context.Context, page int) ([]*types.
 			u.Roles = append(u.Roles, *role) // add roles data to usersMap
 		}
 
-		totalData = total
+		totalData = count
 	}
 
 	users := make([]*types.User, 0, len(usersMap))

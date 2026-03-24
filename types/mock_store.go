@@ -92,8 +92,8 @@ func (m MockRoleStore) DeleteRole(ctx context.Context, id string) error {
 
 type MockMemberStore struct{}
 
-func (m MockMemberStore) GetMembersWithPagination(ctx context.Context, page int) ([]*Member, int64, error) {
-	return nil, 0, nil
+func (m MockMemberStore) GetMembersWithPagination(ctx context.Context, page int) ([]*Member, int64, int64, error) {
+	return nil, 0, 0, nil
 }
 func (m MockMemberStore) GetMembersForSearch(ctx context.Context) []*Member {
 	return nil
@@ -125,8 +125,8 @@ func (m MockMemberStore) DeleteMember(ctx context.Context, id string) error {
 
 type MockCirculationStore struct{}
 
-func (m MockCirculationStore) GetCirculationsWithPagination(ctx context.Context, page int) ([]*Circulation, int64, error) {
-	return nil, 0, nil
+func (m MockCirculationStore) GetCirculationsWithPagination(ctx context.Context, page int) ([]*Circulation, int64, int64, error) {
+	return nil, 0, 0, nil
 }
 
 func (m MockCirculationStore) GetCirculationsForSearch(ctx context.Context) []*Circulation {
@@ -155,8 +155,8 @@ func (m MockCirculationStore) DeleteCirculation(ctx context.Context, id string) 
 
 type MockBookStore struct{}
 
-func (m MockBookStore) GetBooksWithPagination(ctx context.Context, page int) ([]*Book, int64, error) {
-	return nil, 0, nil
+func (m MockBookStore) GetBooksWithPagination(ctx context.Context, page int) ([]*Book, int64, int64, error) {
+	return nil, 0, 0, nil
 }
 
 func (m MockBookStore) GetBooksForSearch(ctx context.Context) []*Book {
